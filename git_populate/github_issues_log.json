@@ -1,0 +1,4741 @@
+[
+  {
+    "id": 1,
+    "title": "Implement Auth Register API Endpoint for User Account Creation",
+    "status": "skipped",
+    "reason": "already exists"
+  },
+  {
+    "id": 2,
+    "title": "Implement Auth Login API Endpoint for Deshio ERP",
+    "status": "created",
+    "issue_number": 2,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/2",
+    "labels": [
+      "api:auth",
+      "backend",
+      "api-implementation",
+      "feature",
+      "public-api"
+    ],
+    "route": "api/auth/login",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 3,
+    "title": "Implement Auth Token Refresh Endpoint (POST /api/auth/refresh)",
+    "status": "created",
+    "issue_number": 3,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/3",
+    "labels": [
+      "api:auth",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/auth/refresh",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 4,
+    "title": "Implement Auth Logout Endpoint for Employee Sessions",
+    "status": "created",
+    "issue_number": 4,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/4",
+    "labels": [
+      "api:auth",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/auth/logout",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 5,
+    "title": "Implement Auth API: Logout All Sessions (POST /api/auth/logout-all)",
+    "status": "created",
+    "issue_number": 5,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/5",
+    "labels": [
+      "api:auth",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/auth/logout-all",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 6,
+    "title": "Implement GET /api/auth/me - Get Current User Profile",
+    "status": "created",
+    "issue_number": 6,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/6",
+    "labels": [
+      "enhancement",
+      "api:auth",
+      "authenticated",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/auth/me",
+    "method": "get",
+    "category": "auth"
+  },
+  {
+    "id": 7,
+    "title": "Implement Send Email Verification API (POST /api/auth/email/send-verification)",
+    "status": "created",
+    "issue_number": 7,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/7",
+    "labels": [
+      "api:auth",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/auth/email/send-verification",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 8,
+    "title": "Implement Verify Email API Endpoint (POST /api/auth/email/verify)",
+    "status": "created",
+    "issue_number": 8,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/8",
+    "labels": [
+      "api:auth",
+      "backend",
+      "api-implementation",
+      "feature",
+      "public-api"
+    ],
+    "route": "api/auth/email/verify",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 9,
+    "title": "Implement API: Resend Email Verification (POST /api/auth/email/resend)",
+    "status": "created",
+    "issue_number": 9,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/9",
+    "labels": [
+      "api:auth",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/auth/email/resend",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 10,
+    "title": "Implement Forgot Password API Endpoint (POST /api/auth/password/forgot)",
+    "status": "created",
+    "issue_number": 10,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/10",
+    "labels": [
+      "api:auth",
+      "backend",
+      "api-implementation",
+      "feature",
+      "public-api"
+    ],
+    "route": "api/auth/password/forgot",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 11,
+    "title": "Implement Reset Password API Endpoint (POST /api/auth/password/reset)",
+    "status": "created",
+    "issue_number": 11,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/11",
+    "labels": [
+      "api:auth",
+      "backend",
+      "api-implementation",
+      "feature",
+      "public-api"
+    ],
+    "route": "api/auth/password/reset",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 12,
+    "title": "Implement Change Password API Endpoint (POST /api/auth/password/change)",
+    "status": "created",
+    "issue_number": 12,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/12",
+    "labels": [
+      "api:auth",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/auth/password/change",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 13,
+    "title": "Implement API: Enable TOTP 2FA (POST /api/auth/2fa/enable)",
+    "status": "created",
+    "issue_number": 13,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/13",
+    "labels": [
+      "api:auth",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/auth/2fa/enable",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 14,
+    "title": "Implement Auth API: Verify 2FA TOTP Code Endpoint",
+    "status": "created",
+    "issue_number": 14,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/14",
+    "labels": [
+      "api:auth",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/auth/2fa/verify",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 15,
+    "title": "Implement API: Disable TOTP 2FA (POST /api/auth/2fa/disable)",
+    "status": "created",
+    "issue_number": 15,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/15",
+    "labels": [
+      "api:auth",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/auth/2fa/disable",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 16,
+    "title": "Implement API: Get 2FA Backup Codes (auth/2fa/backup-codes)",
+    "status": "created",
+    "issue_number": 16,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/16",
+    "labels": [
+      "enhancement",
+      "api:auth",
+      "authenticated",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/auth/2fa/backup-codes",
+    "method": "get",
+    "category": "auth"
+  },
+  {
+    "id": 17,
+    "title": "Implement Rotate API Key Endpoint (POST /api/auth/api-key/rotate)",
+    "status": "created",
+    "issue_number": 17,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/17",
+    "labels": [
+      "api:auth",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/auth/api-key/rotate",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 18,
+    "title": "Implement Token Introspect API Endpoint for Deshio Auth",
+    "status": "created",
+    "issue_number": 18,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/18",
+    "labels": [
+      "api:auth",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/auth/token/introspect",
+    "method": "post",
+    "category": "auth"
+  },
+  {
+    "id": 19,
+    "title": "Implement List Roles API Endpoint (GET /api/roles)",
+    "status": "created",
+    "issue_number": 19,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/19",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/roles",
+    "method": "get",
+    "category": "rbac"
+  },
+  {
+    "id": 20,
+    "title": "Implement Create Role API Endpoint (POST /api/roles)",
+    "status": "created",
+    "issue_number": 20,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/20",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:rbac"
+    ],
+    "route": "api/roles",
+    "method": "post",
+    "category": "rbac"
+  },
+  {
+    "id": 21,
+    "title": "Implement GET /api/roles/{id} to Retrieve Role Details",
+    "status": "created",
+    "issue_number": 21,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/21",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/roles/{id}",
+    "method": "get",
+    "category": "rbac"
+  },
+  {
+    "id": 22,
+    "title": "Implement Update Role API Endpoint (PUT /api/roles/{id})",
+    "status": "created",
+    "issue_number": 22,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/22",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/roles/{id}",
+    "method": "put",
+    "category": "rbac"
+  },
+  {
+    "id": 23,
+    "title": "Implement Delete Role API Endpoint (RBAC)",
+    "status": "created",
+    "issue_number": 23,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/23",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/roles/{id}",
+    "method": "delete",
+    "category": "rbac"
+  },
+  {
+    "id": 24,
+    "title": "Implement List Permissions API Endpoint (RBAC)",
+    "status": "created",
+    "issue_number": 24,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/24",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/permissions",
+    "method": "get",
+    "category": "rbac"
+  },
+  {
+    "id": 25,
+    "title": "Implement Create Permission API Endpoint (POST /api/permissions)",
+    "status": "created",
+    "issue_number": 25,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/25",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:rbac"
+    ],
+    "route": "api/permissions",
+    "method": "post",
+    "category": "rbac"
+  },
+  {
+    "id": 26,
+    "title": "Implement Get Permission API Endpoint (RBAC)",
+    "status": "created",
+    "issue_number": 26,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/26",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/permissions/{id}",
+    "method": "get",
+    "category": "rbac"
+  },
+  {
+    "id": 27,
+    "title": "Implement Update Permission API Endpoint (RBAC)",
+    "status": "created",
+    "issue_number": 27,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/27",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/permissions/{id}",
+    "method": "put",
+    "category": "rbac"
+  },
+  {
+    "id": 28,
+    "title": "Implement Delete Permission API Endpoint (RBAC)",
+    "status": "created",
+    "issue_number": 28,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/28",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/permissions/{id}",
+    "method": "delete",
+    "category": "rbac"
+  },
+  {
+    "id": 29,
+    "title": "Implement API: Grant Permission to Role (POST /roles/{role_id}/permissions)",
+    "status": "created",
+    "issue_number": 29,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/29",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:rbac"
+    ],
+    "route": "api/roles/{role_id}/permissions",
+    "method": "post",
+    "category": "rbac"
+  },
+  {
+    "id": 30,
+    "title": "Implement DELETE /api/roles/{role_id}/permissions/{permission_id} for RBAC",
+    "status": "created",
+    "issue_number": 30,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/30",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/roles/{role_id}/permissions/{permission_id}",
+    "method": "delete",
+    "category": "rbac"
+  },
+  {
+    "id": 31,
+    "title": "Implement API: List Role Permissions (GET /api/roles/{role_id}/permissions)",
+    "status": "created",
+    "issue_number": 31,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/31",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/roles/{role_id}/permissions",
+    "method": "get",
+    "category": "rbac"
+  },
+  {
+    "id": 32,
+    "title": "Implement API: Assign Role to User (POST /api/users/{user_id}/roles)",
+    "status": "created",
+    "issue_number": 32,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/32",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:rbac"
+    ],
+    "route": "api/users/{user_id}/roles",
+    "method": "post",
+    "category": "rbac"
+  },
+  {
+    "id": 33,
+    "title": "Implement DELETE api/users/{user_id}/roles/{role_id} for RBAC",
+    "status": "created",
+    "issue_number": 33,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/33",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/users/{user_id}/roles/{role_id}",
+    "method": "delete",
+    "category": "rbac"
+  },
+  {
+    "id": 34,
+    "title": "Implement API: List User Roles (GET /api/users/{user_id}/roles)",
+    "status": "created",
+    "issue_number": 34,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/34",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:rbac"
+    ],
+    "route": "api/users/{user_id}/roles",
+    "method": "get",
+    "category": "rbac"
+  },
+  {
+    "id": 35,
+    "title": "Implement RBAC Check Permission API Endpoint",
+    "status": "created",
+    "issue_number": 35,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/35",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:rbac"
+    ],
+    "route": "api/rbac/check",
+    "method": "post",
+    "category": "rbac"
+  },
+  {
+    "id": 36,
+    "title": "Implement RBAC Simulate Policy API Endpoint",
+    "status": "created",
+    "issue_number": 36,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/36",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:rbac"
+    ],
+    "route": "api/rbac/simulate",
+    "method": "post",
+    "category": "rbac"
+  },
+  {
+    "id": 37,
+    "title": "Implement List Users API Endpoint (GET /api/users)",
+    "status": "created",
+    "issue_number": 37,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/37",
+    "labels": [
+      "enhancement",
+      "api:user",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/users",
+    "method": "get",
+    "category": "user"
+  },
+  {
+    "id": 38,
+    "title": "Implement Create User API Endpoint (POST /api/users)",
+    "status": "created",
+    "issue_number": 38,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/38",
+    "labels": [
+      "api:user",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/users",
+    "method": "post",
+    "category": "user"
+  },
+  {
+    "id": 39,
+    "title": "Implement GET /api/users/{id} Endpoint for Admin",
+    "status": "created",
+    "issue_number": 39,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/39",
+    "labels": [
+      "enhancement",
+      "api:user",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/users/{id}",
+    "method": "get",
+    "category": "user"
+  },
+  {
+    "id": 40,
+    "title": "Implement Update User API Endpoint (PUT /api/users/{id})",
+    "status": "created",
+    "issue_number": 40,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/40",
+    "labels": [
+      "enhancement",
+      "api:user",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/users/{id}",
+    "method": "put",
+    "category": "user"
+  },
+  {
+    "id": 41,
+    "title": "Implement DELETE /api/users/{id} for Admin User Deletion",
+    "status": "created",
+    "issue_number": 41,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/41",
+    "labels": [
+      "enhancement",
+      "api:user",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/users/{id}",
+    "method": "delete",
+    "category": "user"
+  },
+  {
+    "id": 42,
+    "title": "Implement POST /api/users/{id}/activate Endpoint",
+    "status": "created",
+    "issue_number": 42,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/42",
+    "labels": [
+      "api:user",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/users/{id}/activate",
+    "method": "post",
+    "category": "user"
+  },
+  {
+    "id": 43,
+    "title": "Implement Deactivate User API Endpoint (POST /api/users/{id}/deactivate)",
+    "status": "created",
+    "issue_number": 43,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/43",
+    "labels": [
+      "api:user",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/users/{id}/deactivate",
+    "method": "post",
+    "category": "user"
+  },
+  {
+    "id": 44,
+    "title": "Implement Invite User API Endpoint (POST /api/users/invite)",
+    "status": "created",
+    "issue_number": 44,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/44",
+    "labels": [
+      "api:user",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/users/invite",
+    "method": "post",
+    "category": "user"
+  },
+  {
+    "id": 45,
+    "title": "Implement Resend Invite API for Users (POST /api/users/{id}/resend-invite)",
+    "status": "created",
+    "issue_number": 45,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/45",
+    "labels": [
+      "api:user",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/users/{id}/resend-invite",
+    "method": "post",
+    "category": "user"
+  },
+  {
+    "id": 46,
+    "title": "Implement API: List User Sessions (GET /api/users/{id}/sessions)",
+    "status": "created",
+    "issue_number": 46,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/46",
+    "labels": [
+      "enhancement",
+      "api:user",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/users/{id}/sessions",
+    "method": "get",
+    "category": "user"
+  },
+  {
+    "id": 47,
+    "title": "Implement Revoke Session API: DELETE /api/users/{id}/sessions/{session_id}",
+    "status": "created",
+    "issue_number": 47,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/47",
+    "labels": [
+      "enhancement",
+      "api:user",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/users/{id}/sessions/{session_id}",
+    "method": "delete",
+    "category": "user"
+  },
+  {
+    "id": 48,
+    "title": "Implement GET /api/categories - List Paginated Categories",
+    "status": "created",
+    "issue_number": 48,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/48",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:category"
+    ],
+    "route": "api/categories",
+    "method": "get",
+    "category": "category"
+  },
+  {
+    "id": 49,
+    "title": "Implement POST /api/categories for Creating Categories",
+    "status": "created",
+    "issue_number": 49,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/49",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:category"
+    ],
+    "route": "api/categories",
+    "method": "post",
+    "category": "category"
+  },
+  {
+    "id": 50,
+    "title": "Implement GET /api/categories/{id} Endpoint for Category Retrieval",
+    "status": "created",
+    "issue_number": 50,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/50",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:category"
+    ],
+    "route": "api/categories/{id}",
+    "method": "get",
+    "category": "category"
+  },
+  {
+    "id": 51,
+    "title": "Implement PUT /api/categories/{id} - Update Category",
+    "status": "created",
+    "issue_number": 51,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/51",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:category"
+    ],
+    "route": "api/categories/{id}",
+    "method": "put",
+    "category": "category"
+  },
+  {
+    "id": 52,
+    "title": "Implement DELETE /api/categories/{id} for Category Deletion",
+    "status": "created",
+    "issue_number": 52,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/52",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:category"
+    ],
+    "route": "api/categories/{id}",
+    "method": "delete",
+    "category": "category"
+  },
+  {
+    "id": 53,
+    "title": "Implement GET /api/vendors - List Vendors Endpoint",
+    "status": "created",
+    "issue_number": 53,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/53",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:vendor"
+    ],
+    "route": "api/vendors",
+    "method": "get",
+    "category": "vendor"
+  },
+  {
+    "id": 54,
+    "title": "Implement Create Vendor API Endpoint (POST /api/vendors)",
+    "status": "created",
+    "issue_number": 54,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/54",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:vendor"
+    ],
+    "route": "api/vendors",
+    "method": "post",
+    "category": "vendor"
+  },
+  {
+    "id": 55,
+    "title": "Implement GET /api/vendors/{id} Endpoint for Vendor Retrieval",
+    "status": "created",
+    "issue_number": 55,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/55",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:vendor"
+    ],
+    "route": "api/vendors/{id}",
+    "method": "get",
+    "category": "vendor"
+  },
+  {
+    "id": 56,
+    "title": "Implement PUT /api/vendors/{id} - Update Vendor Endpoint",
+    "status": "created",
+    "issue_number": 56,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/56",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:vendor"
+    ],
+    "route": "api/vendors/{id}",
+    "method": "put",
+    "category": "vendor"
+  },
+  {
+    "id": 57,
+    "title": "Implement DELETE /api/vendors/{id} for Vendor Deletion",
+    "status": "created",
+    "issue_number": 57,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/57",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:vendor"
+    ],
+    "route": "api/vendors/{id}",
+    "method": "delete",
+    "category": "vendor"
+  },
+  {
+    "id": 58,
+    "title": "Implement List Products API Endpoint (GET /api/products)",
+    "status": "created",
+    "issue_number": 58,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/58",
+    "labels": [
+      "api:product",
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/products",
+    "method": "get",
+    "category": "product"
+  },
+  {
+    "id": 59,
+    "title": "Implement Create Product API Endpoint",
+    "status": "created",
+    "issue_number": 59,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/59",
+    "labels": [
+      "api:product",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/products",
+    "method": "post",
+    "category": "product"
+  },
+  {
+    "id": 60,
+    "title": "Implement GET /api/products/{id} to Retrieve Product by ID",
+    "status": "created",
+    "issue_number": 60,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/60",
+    "labels": [
+      "api:product",
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/products/{id}",
+    "method": "get",
+    "category": "product"
+  },
+  {
+    "id": 61,
+    "title": "Implement Update Product API Endpoint (PUT /api/products/{id})",
+    "status": "created",
+    "issue_number": 61,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/61",
+    "labels": [
+      "api:product",
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/products/{id}",
+    "method": "put",
+    "category": "product"
+  },
+  {
+    "id": 62,
+    "title": "Implement DELETE /api/products/{id} Endpoint for Admin",
+    "status": "created",
+    "issue_number": 62,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/62",
+    "labels": [
+      "api:product",
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/products/{id}",
+    "method": "delete",
+    "category": "product"
+  },
+  {
+    "id": 63,
+    "title": "Implement List Fields API Endpoint (GET /api/fields)",
+    "status": "created",
+    "issue_number": 63,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/63",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:field"
+    ],
+    "route": "api/fields",
+    "method": "get",
+    "category": "field"
+  },
+  {
+    "id": 64,
+    "title": "Implement Create Field API Endpoint (POST /api/fields)",
+    "status": "created",
+    "issue_number": 64,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/64",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:field"
+    ],
+    "route": "api/fields",
+    "method": "post",
+    "category": "field"
+  },
+  {
+    "id": 65,
+    "title": "Implement GET /api/fields/{id} for Field Retrieval",
+    "status": "created",
+    "issue_number": 65,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/65",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:field"
+    ],
+    "route": "api/fields/{id}",
+    "method": "get",
+    "category": "field"
+  },
+  {
+    "id": 66,
+    "title": "Implement Update Field API Endpoint (PUT /api/fields/{id})",
+    "status": "created",
+    "issue_number": 66,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/66",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:field"
+    ],
+    "route": "api/fields/{id}",
+    "method": "put",
+    "category": "field"
+  },
+  {
+    "id": 67,
+    "title": "Implement Delete Field API Endpoint (DELETE /api/fields/{id})",
+    "status": "created",
+    "issue_number": 67,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/67",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:field"
+    ],
+    "route": "api/fields/{id}",
+    "method": "delete",
+    "category": "field"
+  },
+  {
+    "id": 68,
+    "title": "Implement API: POST /api/products/{id}/features - Attach Feature",
+    "status": "created",
+    "issue_number": 68,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/68",
+    "labels": [
+      "api:feature",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/products/{id}/features",
+    "method": "post",
+    "category": "feature"
+  },
+  {
+    "id": 69,
+    "title": "Implement DELETE /api/products/{id}/features/{feature_id} to Remove Product Feature",
+    "status": "created",
+    "issue_number": 69,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/69",
+    "labels": [
+      "enhancement",
+      "api:feature",
+      "admin-only",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/products/{id}/features/{feature_id}",
+    "method": "delete",
+    "category": "feature"
+  },
+  {
+    "id": 70,
+    "title": "Implement Bulk Import Products API Endpoint",
+    "status": "created",
+    "issue_number": 70,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/70",
+    "labels": [
+      "api:product",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/products/import",
+    "method": "post",
+    "category": "product"
+  },
+  {
+    "id": 71,
+    "title": "Implement Bulk Export Products API (GET /api/products/export)",
+    "status": "created",
+    "issue_number": 71,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/71",
+    "labels": [
+      "api:product",
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/products/export",
+    "method": "get",
+    "category": "product"
+  },
+  {
+    "id": 72,
+    "title": "Implement Archive Product API Endpoint (POST /api/products/{id}/archive)",
+    "status": "created",
+    "issue_number": 72,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/72",
+    "labels": [
+      "api:product",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/products/{id}/archive",
+    "method": "post",
+    "category": "product"
+  },
+  {
+    "id": 73,
+    "title": "Implement Restore Product API Endpoint (POST /api/products/{id}/restore)",
+    "status": "created",
+    "issue_number": 73,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/73",
+    "labels": [
+      "api:product",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/products/{id}/restore",
+    "method": "post",
+    "category": "product"
+  },
+  {
+    "id": 74,
+    "title": "Implement List Stores API Endpoint (GET /api/stores)",
+    "status": "created",
+    "issue_number": 74,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/74",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:store"
+    ],
+    "route": "api/stores",
+    "method": "get",
+    "category": "store"
+  },
+  {
+    "id": 75,
+    "title": "Implement Create Store API Endpoint (POST /api/stores)",
+    "status": "created",
+    "issue_number": 75,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/75",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:store"
+    ],
+    "route": "api/stores",
+    "method": "post",
+    "category": "store"
+  },
+  {
+    "id": 76,
+    "title": "Implement GET /api/stores/{id} Endpoint for Store Retrieval",
+    "status": "created",
+    "issue_number": 76,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/76",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:store"
+    ],
+    "route": "api/stores/{id}",
+    "method": "get",
+    "category": "store"
+  },
+  {
+    "id": 77,
+    "title": "Implement Update Store API Endpoint (PUT /api/stores/{id})",
+    "status": "created",
+    "issue_number": 77,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/77",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:store"
+    ],
+    "route": "api/stores/{id}",
+    "method": "put",
+    "category": "store"
+  },
+  {
+    "id": 78,
+    "title": "Implement Delete Store API Endpoint (DELETE /api/stores/{id})",
+    "status": "created",
+    "issue_number": 78,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/78",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:store"
+    ],
+    "route": "api/stores/{id}",
+    "method": "delete",
+    "category": "store"
+  },
+  {
+    "id": 79,
+    "title": "Implement API: Set Online Status for Stores (POST /api/stores/{id}/online)",
+    "status": "created",
+    "issue_number": 79,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/79",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:store"
+    ],
+    "route": "api/stores/{id}/online",
+    "method": "post",
+    "category": "store"
+  },
+  {
+    "id": 80,
+    "title": "Implement Set Warehouse Flag API Endpoint for Stores",
+    "status": "created",
+    "issue_number": 80,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/80",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:store"
+    ],
+    "route": "api/stores/{id}/warehouse",
+    "method": "post",
+    "category": "store"
+  },
+  {
+    "id": 81,
+    "title": "Implement List Customers API Endpoint (GET /api/customers)",
+    "status": "created",
+    "issue_number": 81,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/81",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:customer"
+    ],
+    "route": "api/customers",
+    "method": "get",
+    "category": "customer"
+  },
+  {
+    "id": 82,
+    "title": "Implement POST /api/customers - Create Customer Endpoint",
+    "status": "created",
+    "issue_number": 82,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/82",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:customer"
+    ],
+    "route": "api/customers",
+    "method": "post",
+    "category": "customer"
+  },
+  {
+    "id": 83,
+    "title": "Implement GET /api/customers/{id} - Get Customer by ID",
+    "status": "created",
+    "issue_number": 83,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/83",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:customer"
+    ],
+    "route": "api/customers/{id}",
+    "method": "get",
+    "category": "customer"
+  },
+  {
+    "id": 84,
+    "title": "Implement Update Customer API (PUT /api/customers/{id})",
+    "status": "created",
+    "issue_number": 84,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/84",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:customer"
+    ],
+    "route": "api/customers/{id}",
+    "method": "put",
+    "category": "customer"
+  },
+  {
+    "id": 85,
+    "title": "Implement DELETE /api/customers/{id} for Deleting Customers",
+    "status": "created",
+    "issue_number": 85,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/85",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:customer"
+    ],
+    "route": "api/customers/{id}",
+    "method": "delete",
+    "category": "customer"
+  },
+  {
+    "id": 86,
+    "title": "Implement Merge Customers API Endpoint (POST /api/customers/merge)",
+    "status": "created",
+    "issue_number": 86,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/86",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:customer"
+    ],
+    "route": "api/customers/merge",
+    "method": "post",
+    "category": "customer"
+  },
+  {
+    "id": 87,
+    "title": "Implement GET /api/batches - List Paginated Batches",
+    "status": "created",
+    "issue_number": 87,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/87",
+    "labels": [
+      "enhancement",
+      "api:batch",
+      "authenticated",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/batches",
+    "method": "get",
+    "category": "batch"
+  },
+  {
+    "id": 88,
+    "title": "Implement Create Batch API Endpoint (POST /api/batches)",
+    "status": "created",
+    "issue_number": 88,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/88",
+    "labels": [
+      "api:batch",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/batches",
+    "method": "post",
+    "category": "batch"
+  },
+  {
+    "id": 89,
+    "title": "Implement GET /api/batches/{id} to Retrieve Batch by ID",
+    "status": "created",
+    "issue_number": 89,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/89",
+    "labels": [
+      "enhancement",
+      "api:batch",
+      "authenticated",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/batches/{id}",
+    "method": "get",
+    "category": "batch"
+  },
+  {
+    "id": 90,
+    "title": "Implement Update Batch API Endpoint (PUT /api/batches/{id})",
+    "status": "created",
+    "issue_number": 90,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/90",
+    "labels": [
+      "enhancement",
+      "api:batch",
+      "admin-only",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/batches/{id}",
+    "method": "put",
+    "category": "batch"
+  },
+  {
+    "id": 91,
+    "title": "Implement DELETE /api/batches/{id} for Batch Deletion",
+    "status": "created",
+    "issue_number": 91,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/91",
+    "labels": [
+      "enhancement",
+      "api:batch",
+      "admin-only",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/batches/{id}",
+    "method": "delete",
+    "category": "batch"
+  },
+  {
+    "id": 92,
+    "title": "Implement Split Batch API Endpoint (POST /api/batches/{id}/split)",
+    "status": "created",
+    "issue_number": 92,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/92",
+    "labels": [
+      "api:batch",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/batches/{id}/split",
+    "method": "post",
+    "category": "batch"
+  },
+  {
+    "id": 93,
+    "title": "Implement Merge Batches API Endpoint (POST /api/batches/merge)",
+    "status": "created",
+    "issue_number": 93,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/93",
+    "labels": [
+      "api:batch",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/batches/merge",
+    "method": "post",
+    "category": "batch"
+  },
+  {
+    "id": 94,
+    "title": "Implement POST /api/batches/{id}/reprice for Batch Repricing",
+    "status": "created",
+    "issue_number": 94,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/94",
+    "labels": [
+      "api:batch",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/batches/{id}/reprice",
+    "method": "post",
+    "category": "batch"
+  },
+  {
+    "id": 95,
+    "title": "Implement API: Move Batch Ownership to Store (POST /api/batches/{id}/move-store)",
+    "status": "created",
+    "issue_number": 95,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/95",
+    "labels": [
+      "api:batch",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/batches/{id}/move-store",
+    "method": "post",
+    "category": "batch"
+  },
+  {
+    "id": 96,
+    "title": "Implement Inventory Snapshot API: GET /api/inventory",
+    "status": "created",
+    "issue_number": 96,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/96",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "api:inventory"
+    ],
+    "route": "api/inventory",
+    "method": "get",
+    "category": "inventory"
+  },
+  {
+    "id": 97,
+    "title": "Implement API: Reserve Inventory for Orders (POST /api/inventory/reserve)",
+    "status": "created",
+    "issue_number": 97,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/97",
+    "labels": [
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature",
+      "api:inventory"
+    ],
+    "route": "api/inventory/reserve",
+    "method": "post",
+    "category": "inventory"
+  },
+  {
+    "id": 98,
+    "title": "Implement Release Reservation API for Inventory",
+    "status": "created",
+    "issue_number": 98,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/98",
+    "labels": [
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature",
+      "api:inventory"
+    ],
+    "route": "api/inventory/reserve/{reservation_id}/release",
+    "method": "post",
+    "category": "inventory"
+  },
+  {
+    "id": 99,
+    "title": "Implement POST /api/inventory/transfer for Stock Transfers Between Stores",
+    "status": "created",
+    "issue_number": 99,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/99",
+    "labels": [
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature",
+      "api:inventory"
+    ],
+    "route": "api/inventory/transfer",
+    "method": "post",
+    "category": "inventory"
+  },
+  {
+    "id": 100,
+    "title": "Implement Adjust Stock API Endpoint for Inventory",
+    "status": "created",
+    "issue_number": 100,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/100",
+    "labels": [
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature",
+      "api:inventory"
+    ],
+    "route": "api/inventory/adjust",
+    "method": "post",
+    "category": "inventory"
+  },
+  {
+    "id": 101,
+    "title": "Implement API: Start Cycle Count (POST /api/inventory/cycle-counts)",
+    "status": "created",
+    "issue_number": 101,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/101",
+    "labels": [
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature",
+      "api:inventory"
+    ],
+    "route": "api/inventory/cycle-counts",
+    "method": "post",
+    "category": "inventory"
+  },
+  {
+    "id": 102,
+    "title": "Implement Submit Cycle Count API Endpoint",
+    "status": "created",
+    "issue_number": 102,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/102",
+    "labels": [
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature",
+      "api:inventory"
+    ],
+    "route": "api/inventory/cycle-counts/{id}/submit",
+    "method": "post",
+    "category": "inventory"
+  },
+  {
+    "id": 103,
+    "title": "Implement Recount Cycle API Endpoint for Inventory",
+    "status": "created",
+    "issue_number": 103,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/103",
+    "labels": [
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature",
+      "api:inventory"
+    ],
+    "route": "api/inventory/cycle-counts/{id}/recount",
+    "method": "post",
+    "category": "inventory"
+  },
+  {
+    "id": 104,
+    "title": "Implement GET /api/inventory/cycle-counts/{id}/discrepancies Endpoint",
+    "status": "created",
+    "issue_number": 104,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/104",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:inventory"
+    ],
+    "route": "api/inventory/cycle-counts/{id}/discrepancies",
+    "method": "get",
+    "category": "inventory"
+  },
+  {
+    "id": 105,
+    "title": "Implement Inventory Ledger API Endpoint (GET /api/inventory/ledger)",
+    "status": "created",
+    "issue_number": 105,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/105",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:inventory"
+    ],
+    "route": "api/inventory/ledger",
+    "method": "get",
+    "category": "inventory"
+  },
+  {
+    "id": 106,
+    "title": "Implement List Dispatches API Endpoint (GET /api/dispatches)",
+    "status": "created",
+    "issue_number": 106,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/106",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches",
+    "method": "get",
+    "category": "dispatch"
+  },
+  {
+    "id": 107,
+    "title": "Implement POST /api/dispatches - Create Dispatch Endpoint",
+    "status": "created",
+    "issue_number": 107,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/107",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches",
+    "method": "post",
+    "category": "dispatch"
+  },
+  {
+    "id": 108,
+    "title": "Implement GET /api/dispatches/{id} Endpoint for Dispatch Retrieval",
+    "status": "created",
+    "issue_number": 108,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/108",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}",
+    "method": "get",
+    "category": "dispatch"
+  },
+  {
+    "id": 109,
+    "title": "Implement PUT /api/dispatches/{id} for Updating Dispatch",
+    "status": "created",
+    "issue_number": 109,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/109",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}",
+    "method": "put",
+    "category": "dispatch"
+  },
+  {
+    "id": 110,
+    "title": "Implement DELETE /api/dispatches/{id} for Admin in Deshio ERP",
+    "status": "created",
+    "issue_number": 110,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/110",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}",
+    "method": "delete",
+    "category": "dispatch"
+  },
+  {
+    "id": 111,
+    "title": "Implement Pick Items API for Dispatch in Deshio ERP",
+    "status": "created",
+    "issue_number": 111,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/111",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}/pick",
+    "method": "post",
+    "category": "dispatch"
+  },
+  {
+    "id": 112,
+    "title": "Implement Pack Items API Endpoint for Dispatches",
+    "status": "created",
+    "issue_number": 112,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/112",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}/pack",
+    "method": "post",
+    "category": "dispatch"
+  },
+  {
+    "id": 113,
+    "title": "Implement Ship Dispatch API: Mark as Shipped (POST /api/dispatches/{id}/ship)",
+    "status": "created",
+    "issue_number": 113,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/113",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}/ship",
+    "method": "post",
+    "category": "dispatch"
+  },
+  {
+    "id": 114,
+    "title": "Implement Receive Dispatch API Endpoint (POST /api/dispatches/{id}/receive)",
+    "status": "created",
+    "issue_number": 114,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/114",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}/receive",
+    "method": "post",
+    "category": "dispatch"
+  },
+  {
+    "id": 115,
+    "title": "Implement POST /api/dispatches/{id}/reject for Rejecting Dispatches",
+    "status": "created",
+    "issue_number": 115,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/115",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}/reject",
+    "method": "post",
+    "category": "dispatch"
+  },
+  {
+    "id": 116,
+    "title": "Implement Add Tracking Endpoint for Dispatches (POST /api/dispatches/{id}/tracking)",
+    "status": "created",
+    "issue_number": 116,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/116",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}/tracking",
+    "method": "post",
+    "category": "dispatch"
+  },
+  {
+    "id": 117,
+    "title": "Implement Track Dispatch API: GET /api/dispatches/{id}/tracking",
+    "status": "created",
+    "issue_number": 117,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/117",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}/tracking",
+    "method": "get",
+    "category": "dispatch"
+  },
+  {
+    "id": 118,
+    "title": "Implement POST /api/dispatches/{id}/scan-events for Scan Events",
+    "status": "created",
+    "issue_number": 118,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/118",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}/scan-events",
+    "method": "post",
+    "category": "dispatch"
+  },
+  {
+    "id": 119,
+    "title": "Implement POST /api/dispatches/{id}/pod for POD Upload",
+    "status": "created",
+    "issue_number": 119,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/119",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}/pod",
+    "method": "post",
+    "category": "dispatch"
+  },
+  {
+    "id": 120,
+    "title": "Implement POST /api/orders for Creating Orders",
+    "status": "created",
+    "issue_number": 120,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/120",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 121,
+    "title": "Implement List Orders API Endpoint (GET /api/orders)",
+    "status": "created",
+    "issue_number": 121,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/121",
+    "labels": [
+      "enhancement",
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/orders",
+    "method": "get",
+    "category": "order"
+  },
+  {
+    "id": 122,
+    "title": "Implement GET /api/orders/{id} - Retrieve Order with Items",
+    "status": "created",
+    "issue_number": 122,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/122",
+    "labels": [
+      "enhancement",
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/orders/{id}",
+    "method": "get",
+    "category": "order"
+  },
+  {
+    "id": 123,
+    "title": "Implement PUT /api/orders/{id} - Update Order Endpoint",
+    "status": "created",
+    "issue_number": 123,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/123",
+    "labels": [
+      "enhancement",
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/orders/{id}",
+    "method": "put",
+    "category": "order"
+  },
+  {
+    "id": 124,
+    "title": "Implement Cancel Order API Endpoint (POST /api/orders/{id}/cancel)",
+    "status": "created",
+    "issue_number": 124,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/124",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/cancel",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 125,
+    "title": "Implement Confirm Order API Endpoint (POST /api/orders/{id}/confirm)",
+    "status": "created",
+    "issue_number": 125,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/125",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/confirm",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 126,
+    "title": "Implement API: Assign Order to Store (POST /api/orders/{id}/assign-store)",
+    "status": "created",
+    "issue_number": 126,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/126",
+    "labels": [
+      "api:order",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/assign-store",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 127,
+    "title": "Implement API: Reassign Order to Store (POST /api/orders/{id}/reassign-store)",
+    "status": "created",
+    "issue_number": 127,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/127",
+    "labels": [
+      "api:order",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/reassign-store",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 128,
+    "title": "Implement Reserve Items API for Orders in Deshio ERP",
+    "status": "created",
+    "issue_number": 128,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/128",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/reserve",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 129,
+    "title": "Implement Release Order Reservation API Endpoint",
+    "status": "created",
+    "issue_number": 129,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/129",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/release-reservation",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 130,
+    "title": "Implement Add Note API Endpoint for Orders",
+    "status": "created",
+    "issue_number": 130,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/130",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/notes",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 131,
+    "title": "Implement API: List Notes for Orders (GET /api/orders/{id}/notes)",
+    "status": "created",
+    "issue_number": 131,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/131",
+    "labels": [
+      "enhancement",
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/orders/{id}/notes",
+    "method": "get",
+    "category": "order"
+  },
+  {
+    "id": 132,
+    "title": "Implement API: Attach File to Order (POST /api/orders/{id}/attachments)",
+    "status": "created",
+    "issue_number": 132,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/132",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/attachments",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 133,
+    "title": "Implement API: List Order Attachments (GET /api/orders/{id}/attachments)",
+    "status": "created",
+    "issue_number": 133,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/133",
+    "labels": [
+      "enhancement",
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/orders/{id}/attachments",
+    "method": "get",
+    "category": "order"
+  },
+  {
+    "id": 134,
+    "title": "Implement Add Item to Order API Endpoint (POST /api/orders/{id}/items)",
+    "status": "created",
+    "issue_number": 134,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/134",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:order-item"
+    ],
+    "route": "api/orders/{id}/items",
+    "method": "post",
+    "category": "order-item"
+  },
+  {
+    "id": 135,
+    "title": "Implement PUT /api/orders/{id}/items/{item_id} - Update Item",
+    "status": "created",
+    "issue_number": 135,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/135",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:order-item"
+    ],
+    "route": "api/orders/{id}/items/{item_id}",
+    "method": "put",
+    "category": "order-item"
+  },
+  {
+    "id": 136,
+    "title": "Implement DELETE /api/orders/{id}/items/{item_id} to Remove Order Item",
+    "status": "created",
+    "issue_number": 136,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/136",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:order-item"
+    ],
+    "route": "api/orders/{id}/items/{item_id}",
+    "method": "delete",
+    "category": "order-item"
+  },
+  {
+    "id": 137,
+    "title": "Implement Substitute Item API for Order Items",
+    "status": "created",
+    "issue_number": 137,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/137",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:order-item"
+    ],
+    "route": "api/orders/{id}/items/{item_id}/substitute",
+    "method": "post",
+    "category": "order-item"
+  },
+  {
+    "id": 138,
+    "title": "Implement Backorder Item API Endpoint for Orders",
+    "status": "created",
+    "issue_number": 138,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/138",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:order-item"
+    ],
+    "route": "api/orders/{id}/items/{item_id}/backorder",
+    "method": "post",
+    "category": "order-item"
+  },
+  {
+    "id": 139,
+    "title": "Implement Fulfill Item API Endpoint for Order Items",
+    "status": "created",
+    "issue_number": 139,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/139",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:order-item"
+    ],
+    "route": "api/orders/{id}/items/{item_id}/fulfill",
+    "method": "post",
+    "category": "order-item"
+  },
+  {
+    "id": 140,
+    "title": "Implement Create Payment Intent API Endpoint",
+    "status": "created",
+    "issue_number": 140,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/140",
+    "labels": [
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature",
+      "api:payment"
+    ],
+    "route": "api/payments/intents",
+    "method": "post",
+    "category": "payment"
+  },
+  {
+    "id": 141,
+    "title": "Implement Capture Payment API Endpoint (api/payments/{id}/capture)",
+    "status": "created",
+    "issue_number": 141,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/141",
+    "labels": [
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature",
+      "api:payment"
+    ],
+    "route": "api/payments/{id}/capture",
+    "method": "post",
+    "category": "payment"
+  },
+  {
+    "id": 142,
+    "title": "Implement Void Payment API Endpoint (POST /api/payments/{id}/void)",
+    "status": "created",
+    "issue_number": 142,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/142",
+    "labels": [
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature",
+      "api:payment"
+    ],
+    "route": "api/payments/{id}/void",
+    "method": "post",
+    "category": "payment"
+  },
+  {
+    "id": 143,
+    "title": "Implement List Payments API Endpoint (GET /api/payments)",
+    "status": "created",
+    "issue_number": 143,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/143",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:payment"
+    ],
+    "route": "api/payments",
+    "method": "get",
+    "category": "payment"
+  },
+  {
+    "id": 144,
+    "title": "Implement Create Shipment API Endpoint (POST /api/orders/{id}/shipments)",
+    "status": "created",
+    "issue_number": 144,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/144",
+    "labels": [
+      "api:shipment",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/orders/{id}/shipments",
+    "method": "post",
+    "category": "shipment"
+  },
+  {
+    "id": 145,
+    "title": "Implement API: List Shipments for Order (GET /api/orders/{id}/shipments)",
+    "status": "created",
+    "issue_number": 145,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/145",
+    "labels": [
+      "api:shipment",
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/orders/{id}/shipments",
+    "method": "get",
+    "category": "shipment"
+  },
+  {
+    "id": 146,
+    "title": "Implement GET /api/shipments/{id}/label - Print Shipment Label",
+    "status": "created",
+    "issue_number": 146,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/146",
+    "labels": [
+      "api:shipment",
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/shipments/{id}/label",
+    "method": "get",
+    "category": "shipment"
+  },
+  {
+    "id": 147,
+    "title": "Implement Track Shipment API Endpoint",
+    "status": "created",
+    "issue_number": 147,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/147",
+    "labels": [
+      "api:shipment",
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/shipments/{id}/tracking",
+    "method": "get",
+    "category": "shipment"
+  },
+  {
+    "id": 148,
+    "title": "Implement API: Mark Shipment Delivered (POST /api/shipments/{id}/delivered)",
+    "status": "created",
+    "issue_number": 148,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/148",
+    "labels": [
+      "api:shipment",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/shipments/{id}/delivered",
+    "method": "post",
+    "category": "shipment"
+  },
+  {
+    "id": 149,
+    "title": "Implement Create RMA API Endpoint (POST /api/returns)",
+    "status": "created",
+    "issue_number": 149,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/149",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api:return",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/returns",
+    "method": "post",
+    "category": "return"
+  },
+  {
+    "id": 150,
+    "title": "Implement List RMAs API Endpoint (GET /api/returns)",
+    "status": "created",
+    "issue_number": 150,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/150",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api:return",
+      "api-implementation"
+    ],
+    "route": "api/returns",
+    "method": "get",
+    "category": "return"
+  },
+  {
+    "id": 151,
+    "title": "Implement GET /api/returns/{id} for RMA Details",
+    "status": "created",
+    "issue_number": 151,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/151",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api:return",
+      "api-implementation"
+    ],
+    "route": "api/returns/{id}",
+    "method": "get",
+    "category": "return"
+  },
+  {
+    "id": 152,
+    "title": "Implement API: Approve RMA for Returns (POST /api/returns/{id}/approve)",
+    "status": "created",
+    "issue_number": 152,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/152",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api:return",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/returns/{id}/approve",
+    "method": "post",
+    "category": "return"
+  },
+  {
+    "id": 153,
+    "title": "Implement Reject RMA API Endpoint (POST /api/returns/{id}/reject)",
+    "status": "created",
+    "issue_number": 153,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/153",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api:return",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/returns/{id}/reject",
+    "method": "post",
+    "category": "return"
+  },
+  {
+    "id": 154,
+    "title": "Implement API: Receive Returned Items (POST /api/returns/{id}/receive)",
+    "status": "created",
+    "issue_number": 154,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/154",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api:return",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/returns/{id}/receive",
+    "method": "post",
+    "category": "return"
+  },
+  {
+    "id": 155,
+    "title": "Implement Restock Items API Endpoint for Returns",
+    "status": "created",
+    "issue_number": 155,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/155",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api:return",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/returns/{id}/restock",
+    "method": "post",
+    "category": "return"
+  },
+  {
+    "id": 156,
+    "title": "Implement Create Exchange API Endpoint for Returns",
+    "status": "created",
+    "issue_number": 156,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/156",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api:return",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/returns/{id}/exchange",
+    "method": "post",
+    "category": "return"
+  },
+  {
+    "id": 157,
+    "title": "Implement Close RMA API Endpoint (POST /api/returns/{id}/close)",
+    "status": "created",
+    "issue_number": 157,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/157",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api:return",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/returns/{id}/close",
+    "method": "post",
+    "category": "return"
+  },
+  {
+    "id": 158,
+    "title": "Implement Create Refund API Endpoint (POST /api/refunds)",
+    "status": "created",
+    "issue_number": 158,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/158",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:refund"
+    ],
+    "route": "api/refunds",
+    "method": "post",
+    "category": "refund"
+  },
+  {
+    "id": 159,
+    "title": "Implement List Refunds API Endpoint (GET /api/refunds)",
+    "status": "created",
+    "issue_number": 159,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/159",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:refund"
+    ],
+    "route": "api/refunds",
+    "method": "get",
+    "category": "refund"
+  },
+  {
+    "id": 160,
+    "title": "Implement GET /api/refunds/{id} for Refund Details",
+    "status": "created",
+    "issue_number": 160,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/160",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:refund"
+    ],
+    "route": "api/refunds/{id}",
+    "method": "get",
+    "category": "refund"
+  },
+  {
+    "id": 161,
+    "title": "Implement Cancel Refund API Endpoint (POST /api/refunds/{id}/cancel)",
+    "status": "created",
+    "issue_number": 161,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/161",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:refund"
+    ],
+    "route": "api/refunds/{id}/cancel",
+    "method": "post",
+    "category": "refund"
+  },
+  {
+    "id": 162,
+    "title": "Implement POST /api/transactions for Creating Transactions",
+    "status": "created",
+    "issue_number": 162,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/162",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:transaction"
+    ],
+    "route": "api/transactions",
+    "method": "post",
+    "category": "transaction"
+  },
+  {
+    "id": 163,
+    "title": "Implement List Transactions API Endpoint (GET /api/transactions)",
+    "status": "created",
+    "issue_number": 163,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/163",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:transaction"
+    ],
+    "route": "api/transactions",
+    "method": "get",
+    "category": "transaction"
+  },
+  {
+    "id": 164,
+    "title": "Implement GET /api/transactions/{id} for Transaction Details",
+    "status": "created",
+    "issue_number": 164,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/164",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:transaction"
+    ],
+    "route": "api/transactions/{id}",
+    "method": "get",
+    "category": "transaction"
+  },
+  {
+    "id": 165,
+    "title": "Implement Reverse Transaction API Endpoint (POST /api/transactions/{id}/reverse)",
+    "status": "created",
+    "issue_number": 165,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/165",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:transaction"
+    ],
+    "route": "api/transactions/{id}/reverse",
+    "method": "post",
+    "category": "transaction"
+  },
+  {
+    "id": 166,
+    "title": "Implement Export Journal API Endpoint (transaction category)",
+    "status": "created",
+    "issue_number": 166,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/166",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:transaction"
+    ],
+    "route": "api/transactions/export",
+    "method": "get",
+    "category": "transaction"
+  },
+  {
+    "id": 167,
+    "title": "Implement POST /api/transactions/reconcile for Period Reconciliation",
+    "status": "created",
+    "issue_number": 167,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/167",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:transaction"
+    ],
+    "route": "api/transactions/reconcile",
+    "method": "post",
+    "category": "transaction"
+  },
+  {
+    "id": 168,
+    "title": "Implement List Sales API Endpoint (GET /api/sales)",
+    "status": "created",
+    "issue_number": 168,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/168",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "api:sales"
+    ],
+    "route": "api/sales",
+    "method": "get",
+    "category": "sales"
+  },
+  {
+    "id": 169,
+    "title": "Implement Sales By User API Endpoint (Sales Category)",
+    "status": "created",
+    "issue_number": 169,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/169",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:sales"
+    ],
+    "route": "api/sales/by-user",
+    "method": "get",
+    "category": "sales"
+  },
+  {
+    "id": 170,
+    "title": "Implement Sales By Store API Endpoint (GET /api/sales/by-store)",
+    "status": "created",
+    "issue_number": 170,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/170",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:sales"
+    ],
+    "route": "api/sales/by-store",
+    "method": "get",
+    "category": "sales"
+  },
+  {
+    "id": 171,
+    "title": "Implement Sales By Product API Endpoint (GET /api/sales/by-product)",
+    "status": "created",
+    "issue_number": 171,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/171",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:sales"
+    ],
+    "route": "api/sales/by-product",
+    "method": "get",
+    "category": "sales"
+  },
+  {
+    "id": 172,
+    "title": "Implement GET /api/purchase-orders - List Paginated Purchase Orders",
+    "status": "created",
+    "issue_number": 172,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/172",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:purchase"
+    ],
+    "route": "api/purchase-orders",
+    "method": "get",
+    "category": "purchase"
+  },
+  {
+    "id": 173,
+    "title": "Implement Create Purchase-Order API Endpoint",
+    "status": "created",
+    "issue_number": 173,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/173",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:purchase"
+    ],
+    "route": "api/purchase-orders",
+    "method": "post",
+    "category": "purchase"
+  },
+  {
+    "id": 174,
+    "title": "Implement GET /api/purchase-orders/{id} for Purchase Orders",
+    "status": "created",
+    "issue_number": 174,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/174",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:purchase"
+    ],
+    "route": "api/purchase-orders/{id}",
+    "method": "get",
+    "category": "purchase"
+  },
+  {
+    "id": 175,
+    "title": "Implement Update Purchase-Order API Endpoint (PUT /api/purchase-orders/{id})",
+    "status": "created",
+    "issue_number": 175,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/175",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:purchase"
+    ],
+    "route": "api/purchase-orders/{id}",
+    "method": "put",
+    "category": "purchase"
+  },
+  {
+    "id": 176,
+    "title": "Implement DELETE /api/purchase-orders/{id} Endpoint",
+    "status": "created",
+    "issue_number": 176,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/176",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:purchase"
+    ],
+    "route": "api/purchase-orders/{id}",
+    "method": "delete",
+    "category": "purchase"
+  },
+  {
+    "id": 177,
+    "title": "Implement Receive Purchase API: Receive PO to Batch",
+    "status": "created",
+    "issue_number": 177,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/177",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:purchase"
+    ],
+    "route": "api/purchase-orders/{id}/receive",
+    "method": "post",
+    "category": "purchase"
+  },
+  {
+    "id": 178,
+    "title": "Implement Cancel Purchase Order API Endpoint",
+    "status": "created",
+    "issue_number": 178,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/178",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:purchase"
+    ],
+    "route": "api/purchase-orders/{id}/cancel",
+    "method": "post",
+    "category": "purchase"
+  },
+  {
+    "id": 179,
+    "title": "Implement GET /api/services - List Paginated Services",
+    "status": "created",
+    "issue_number": 179,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/179",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:service"
+    ],
+    "route": "api/services",
+    "method": "get",
+    "category": "service"
+  },
+  {
+    "id": 180,
+    "title": "Implement Create Service API Endpoint (POST /api/services)",
+    "status": "created",
+    "issue_number": 180,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/180",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:service"
+    ],
+    "route": "api/services",
+    "method": "post",
+    "category": "service"
+  },
+  {
+    "id": 181,
+    "title": "Implement GET /api/services/{id} for Service Retrieval",
+    "status": "created",
+    "issue_number": 181,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/181",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:service"
+    ],
+    "route": "api/services/{id}",
+    "method": "get",
+    "category": "service"
+  },
+  {
+    "id": 182,
+    "title": "Implement Update Service API Endpoint (PUT /api/services/{id})",
+    "status": "created",
+    "issue_number": 182,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/182",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:service"
+    ],
+    "route": "api/services/{id}",
+    "method": "put",
+    "category": "service"
+  },
+  {
+    "id": 183,
+    "title": "Implement DELETE /api/services/{id} Endpoint for Service Deletion",
+    "status": "created",
+    "issue_number": 183,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/183",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:service"
+    ],
+    "route": "api/services/{id}",
+    "method": "delete",
+    "category": "service"
+  },
+  {
+    "id": 184,
+    "title": "Implement POST /api/service-orders: Create Service Order",
+    "status": "created",
+    "issue_number": 184,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/184",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:service-order"
+    ],
+    "route": "api/service-orders",
+    "method": "post",
+    "category": "service-order"
+  },
+  {
+    "id": 185,
+    "title": "Implement List Service Orders API Endpoint (GET /api/service-orders)",
+    "status": "created",
+    "issue_number": 185,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/185",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:service-order"
+    ],
+    "route": "api/service-orders",
+    "method": "get",
+    "category": "service-order"
+  },
+  {
+    "id": 186,
+    "title": "Implement GET /api/service-orders/{id} for Service Order Details",
+    "status": "created",
+    "issue_number": 186,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/186",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:service-order"
+    ],
+    "route": "api/service-orders/{id}",
+    "method": "get",
+    "category": "service-order"
+  },
+  {
+    "id": 187,
+    "title": "Implement PUT /api/service-orders/{id} for Updating Service Orders",
+    "status": "created",
+    "issue_number": 187,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/187",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:service-order"
+    ],
+    "route": "api/service-orders/{id}",
+    "method": "put",
+    "category": "service-order"
+  },
+  {
+    "id": 188,
+    "title": "Implement Cancel Service Order API Endpoint",
+    "status": "created",
+    "issue_number": 188,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/188",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:service-order"
+    ],
+    "route": "api/service-orders/{id}/cancel",
+    "method": "post",
+    "category": "service-order"
+  },
+  {
+    "id": 189,
+    "title": "Implement API: Add Service Note to Service Orders",
+    "status": "created",
+    "issue_number": 189,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/189",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:service-order"
+    ],
+    "route": "api/service-orders/{id}/notes",
+    "method": "post",
+    "category": "service-order"
+  },
+  {
+    "id": 190,
+    "title": "Implement Complete Service API Endpoint for Service Orders",
+    "status": "created",
+    "issue_number": 190,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/190",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:service-order"
+    ],
+    "route": "api/service-orders/{id}/complete",
+    "method": "post",
+    "category": "service-order"
+  },
+  {
+    "id": 191,
+    "title": "Implement Deliver Service API Endpoint for Service Orders",
+    "status": "created",
+    "issue_number": 191,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/191",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:service-order"
+    ],
+    "route": "api/service-orders/{id}/deliver",
+    "method": "post",
+    "category": "service-order"
+  },
+  {
+    "id": 192,
+    "title": "Implement List Logs API Endpoint (GET /api/logs)",
+    "status": "created",
+    "issue_number": 192,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/192",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:log"
+    ],
+    "route": "api/logs",
+    "method": "get",
+    "category": "log"
+  },
+  {
+    "id": 193,
+    "title": "Implement Get Log API Endpoint in Deshio ERP",
+    "status": "created",
+    "issue_number": 193,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/193",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:log"
+    ],
+    "route": "api/logs/{id}",
+    "method": "get",
+    "category": "log"
+  },
+  {
+    "id": 194,
+    "title": "Implement Audit Trail API: Entity-Level Change History",
+    "status": "created",
+    "issue_number": 194,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/194",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:audit"
+    ],
+    "route": "api/audit/{entity}/{id}",
+    "method": "get",
+    "category": "audit"
+  },
+  {
+    "id": 195,
+    "title": "Implement Export Audit Events API Endpoint (GET /api/audit/export)",
+    "status": "created",
+    "issue_number": 195,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/195",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "api:audit"
+    ],
+    "route": "api/audit/export",
+    "method": "get",
+    "category": "audit"
+  },
+  {
+    "id": 196,
+    "title": "Implement Sales Summary Report API Endpoint",
+    "status": "created",
+    "issue_number": 196,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/196",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/sales-summary",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 197,
+    "title": "Implement Revenue by Day Report API Endpoint",
+    "status": "created",
+    "issue_number": 197,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/197",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/revenue-by-day",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 198,
+    "title": "Implement GET /api/reports/revenue-by-store API Endpoint",
+    "status": "created",
+    "issue_number": 198,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/198",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/revenue-by-store",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 199,
+    "title": "Implement GET /api/reports/revenue-by-product API Endpoint",
+    "status": "created",
+    "issue_number": 199,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/199",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/revenue-by-product",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 200,
+    "title": "Implement GET /api/reports/top-products for Top Products Report",
+    "status": "created",
+    "issue_number": 200,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/200",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/top-products",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 201,
+    "title": "Implement Top Customers Report API Endpoint",
+    "status": "created",
+    "issue_number": 201,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/201",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/top-customers",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 202,
+    "title": "Implement Customer LTV Report API Endpoint",
+    "status": "created",
+    "issue_number": 202,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/202",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/customer-ltv",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 203,
+    "title": "Implement Abandoned Orders Report API Endpoint",
+    "status": "created",
+    "issue_number": 203,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/203",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/abandoned-orders",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 204,
+    "title": "Implement Inventory Snapshot Report API Endpoint",
+    "status": "created",
+    "issue_number": 204,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/204",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/inventory-snapshot",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 205,
+    "title": "Implement Inventory Aging Report API Endpoint",
+    "status": "created",
+    "issue_number": 205,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/205",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/inventory-aging",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 206,
+    "title": "Implement Stock Valuation Report API Endpoint",
+    "status": "created",
+    "issue_number": 206,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/206",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/stock-valuation",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 207,
+    "title": "Implement Low Stock Report API Endpoint (GET /api/reports/low-stock)",
+    "status": "created",
+    "issue_number": 207,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/207",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/low-stock",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 208,
+    "title": "Implement Out of Stock Report API Endpoint (GET /api/reports/out-of-stock)",
+    "status": "created",
+    "issue_number": 208,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/208",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/out-of-stock",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 209,
+    "title": "Implement Return Rates Report API Endpoint",
+    "status": "created",
+    "issue_number": 209,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/209",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/return-rates",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 210,
+    "title": "Implement Refund Summary Report API (GET /api/reports/refund-summary)",
+    "status": "created",
+    "issue_number": 210,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/210",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/refund-summary",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 211,
+    "title": "Implement Order Fulfillment SLA Report API Endpoint",
+    "status": "created",
+    "issue_number": 211,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/211",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/fulfillment-sla",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 212,
+    "title": "Implement GET /api/reports/dispatch-performance Admin Endpoint",
+    "status": "created",
+    "issue_number": 212,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/212",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/dispatch-performance",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 213,
+    "title": "Implement Cycle Count Accuracy Report API Endpoint",
+    "status": "created",
+    "issue_number": 213,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/213",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/cycle-count-accuracy",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 214,
+    "title": "Implement Price Change History Report API Endpoint",
+    "status": "created",
+    "issue_number": 214,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/214",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/price-change-history",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 215,
+    "title": "Implement User Activity Report API Endpoint",
+    "status": "created",
+    "issue_number": 215,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/215",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/user-activity",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 216,
+    "title": "Implement Permission Coverage Report API Endpoint",
+    "status": "created",
+    "issue_number": 216,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/216",
+    "labels": [
+      "enhancement",
+      "api:report",
+      "admin-only",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/reports/permission-coverage",
+    "method": "get",
+    "category": "report"
+  },
+  {
+    "id": 217,
+    "title": "Implement Global Search API Endpoint (GET /api/search)",
+    "status": "created",
+    "issue_number": 217,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/217",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "api:search"
+    ],
+    "route": "api/search",
+    "method": "get",
+    "category": "search"
+  },
+  {
+    "id": 218,
+    "title": "Implement Advanced Search API Endpoint (POST /api/search/advanced)",
+    "status": "created",
+    "issue_number": 218,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/218",
+    "labels": [
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature",
+      "api:search"
+    ],
+    "route": "api/search/advanced",
+    "method": "post",
+    "category": "search"
+  },
+  {
+    "id": 219,
+    "title": "Implement Import Customers API Endpoint (POST /api/customers/import)",
+    "status": "created",
+    "issue_number": 219,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/219",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:import-export"
+    ],
+    "route": "api/customers/import",
+    "method": "post",
+    "category": "import-export"
+  },
+  {
+    "id": 220,
+    "title": "Implement Export Customers API Endpoint (GET /api/customers/export)",
+    "status": "created",
+    "issue_number": 220,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/220",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:import-export"
+    ],
+    "route": "api/customers/export",
+    "method": "get",
+    "category": "import-export"
+  },
+  {
+    "id": 221,
+    "title": "Implement API: POST /api/inventory/import for Bulk Inventory Load",
+    "status": "created",
+    "issue_number": 221,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/221",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:import-export"
+    ],
+    "route": "api/inventory/import",
+    "method": "post",
+    "category": "import-export"
+  },
+  {
+    "id": 222,
+    "title": "Implement Export Inventory API Endpoint",
+    "status": "created",
+    "issue_number": 222,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/222",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:import-export"
+    ],
+    "route": "api/inventory/export",
+    "method": "get",
+    "category": "import-export"
+  },
+  {
+    "id": 223,
+    "title": "Implement Attachment Upload API Endpoint (POST /api/attachments)",
+    "status": "created",
+    "issue_number": 223,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/223",
+    "labels": [
+      "api:attachment",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/attachments",
+    "method": "post",
+    "category": "attachment"
+  },
+  {
+    "id": 224,
+    "title": "Implement GET /api/attachments/{id} for Retrieving Attachments",
+    "status": "created",
+    "issue_number": 224,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/224",
+    "labels": [
+      "enhancement",
+      "api:attachment",
+      "authenticated",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/attachments/{id}",
+    "method": "get",
+    "category": "attachment"
+  },
+  {
+    "id": 225,
+    "title": "Implement DELETE /api/attachments/{id} Endpoint",
+    "status": "created",
+    "issue_number": 225,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/225",
+    "labels": [
+      "enhancement",
+      "api:attachment",
+      "authenticated",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/attachments/{id}",
+    "method": "delete",
+    "category": "attachment"
+  },
+  {
+    "id": 226,
+    "title": "Implement GET /api/notifications/templates for Listing Email/SMS Templates",
+    "status": "created",
+    "issue_number": 226,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/226",
+    "labels": [
+      "enhancement",
+      "api:notification",
+      "admin-only",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/notifications/templates",
+    "method": "get",
+    "category": "notification"
+  },
+  {
+    "id": 227,
+    "title": "Implement POST /api/notifications/templates for Creating Templates",
+    "status": "created",
+    "issue_number": 227,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/227",
+    "labels": [
+      "api:notification",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/notifications/templates",
+    "method": "post",
+    "category": "notification"
+  },
+  {
+    "id": 228,
+    "title": "Implement Send Test Notification API Endpoint",
+    "status": "created",
+    "issue_number": 228,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/228",
+    "labels": [
+      "api:notification",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/notifications/test",
+    "method": "post",
+    "category": "notification"
+  },
+  {
+    "id": 229,
+    "title": "Implement GET /api/webhooks - List Paginated Webhooks",
+    "status": "created",
+    "issue_number": 229,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/229",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:webhook"
+    ],
+    "route": "api/webhooks",
+    "method": "get",
+    "category": "webhook"
+  },
+  {
+    "id": 230,
+    "title": "Implement Create Webhook API Endpoint (POST /api/webhooks)",
+    "status": "created",
+    "issue_number": 230,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/230",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:webhook"
+    ],
+    "route": "api/webhooks",
+    "method": "post",
+    "category": "webhook"
+  },
+  {
+    "id": 231,
+    "title": "Implement GET /api/webhooks/{id} for Admin Authentication",
+    "status": "created",
+    "issue_number": 231,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/231",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:webhook"
+    ],
+    "route": "api/webhooks/{id}",
+    "method": "get",
+    "category": "webhook"
+  },
+  {
+    "id": 232,
+    "title": "Implement PUT /api/webhooks/{id} for Updating Webhooks",
+    "status": "created",
+    "issue_number": 232,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/232",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:webhook"
+    ],
+    "route": "api/webhooks/{id}",
+    "method": "put",
+    "category": "webhook"
+  },
+  {
+    "id": 233,
+    "title": "Implement DELETE /api/webhooks/{id} for Admin Authentication",
+    "status": "created",
+    "issue_number": 233,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/233",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:webhook"
+    ],
+    "route": "api/webhooks/{id}",
+    "method": "delete",
+    "category": "webhook"
+  },
+  {
+    "id": 234,
+    "title": "Implement Retry Webhook API Endpoint for Failed Deliveries",
+    "status": "created",
+    "issue_number": 234,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/234",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:webhook"
+    ],
+    "route": "api/webhooks/{id}/retry",
+    "method": "post",
+    "category": "webhook"
+  },
+  {
+    "id": 235,
+    "title": "Implement API: List Webhook Deliveries (GET /api/webhooks/{id}/deliveries)",
+    "status": "created",
+    "issue_number": 235,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/235",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:webhook"
+    ],
+    "route": "api/webhooks/{id}/deliveries",
+    "method": "get",
+    "category": "webhook"
+  },
+  {
+    "id": 236,
+    "title": "Implement GET /api/integrations/carriers - List Carriers",
+    "status": "created",
+    "issue_number": 236,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/236",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:integration"
+    ],
+    "route": "api/integrations/carriers",
+    "method": "get",
+    "category": "integration"
+  },
+  {
+    "id": 237,
+    "title": "Implement Connect Carrier API Endpoint for Shipping Accounts",
+    "status": "created",
+    "issue_number": 237,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/237",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:integration"
+    ],
+    "route": "api/integrations/carriers",
+    "method": "post",
+    "category": "integration"
+  },
+  {
+    "id": 238,
+    "title": "Implement DELETE /api/integrations/carriers/{id} - Disconnect Carrier",
+    "status": "created",
+    "issue_number": 238,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/238",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:integration"
+    ],
+    "route": "api/integrations/carriers/{id}",
+    "method": "delete",
+    "category": "integration"
+  },
+  {
+    "id": 239,
+    "title": "Implement POST /api/integrations/carriers/{id}/rates - Get Shipping Rates",
+    "status": "created",
+    "issue_number": 239,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/239",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:integration"
+    ],
+    "route": "api/integrations/carriers/{id}/rates",
+    "method": "post",
+    "category": "integration"
+  },
+  {
+    "id": 240,
+    "title": "Implement POST api/integrations/carriers/{id}/waybill - Create Waybill",
+    "status": "created",
+    "issue_number": 240,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/240",
+    "labels": [
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:integration"
+    ],
+    "route": "api/integrations/carriers/{id}/waybill",
+    "method": "post",
+    "category": "integration"
+  },
+  {
+    "id": 241,
+    "title": "Implement Track Waybill API Endpoint for Carrier Integration",
+    "status": "created",
+    "issue_number": 241,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/241",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:integration"
+    ],
+    "route": "api/integrations/carriers/{id}/track/{waybill}",
+    "method": "get",
+    "category": "integration"
+  },
+  {
+    "id": 242,
+    "title": "Implement POST /api/pricing - Set Product Price at Store/Batch",
+    "status": "created",
+    "issue_number": 242,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/242",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:pricing"
+    ],
+    "route": "api/pricing",
+    "method": "post",
+    "category": "pricing"
+  },
+  {
+    "id": 243,
+    "title": "Implement Get Price API Endpoint in Pricing Category",
+    "status": "created",
+    "issue_number": 243,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/243",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:pricing"
+    ],
+    "route": "api/pricing",
+    "method": "get",
+    "category": "pricing"
+  },
+  {
+    "id": 244,
+    "title": "Implement POST /api/pricing/overrides for Store-level Price Overrides",
+    "status": "created",
+    "issue_number": 244,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/244",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:pricing"
+    ],
+    "route": "api/pricing/overrides",
+    "method": "post",
+    "category": "pricing"
+  },
+  {
+    "id": 245,
+    "title": "Implement Delete Override API Endpoint in Pricing Category",
+    "status": "created",
+    "issue_number": 245,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/245",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:pricing"
+    ],
+    "route": "api/pricing/overrides/{id}",
+    "method": "delete",
+    "category": "pricing"
+  },
+  {
+    "id": 246,
+    "title": "Implement GET /api/promotions - List Promotions Endpoint",
+    "status": "created",
+    "issue_number": 246,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/246",
+    "labels": [
+      "enhancement",
+      "api:promotion",
+      "admin-only",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/promotions",
+    "method": "get",
+    "category": "promotion"
+  },
+  {
+    "id": 247,
+    "title": "Implement Create Promotion API Endpoint",
+    "status": "created",
+    "issue_number": 247,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/247",
+    "labels": [
+      "api:promotion",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/promotions",
+    "method": "post",
+    "category": "promotion"
+  },
+  {
+    "id": 248,
+    "title": "Implement GET /api/promotions/{id} for Admin Users",
+    "status": "created",
+    "issue_number": 248,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/248",
+    "labels": [
+      "enhancement",
+      "api:promotion",
+      "admin-only",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/promotions/{id}",
+    "method": "get",
+    "category": "promotion"
+  },
+  {
+    "id": 249,
+    "title": "Implement Update Promotion API Endpoint (PUT /api/promotions/{id})",
+    "status": "created",
+    "issue_number": 249,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/249",
+    "labels": [
+      "enhancement",
+      "api:promotion",
+      "admin-only",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/promotions/{id}",
+    "method": "put",
+    "category": "promotion"
+  },
+  {
+    "id": 250,
+    "title": "Implement DELETE /api/promotions/{id} Endpoint for Admin",
+    "status": "created",
+    "issue_number": 250,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/250",
+    "labels": [
+      "enhancement",
+      "api:promotion",
+      "admin-only",
+      "backend",
+      "api-implementation"
+    ],
+    "route": "api/promotions/{id}",
+    "method": "delete",
+    "category": "promotion"
+  },
+  {
+    "id": 251,
+    "title": "Implement Apply Promotion API Endpoint for Orders",
+    "status": "created",
+    "issue_number": 251,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/251",
+    "labels": [
+      "api:promotion",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/orders/{id}/apply-promo",
+    "method": "post",
+    "category": "promotion"
+  },
+  {
+    "id": 252,
+    "title": "Implement API: Remove Promotion from Order (POST /api/orders/{id}/remove-promo)",
+    "status": "created",
+    "issue_number": 252,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/252",
+    "labels": [
+      "api:promotion",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "feature"
+    ],
+    "route": "api/orders/{id}/remove-promo",
+    "method": "post",
+    "category": "promotion"
+  },
+  {
+    "id": 253,
+    "title": "Implement POST /api/catalog/reindex for Rebuilding Product Search Index",
+    "status": "created",
+    "issue_number": 253,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/253",
+    "labels": [
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "feature",
+      "api:catalog"
+    ],
+    "route": "api/catalog/reindex",
+    "method": "post",
+    "category": "catalog"
+  },
+  {
+    "id": 254,
+    "title": "Implement Catalog Suggest Keywords API (GET /api/catalog/suggest)",
+    "status": "created",
+    "issue_number": 254,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/254",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:catalog"
+    ],
+    "route": "api/catalog/suggest",
+    "method": "get",
+    "category": "catalog"
+  },
+  {
+    "id": 255,
+    "title": "Implement Health Check API Endpoint for Monitoring",
+    "status": "created",
+    "issue_number": 255,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/255",
+    "labels": [
+      "enhancement",
+      "backend",
+      "api-implementation",
+      "public-api",
+      "api:monitoring"
+    ],
+    "route": "api/health",
+    "method": "get",
+    "category": "monitoring"
+  },
+  {
+    "id": 256,
+    "title": "Implement GET /api/metrics for Operational Metrics (Monitoring)",
+    "status": "created",
+    "issue_number": 256,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/256",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:monitoring"
+    ],
+    "route": "api/metrics",
+    "method": "get",
+    "category": "monitoring"
+  },
+  {
+    "id": 257,
+    "title": "Implement Queue Stats API Endpoint for Monitoring",
+    "status": "created",
+    "issue_number": 257,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/257",
+    "labels": [
+      "enhancement",
+      "admin-only",
+      "backend",
+      "api-implementation",
+      "api:monitoring"
+    ],
+    "route": "api/queues",
+    "method": "get",
+    "category": "monitoring"
+  },
+  {
+    "id": 258,
+    "title": "Implement Generate Invoice API for Orders",
+    "status": "created",
+    "issue_number": 258,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/258",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/invoice",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 259,
+    "title": "Implement Get Invoice API Endpoint for Orders",
+    "status": "created",
+    "issue_number": 259,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/259",
+    "labels": [
+      "enhancement",
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/orders/{id}/invoice",
+    "method": "get",
+    "category": "order"
+  },
+  {
+    "id": 260,
+    "title": "Implement POST /api/orders/{id}/apply-tax Endpoint",
+    "status": "created",
+    "issue_number": 260,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/260",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/apply-tax",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 261,
+    "title": "Implement API: Remove Tax from Order (POST /api/orders/{id}/remove-tax)",
+    "status": "created",
+    "issue_number": 261,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/261",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/remove-tax",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 262,
+    "title": "Implement API: Set Payment Method for Orders (POST /api/orders/{id}/payment-method)",
+    "status": "created",
+    "issue_number": 262,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/262",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/payment-method",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 263,
+    "title": "Implement Mark Paid Endpoint for Orders API (Offline Payments)",
+    "status": "created",
+    "issue_number": 263,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/263",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/mark-paid",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 264,
+    "title": "Implement GET /api/orders/{id}/packing-list for Packing List Generation",
+    "status": "created",
+    "issue_number": 264,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/264",
+    "labels": [
+      "enhancement",
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/orders/{id}/packing-list",
+    "method": "get",
+    "category": "order"
+  },
+  {
+    "id": 265,
+    "title": "Implement Order Picking List API (GET /api/orders/{id}/picking-list)",
+    "status": "created",
+    "issue_number": 265,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/265",
+    "labels": [
+      "enhancement",
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/orders/{id}/picking-list",
+    "method": "get",
+    "category": "order"
+  },
+  {
+    "id": 266,
+    "title": "Implement GET /api/orders/{id}/timeline for Order Event Timeline",
+    "status": "created",
+    "issue_number": 266,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/266",
+    "labels": [
+      "enhancement",
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend"
+    ],
+    "route": "api/orders/{id}/timeline",
+    "method": "get",
+    "category": "order"
+  },
+  {
+    "id": 267,
+    "title": "Implement Duplicate Order API (POST /api/orders/{id}/duplicate)",
+    "status": "created",
+    "issue_number": 267,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/267",
+    "labels": [
+      "api:order",
+      "authenticated",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/duplicate",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 268,
+    "title": "Implement Flag Fraud Endpoint for Orders API",
+    "status": "created",
+    "issue_number": 268,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/268",
+    "labels": [
+      "api:order",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/flag-fraud",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 269,
+    "title": "Implement Unflag Fraud API Endpoint for Orders",
+    "status": "created",
+    "issue_number": 269,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/269",
+    "labels": [
+      "api:order",
+      "admin-only",
+      "api-implementation",
+      "backend",
+      "feature"
+    ],
+    "route": "api/orders/{id}/unflag-fraud",
+    "method": "post",
+    "category": "order"
+  },
+  {
+    "id": 270,
+    "title": "Implement GET /api/dispatches/{id}/manifest for Shipment Manifest",
+    "status": "created",
+    "issue_number": 270,
+    "issue_url": "https://github.com/sakhadib/deshio/issues/270",
+    "labels": [
+      "enhancement",
+      "authenticated",
+      "backend",
+      "api-implementation",
+      "api:dispatch"
+    ],
+    "route": "api/dispatches/{id}/manifest",
+    "method": "get",
+    "category": "dispatch"
+  },
+  {
+    "id": 271,
+    "title": "Implement Dispatch Label Generation API Endpoint",
+    "status": "failed",
+    "route": "api/dispatches/{id}/label",
+    "method": "get",
+    "category": "dispatch"
+  },
+  {
+    "id": 272,
+    "title": "Implement FIFO Stock Valuation API Endpoint (GET /api/inventory/valuation/fifo)",
+    "status": "failed",
+    "route": "api/inventory/valuation/fifo",
+    "method": "get",
+    "category": "inventory"
+  },
+  {
+    "id": 273,
+    "title": "Implement LIFO Stock Valuation API Endpoint",
+    "status": "failed",
+    "route": "api/inventory/valuation/lifo",
+    "method": "get",
+    "category": "inventory"
+  },
+  {
+    "id": 274,
+    "title": "Implement GET /api/inventory/valuation/avg for Avg Cost Valuation",
+    "status": "failed",
+    "route": "api/inventory/valuation/avg",
+    "method": "get",
+    "category": "inventory"
+  },
+  {
+    "id": 275,
+    "title": "Implement Batch Availability Toggle API Endpoint",
+    "status": "failed",
+    "route": "api/batches/{id}/availability",
+    "method": "post",
+    "category": "batch"
+  },
+  {
+    "id": 276,
+    "title": "Implement GET /api/batches/{id}/ledger for Batch Audit Ledger",
+    "status": "failed",
+    "route": "api/batches/{id}/ledger",
+    "method": "get",
+    "category": "batch"
+  },
+  {
+    "id": 277,
+    "title": "Implement Blacklist Customer API Endpoint",
+    "status": "failed",
+    "route": "api/customers/{id}/blacklist",
+    "method": "post",
+    "category": "customer"
+  },
+  {
+    "id": 278,
+    "title": "Implement Unblacklist Customer API Endpoint",
+    "status": "failed",
+    "route": "api/customers/{id}/unblacklist",
+    "method": "post",
+    "category": "customer"
+  },
+  {
+    "id": 279,
+    "title": "Implement Add Tag API for Customers (POST /api/customers/{id}/tags)",
+    "status": "failed",
+    "route": "api/customers/{id}/tags",
+    "method": "post",
+    "category": "customer"
+  },
+  {
+    "id": 280,
+    "title": "Implement API: Remove Customer Tag (DELETE /api/customers/{id}/tags/{tag})",
+    "status": "failed",
+    "route": "api/customers/{id}/tags/{tag}",
+    "method": "delete",
+    "category": "customer"
+  },
+  {
+    "id": 281,
+    "title": "Implement Add Product Image API (POST /api/products/{id}/images)",
+    "status": "failed",
+    "route": "api/products/{id}/images",
+    "method": "post",
+    "category": "product"
+  },
+  {
+    "id": 282,
+    "title": "Implement API: List Product Images (GET /api/products/{id}/images)",
+    "status": "failed",
+    "route": "api/products/{id}/images",
+    "method": "get",
+    "category": "product"
+  },
+  {
+    "id": 283,
+    "title": "Implement DELETE /api/products/{id}/images/{image_id} for Product Image Deletion",
+    "status": "failed",
+    "route": "api/products/{id}/images/{image_id}",
+    "method": "delete",
+    "category": "product"
+  },
+  {
+    "id": 284,
+    "title": "Implement POST /api/products/{id}/images/{image_id}/primary",
+    "status": "failed",
+    "route": "api/products/{id}/images/{image_id}/primary",
+    "method": "post",
+    "category": "product"
+  },
+  {
+    "id": 285,
+    "title": "Implement Add Barcode API for Products (POST /api/products/{id}/barcodes)",
+    "status": "failed",
+    "route": "api/products/{id}/barcodes",
+    "method": "post",
+    "category": "product"
+  },
+  {
+    "id": 286,
+    "title": "Implement API: List Product Barcodes (GET /api/products/{id}/barcodes)",
+    "status": "failed",
+    "route": "api/products/{id}/barcodes",
+    "method": "get",
+    "category": "product"
+  },
+  {
+    "id": 287,
+    "title": "Implement Delete Product Barcode API Endpoint",
+    "status": "failed",
+    "route": "api/products/{id}/barcodes/{code}",
+    "method": "delete",
+    "category": "product"
+  },
+  {
+    "id": 288,
+    "title": "Implement API: Set Business Hours for Store (POST /api/stores/{id}/business-hours)",
+    "status": "failed",
+    "route": "api/stores/{id}/business-hours",
+    "method": "post",
+    "category": "store"
+  },
+  {
+    "id": 289,
+    "title": "Implement POST /api/stores/{id}/holidays for Setting Store Holidays",
+    "status": "failed",
+    "route": "api/stores/{id}/holidays",
+    "method": "post",
+    "category": "store"
+  },
+  {
+    "id": 290,
+    "title": "Implement POST api/stores/{id}/targets for Setting Sales Targets",
+    "status": "failed",
+    "route": "api/stores/{id}/targets",
+    "method": "post",
+    "category": "store"
+  }
+]

@@ -1,0 +1,7 @@
+openai
+requests
+gitpython
+pandas
+numpy
+python-dotenv
+colorama
