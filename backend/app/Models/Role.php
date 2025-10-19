@@ -104,4 +104,14 @@ class Role extends Model
     {
         return $this->title . ' (Level ' . $this->level . ')';
     }
+
+    public function employees()
+    {
+        return $this->hasMany(Employee::class);
+    }
+
+    public function activeEmployees()
+    {
+        return $this->employees()->active()->inService();
+    }
 }

@@ -72,4 +72,14 @@ class Store extends Model
     {
         return !is_null($this->latitude) && !is_null($this->longitude);
     }
+
+    public function employees()
+    {
+        return $this->hasMany(Employee::class);
+    }
+
+    public function activeEmployees()
+    {
+        return $this->employees()->active()->inService();
+    }
 }
