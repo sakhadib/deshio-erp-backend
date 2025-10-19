@@ -53,4 +53,9 @@ class Permission extends Model
     {
         return $this->title . ($this->module ? ' (' . $this->module . ')' : '');
     }
+
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'role_permissions');
+    }
 }
