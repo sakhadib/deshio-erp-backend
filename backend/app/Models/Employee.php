@@ -87,6 +87,16 @@ class Employee extends Authenticatable
         return $this->emailVerificationTokens()->active();
     }
 
+    public function passwordResetTokens(): HasMany
+    {
+        return $this->hasMany(PasswordResetToken::class);
+    }
+
+    public function activePasswordResetTokens()
+    {
+        return $this->passwordResetTokens()->active();
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
