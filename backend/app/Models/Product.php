@@ -148,4 +148,30 @@ class Product extends Model
         $primaryImage = $this->primaryImage();
         return $primaryImage ? $primaryImage->image_url : null;
     }
+
+    public function barcodes(): HasMany
+    {
+        return $this->hasMany(ProductBarcode::class);
+    }
+
+    public function activeBarcodes()
+    {
+        return $this->barcodes()->active();
+    }
+
+    public function primaryBarcode()
+    {
+        return $this->barcodes()->primary()->active()->first();
+    }
+
+    public function getPrimaryBarcodeAttribute()
+    {
+        $primaryBarcode = $this->primaryBarcode();
+        return $primaryBarcode ? $primaryBarcode->barcode : null;
+    }
+
+    public function generateBarcode($type = 'CODE128', $makePrimary = false)
+    {
+        return ProductBarcode::createForProduct($this, $type, $makePrimary);
+    }
 }
