@@ -174,4 +174,41 @@ class Product extends Model
     {
         return ProductBarcode::createForProduct($this, $type, $makePrimary);
     }
+
+    public function priceOverrides(): HasMany
+    {
+        return $this->hasMany(ProductPriceOverride::class);
+    }
+
+    public function activePriceOverrides()
+    {
+        return $this->priceOverrides()->active();
+    }
+
+    public function currentPriceOverride($storeId = null)
+    {
+        $query = $this->priceOverrides()->active();
+
+        if ($storeId) {
+            $query->where(function ($q) use ($storeId) {
+                $q->where('store_id', $storeId)
+                  ->orWhereNull('store_id');
+            });
+        } else {
+            $query->whereNull('store_id');
+        }
+
+        return $query->orderBy('created_at', 'desc')->first();
+    }
+
+    public function getCurrentPrice($storeId = null)
+    {
+        $override = $this->currentPriceOverride($storeId);
+        return $override ? $override->price : null; // Assuming product has a base_price field
+    }
+
+    public function createPriceOverride(array $data)
+    {
+        return ProductPriceOverride::createOverride(array_merge($data, ['product_id' => $this->id]));
+    }
 }
