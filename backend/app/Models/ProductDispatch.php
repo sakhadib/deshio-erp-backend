@@ -206,8 +206,10 @@ class ProductDispatch extends Model
             'actual_delivery_date' => now(),
         ]);
 
-        // Update item statuses to received
-        $this->items()->update(['status' => 'received']);
+        // Process inventory movement for each item
+        foreach ($this->items as $item) {
+            $this->processInventoryMovement($item);
+        }
 
         return $this;
     }
@@ -339,5 +341,54 @@ class ProductDispatch extends Model
     public static function getOverdueCount()
     {
         return static::overdue()->count();
+    }
+
+    protected function processInventoryMovement(ProductDispatchItem $item)
+    {
+        $sourceBatch = $item->batch;
+        $receivedQuantity = $item->received_quantity ?? $item->quantity;
+
+        // Reduce quantity in source batch
+        $sourceBatch->removeStock($item->quantity);
+
+        // Create new batch at destination store
+        $destinationBatch = ProductBatch::create([
+            'product_id' => $sourceBatch->product_id,
+            'batch_number' => $sourceBatch->batch_number . '-DST-' . $this->dispatch_number,
+            'quantity' => $receivedQuantity,
+            'cost_price' => $sourceBatch->cost_price,
+            'sell_price' => $sourceBatch->sell_price,
+            'availability' => true,
+            'manufactured_date' => $sourceBatch->manufactured_date,
+            'expiry_date' => $sourceBatch->expiry_date,
+            'store_id' => $this->destination_store_id,
+            'barcode_id' => $sourceBatch->barcode_id,
+            'notes' => 'Received via dispatch ' . $this->dispatch_number,
+            'is_active' => true,
+        ]);
+
+        // Record the movement
+        ProductMovement::recordMovement([
+            'product_batch_id' => $destinationBatch->id,
+            'product_barcode_id' => $sourceBatch->barcode_id,
+            'from_store_id' => $this->source_store_id,
+            'to_store_id' => $this->destination_store_id,
+            'product_dispatch_id' => $this->id,
+            'movement_type' => 'dispatch',
+            'quantity' => $receivedQuantity,
+            'unit_cost' => $sourceBatch->cost_price,
+            'unit_price' => $sourceBatch->sell_price,
+            'reference_number' => $this->dispatch_number,
+            'notes' => 'Product dispatch delivery',
+            'performed_by' => $this->approved_by ?? $this->created_by,
+        ]);
+
+        // Update dispatch item to reference the new destination batch
+        $item->update([
+            'status' => 'received',
+            'product_batch_id' => $destinationBatch->id,
+        ]);
+
+        return $destinationBatch;
     }
 }

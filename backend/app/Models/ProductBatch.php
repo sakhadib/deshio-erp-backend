@@ -204,4 +204,29 @@ class ProductBatch extends Model
 
         return 'available';
     }
+
+    public function getLocationHistory()
+    {
+        return ProductMovement::byBatch($this->id)
+                             ->with(['fromStore', 'toStore', 'performedBy'])
+                             ->orderBy('movement_date', 'desc')
+                             ->get();
+    }
+
+    public function getCurrentLocation()
+    {
+        return $this->store;
+    }
+
+    public function getMovementCount()
+    {
+        return ProductMovement::byBatch($this->id)->count();
+    }
+
+    public function getLastMovement()
+    {
+        return ProductMovement::byBatch($this->id)
+                             ->orderBy('movement_date', 'desc')
+                             ->first();
+    }
 }

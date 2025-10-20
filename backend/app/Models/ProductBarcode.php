@@ -160,4 +160,88 @@ class ProductBarcode extends Model
                 return $this->barcode;
         }
     }
+
+    public function getCurrentLocation()
+    {
+        return ProductMovement::getCurrentLocation($this->id);
+    }
+
+    public function getLocationHistory()
+    {
+        return ProductMovement::getProductLocationHistory($this->id);
+    }
+
+    public function getCurrentStore()
+    {
+        $currentMovement = ProductMovement::byBarcode($this->id)
+                                         ->orderBy('movement_date', 'desc')
+                                         ->first();
+
+        return $currentMovement ? $currentMovement->toStore : null;
+    }
+
+    public function getCurrentBatch()
+    {
+        $currentMovement = ProductMovement::byBarcode($this->id)
+                                         ->with('batch')
+                                         ->orderBy('movement_date', 'desc')
+                                         ->first();
+
+        return $currentMovement ? $currentMovement->batch : null;
+    }
+
+    public function isCurrentlyAtStore($storeId)
+    {
+        $currentStore = $this->getCurrentStore();
+        return $currentStore && $currentStore->id === $storeId;
+    }
+
+    public function getMovementCount()
+    {
+        return ProductMovement::byBarcode($this->id)->count();
+    }
+
+    public function getLastMovementDate()
+    {
+        $lastMovement = ProductMovement::byBarcode($this->id)
+                                      ->orderBy('movement_date', 'desc')
+                                      ->first();
+
+        return $lastMovement ? $lastMovement->movement_date : null;
+    }
+
+    public static function scanBarcode($barcode)
+    {
+        $barcodeRecord = static::where('barcode', $barcode)->first();
+
+        if (!$barcodeRecord) {
+            return [
+                'found' => false,
+                'message' => 'Barcode not found in system',
+            ];
+        }
+
+        $currentLocation = $barcodeRecord->getCurrentStore();
+        $currentBatch = $barcodeRecord->getCurrentBatch();
+        $lastMovement = ProductMovement::byBarcode($barcodeRecord->id)
+                                      ->orderBy('movement_date', 'desc')
+                                      ->first();
+
+        return [
+            'found' => true,
+            'barcode' => $barcodeRecord,
+            'product' => $barcodeRecord->product,
+            'current_location' => $currentLocation,
+            'current_batch' => $currentBatch,
+            'last_movement' => $lastMovement,
+            'location_history' => $barcodeRecord->getLocationHistory(),
+            'is_available' => $currentBatch ? $currentBatch->isAvailable() : false,
+            'quantity_available' => $currentBatch ? $currentBatch->quantity : 0,
+        ];
+    }
+
+    public function getScanData()
+    {
+        return static::scanBarcode($this->barcode);
+    }
 }
