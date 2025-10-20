@@ -67,6 +67,16 @@ class Employee extends Authenticatable
         return $this->hasMany(Employee::class, 'manager_id');
     }
 
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(EmployeeSession::class);
+    }
+
+    public function activeSessions()
+    {
+        return $this->sessions()->active();
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
