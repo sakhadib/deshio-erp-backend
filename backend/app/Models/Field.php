@@ -108,4 +108,16 @@ class Field extends Model
 
         return implode('|', $rules);
     }
+
+    public function products()
+    {
+        return $this->belongsToMany(Product::class, 'product_fields')
+                    ->withPivot('value')
+                    ->withTimestamps();
+    }
+
+    public function productFields()
+    {
+        return $this->hasMany(ProductField::class);
+    }
 }

@@ -37,4 +37,14 @@ class Vendor extends Model
     {
         return $query->where('type', $type);
     }
+
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    public function activeProducts()
+    {
+        return $this->products()->active();
+    }
 }
