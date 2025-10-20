@@ -127,4 +127,25 @@ class Product extends Model
     {
         $this->fields()->detach($field->id);
     }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class);
+    }
+
+    public function activeImages()
+    {
+        return $this->images()->active()->ordered();
+    }
+
+    public function primaryImage()
+    {
+        return $this->images()->primary()->active()->first();
+    }
+
+    public function getPrimaryImageUrlAttribute()
+    {
+        $primaryImage = $this->primaryImage();
+        return $primaryImage ? $primaryImage->image_url : null;
+    }
 }
