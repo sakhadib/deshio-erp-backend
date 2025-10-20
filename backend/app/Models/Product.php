@@ -211,4 +211,85 @@ class Product extends Model
     {
         return ProductPriceOverride::createOverride(array_merge($data, ['product_id' => $this->id]));
     }
+
+    public function batches(): HasMany
+    {
+        return $this->hasMany(ProductBatch::class);
+    }
+
+    public function activeBatches()
+    {
+        return $this->batches()->active();
+    }
+
+    public function availableBatches()
+    {
+        return $this->batches()->available();
+    }
+
+    public function getCurrentBatchPrice($storeId = null)
+    {
+        $query = $this->availableBatches();
+
+        if ($storeId) {
+            $query->where('store_id', $storeId);
+        }
+
+        $batch = $query->orderBy('sell_price', 'asc')->first();
+
+        return $batch ? $batch->sell_price : null;
+    }
+
+    public function getBatchByBarcode($barcode)
+    {
+        return $this->batches()
+                   ->whereHas('barcode', function ($query) use ($barcode) {
+                       $query->where('barcode', $barcode);
+                   })
+                   ->first();
+    }
+
+    public function getTotalInventory($storeId = null)
+    {
+        $query = $this->batches()->active();
+
+        if ($storeId) {
+            $query->where('store_id', $storeId);
+        }
+
+        return $query->sum('quantity');
+    }
+
+    public function getLowestBatchPrice($storeId = null)
+    {
+        $query = $this->availableBatches();
+
+        if ($storeId) {
+            $query->where('store_id', $storeId);
+        }
+
+        return $query->min('sell_price');
+    }
+
+    public function getHighestBatchPrice($storeId = null)
+    {
+        $query = $this->availableBatches();
+
+        if ($storeId) {
+            $query->where('store_id', $storeId);
+        }
+
+        return $query->max('sell_price');
+    }
+
+    public function getAverageBatchPrice($storeId = null)
+    {
+        $query = $this->availableBatches();
+
+        if ($storeId) {
+            $query->where('store_id', $storeId);
+        }
+
+        return $query->avg('sell_price');
+    }
 }
