@@ -117,6 +117,26 @@ class Employee extends Authenticatable
         return $this->mfaBackupCodes()->active();
     }
 
+    public function notes(): HasMany
+    {
+        return $this->hasMany(Note::class, 'employee_id');
+    }
+
+    public function createdNotes(): HasMany
+    {
+        return $this->hasMany(Note::class, 'created_by');
+    }
+
+    public function activeNotes()
+    {
+        return $this->notes()->active();
+    }
+
+    public function publicNotes()
+    {
+        return $this->notes()->active()->public();
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
