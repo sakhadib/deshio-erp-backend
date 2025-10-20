@@ -105,7 +105,7 @@ class OrderItem extends Model
         $this->discount_amount = $discountAmount;
         $subtotal = bcmul((string)$this->quantity, (string)$this->unit_price, 2);
         $afterDiscount = bcsub($subtotal, (string)$discountAmount, 2);
-        $this->total_amount = (float) bcadd($afterDiscount, (string)$this->tax_amount, 2);
+        $this->total_amount = bcadd($afterDiscount, (string)$this->tax_amount, 2);
         $this->save();
 
         $this->order->calculateTotals();

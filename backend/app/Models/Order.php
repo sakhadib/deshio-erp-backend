@@ -83,6 +83,16 @@ class Order extends Model
         return $this->hasMany(Shipment::class);
     }
 
+    public function returns(): HasMany
+    {
+        return $this->hasMany(ProductReturn::class);
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Refund::class);
+    }
+
     public function activeShipment()
     {
         return $this->shipments()->whereNotIn('status', ['delivered', 'cancelled', 'returned'])->first();
@@ -327,8 +337,7 @@ class Order extends Model
         $this->discount_amount = $discountAmount;
 
         // Calculate total with proper decimal precision
-        $calculation = $subtotal + $taxAmount + $this->shipping_amount - $discountAmount;
-        $this->total_amount = (float) number_format($calculation, 2, '.', '');
+        $this->total_amount = round($calculation, 2);
 
         $this->save();
 

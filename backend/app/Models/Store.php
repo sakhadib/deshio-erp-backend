@@ -113,4 +113,9 @@ class Store extends Model
     {
         return $this->productBatches()->available();
     }
+
+    public function returns(): HasMany
+    {
+        return $this->hasMany(ProductReturn::class);
+    }
 }
