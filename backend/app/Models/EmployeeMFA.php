@@ -14,7 +14,6 @@ class EmployeeMFA extends Model
         'employee_id',
         'type',
         'secret',
-        'backup_codes',
         'is_enabled',
         'verified_at',
         'last_used_at',
@@ -22,7 +21,6 @@ class EmployeeMFA extends Model
     ];
 
     protected $casts = [
-        'backup_codes' => 'array',
         'is_enabled' => 'boolean',
         'verified_at' => 'datetime',
         'last_used_at' => 'datetime',
@@ -32,6 +30,16 @@ class EmployeeMFA extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function backupCodes()
+    {
+        return $this->hasMany(EmployeeMFABackupCode::class, 'employee_mfa_id');
+    }
+
+    public function activeBackupCodes()
+    {
+        return $this->backupCodes()->active();
     }
 
     public function scopeEnabled($query)
@@ -90,21 +98,15 @@ class EmployeeMFA extends Model
 
     public function hasBackupCodes(): bool
     {
-        return !empty($this->backup_codes) && is_array($this->backup_codes);
+        return $this->backupCodes()->exists();
     }
 
     public function useBackupCode($code): bool
     {
-        if (!$this->hasBackupCodes()) {
-            return false;
-        }
+        $backupCode = $this->backupCodes()->byCode($code)->active()->first();
 
-        $codes = $this->backup_codes;
-        $index = array_search($code, $codes);
-
-        if ($index !== false) {
-            unset($codes[$index]);
-            $this->update(['backup_codes' => array_values($codes)]);
+        if ($backupCode) {
+            $backupCode->useCode();
             $this->updateLastUsed();
             return true;
         }
@@ -114,13 +116,13 @@ class EmployeeMFA extends Model
 
     public function generateBackupCodes($count = 10): array
     {
-        $codes = [];
-        for ($i = 0; $i < $count; $i++) {
-            $codes[] = strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 8));
-        }
+        // Delete existing codes
+        $this->backupCodes()->delete();
 
-        $this->update(['backup_codes' => $codes]);
-        return $codes;
+        // Generate new codes
+        $codes = EmployeeMFABackupCode::generateForMfa($this, $count);
+
+        return collect($codes)->pluck('code')->toArray();
     }
 
     public function getIsVerifiedAttribute()

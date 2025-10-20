@@ -107,6 +107,16 @@ class Employee extends Authenticatable
         return $this->mfa()->enabled();
     }
 
+    public function mfaBackupCodes()
+    {
+        return $this->hasManyThrough(EmployeeMFABackupCode::class, EmployeeMFA::class);
+    }
+
+    public function activeMfaBackupCodes()
+    {
+        return $this->mfaBackupCodes()->active();
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
