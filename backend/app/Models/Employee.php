@@ -97,6 +97,16 @@ class Employee extends Authenticatable
         return $this->passwordResetTokens()->active();
     }
 
+    public function mfa(): HasMany
+    {
+        return $this->hasMany(EmployeeMFA::class);
+    }
+
+    public function enabledMfa()
+    {
+        return $this->mfa()->enabled();
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
