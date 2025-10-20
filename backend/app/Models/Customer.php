@@ -46,7 +46,7 @@ class Customer extends Authenticatable
     ];
 
     protected $casts = [
-        'date_of_birth' => 'date',
+        'date_of_birth' => 'datetime',
         'email_verified_at' => 'datetime',
         'total_purchases' => 'decimal:2',
         'total_orders' => 'integer',
@@ -191,17 +191,19 @@ class Customer extends Authenticatable
         return $this;
     }
 
-    public function getFullAddressAttribute()
+    public function getFullAddressArray()
     {
-        $addressParts = array_filter([
-            $this->address,
-            $this->city,
-            $this->state,
-            $this->postal_code,
-            $this->country,
-        ]);
-
-        return implode(', ', $addressParts);
+        return [
+            'name' => $this->name,
+            'phone' => $this->phone,
+            'email' => $this->email,
+            'street' => $this->address,
+            'area' => $this->city,
+            'city' => $this->city,
+            'state' => $this->state,
+            'postal_code' => $this->postal_code,
+            'country' => $this->country ?? 'Bangladesh',
+        ];
     }
 
     public function hasCompleteAddress(): bool

@@ -180,7 +180,7 @@ class ProductBarcode extends Model
         return $currentMovement ? $currentMovement->toStore : null;
     }
 
-    public function getCurrentBatch()
+    public function getCurrentBatch(): ?ProductBatch
     {
         $currentMovement = ProductMovement::byBarcode($this->id)
                                          ->with('batch')
@@ -240,8 +240,38 @@ class ProductBarcode extends Model
         ];
     }
 
-    public function getScanData()
+    public function getCurrentShipment()
     {
-        return static::scanBarcode($this->barcode);
+        // Check if this barcode is currently in a shipment
+        $currentShipment = Shipment::whereJsonContains('package_barcodes', $this->barcode)
+                                  ->whereNotIn('status', ['delivered', 'cancelled', 'returned'])
+                                  ->first();
+
+        return $currentShipment;
+    }
+
+    public function getShipmentHistory()
+    {
+        return Shipment::whereJsonContains('package_barcodes', $this->barcode)
+                      ->with(['order', 'customer'])
+                      ->orderBy('created_at', 'desc')
+                      ->get();
+    }
+
+    public function isInShipment(): bool
+    {
+        return $this->getCurrentShipment() !== null;
+    }
+
+    public function getShipmentStatus()
+    {
+        $shipment = $this->getCurrentShipment();
+        return $shipment ? $shipment->status : null;
+    }
+
+    public function getShipmentTrackingNumber()
+    {
+        $shipment = $this->getCurrentShipment();
+        return $shipment ? ($shipment->pathao_tracking_number ?? $shipment->shipment_number) : null;
     }
 }

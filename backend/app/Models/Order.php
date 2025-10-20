@@ -78,9 +78,19 @@ class Order extends Model
         return $this->belongsTo(Store::class);
     }
 
-    public function items(): HasMany
+    public function shipments(): HasMany
     {
-        return $this->hasMany(OrderItem::class);
+        return $this->hasMany(Shipment::class);
+    }
+
+    public function activeShipment()
+    {
+        return $this->shipments()->whereNotIn('status', ['delivered', 'cancelled', 'returned'])->first();
+    }
+
+    public function deliveredShipments()
+    {
+        return $this->shipments()->delivered();
     }
 
     public function createdBy(): BelongsTo
@@ -315,7 +325,10 @@ class Order extends Model
         $this->subtotal = $subtotal;
         $this->tax_amount = $taxAmount;
         $this->discount_amount = $discountAmount;
-        $this->total_amount = round($subtotal + $taxAmount + $this->shipping_amount - $discountAmount, 2);
+
+        // Calculate total with proper decimal precision
+        $calculation = $subtotal + $taxAmount + $this->shipping_amount - $discountAmount;
+        $this->total_amount = (float) number_format($calculation, 2, '.', '');
 
         $this->save();
 
@@ -499,19 +512,33 @@ class Order extends Model
         return $order;
     }
 
-    public static function createEcommerceOrder(Customer $customer, Store $store, array $orderData, array $items = [])
+    public function createShipment(array $shipmentData = [])
     {
-        $order = static::create(array_merge($orderData, [
-            'customer_id' => $customer->id,
-            'store_id' => $store->id,
-            'order_type' => 'ecommerce',
-        ]));
-
-        foreach ($items as $itemData) {
-            $product = Product::find($itemData['product_id']);
-            $order->addItem($product, $itemData['quantity'], $itemData['unit_price'] ?? null, $itemData['options'] ?? []);
+        if ($this->isCancelled()) {
+            throw new \Exception('Cannot create shipment for cancelled order');
         }
 
-        return $order;
+        if ($this->activeShipment()) {
+            throw new \Exception('Order already has an active shipment');
+        }
+
+        return Shipment::createFromOrder($this, $shipmentData);
+    }
+
+    public function canCreateShipment(): bool
+    {
+        return !$this->isCancelled() && !$this->activeShipment();
+    }
+
+    public function getShipmentStatus()
+    {
+        $shipment = $this->activeShipment();
+        return $shipment ? $shipment->status : null;
+    }
+
+    public function getTrackingNumber()
+    {
+        $shipment = $this->activeShipment();
+        return $shipment ? ($shipment->pathao_tracking_number ?? $shipment->shipment_number) : null;
     }
 }
