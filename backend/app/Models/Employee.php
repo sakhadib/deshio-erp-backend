@@ -77,6 +77,16 @@ class Employee extends Authenticatable
         return $this->sessions()->active();
     }
 
+    public function emailVerificationTokens(): HasMany
+    {
+        return $this->hasMany(EmailVerificationToken::class);
+    }
+
+    public function activeEmailVerificationTokens()
+    {
+        return $this->emailVerificationTokens()->active();
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
