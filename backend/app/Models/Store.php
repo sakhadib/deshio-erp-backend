@@ -2,8 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Store extends Model
 {
@@ -81,5 +80,35 @@ class Store extends Model
     public function activeEmployees()
     {
         return $this->employees()->active()->inService();
+    }
+
+    public function outgoingDispatches(): HasMany
+    {
+        return $this->hasMany(ProductDispatch::class, 'source_store_id');
+    }
+
+    public function incomingDispatches(): HasMany
+    {
+        return $this->hasMany(ProductDispatch::class, 'destination_store_id');
+    }
+
+    public function pendingOutgoingDispatches()
+    {
+        return $this->outgoingDispatches()->pending();
+    }
+
+    public function pendingIncomingDispatches()
+    {
+        return $this->incomingDispatches()->inTransit();
+    }
+
+    public function productBatches(): HasMany
+    {
+        return $this->hasMany(ProductBatch::class);
+    }
+
+    public function availableProductBatches()
+    {
+        return $this->productBatches()->available();
     }
 }
