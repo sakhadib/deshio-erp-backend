@@ -120,4 +120,16 @@ class Field extends Model
     {
         return $this->hasMany(ProductField::class);
     }
+
+    public function services()
+    {
+        return $this->belongsToMany(Service::class, 'service_fields')
+                    ->withPivot('value', 'value_json', 'is_visible', 'display_order')
+                    ->withTimestamps();
+    }
+
+    public function serviceFields()
+    {
+        return $this->hasMany(ServiceField::class);
+    }
 }
