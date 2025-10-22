@@ -106,11 +106,6 @@ class ServiceOrder extends Model
         return $this->hasMany(ServiceOrderPayment::class);
     }
 
-    public function payments(): HasMany
-    {
-        return $this->hasMany(ServiceOrderPayment::class);
-    }
-
     // Scopes
     public function scopePending($query)
     {
