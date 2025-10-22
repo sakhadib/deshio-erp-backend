@@ -93,6 +93,123 @@ class Order extends Model
         return $this->hasMany(Refund::class);
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(OrderPayment::class);
+    }
+
+    public function completedPayments()
+    {
+        return $this->payments()->completed();
+    }
+
+    public function pendingPayments()
+    {
+        return $this->payments()->pending();
+    }
+
+    // Payment methods
+    public function addPayment(PaymentMethod $paymentMethod, float $amount, array $paymentData = [], Employee $processedBy = null): OrderPayment
+    {
+        return OrderPayment::createPayment($this, $paymentMethod, $amount, $paymentData, $processedBy);
+    }
+
+    public function updatePaymentStatus(): void
+    {
+        $totalPaid = $this->getTotalPaidAmount();
+        $totalAmount = $this->total_amount;
+
+        if ($totalPaid >= $totalAmount) {
+            $this->payment_status = 'paid';
+        } elseif ($totalPaid > 0) {
+            $this->payment_status = 'partial';
+        } else {
+            $this->payment_status = 'pending';
+        }
+
+        $this->save();
+    }
+
+    public function getTotalPaidAmount(): float
+    {
+        return $this->completedPayments()->sum('amount');
+    }
+
+    public function getTotalRefundedAmount(): float
+    {
+        return $this->payments()->refunded()->sum('refunded_amount');
+    }
+
+    public function getRemainingAmount(): float
+    {
+        return $this->total_amount - $this->getTotalPaidAmount();
+    }
+
+    public function isFullyPaid(): bool
+    {
+        return $this->getTotalPaidAmount() >= $this->total_amount;
+    }
+
+    public function isPartiallyPaid(): bool
+    {
+        $paid = $this->getTotalPaidAmount();
+        return $paid > 0 && $paid < $this->total_amount;
+    }
+
+    public function canAcceptPayment(): bool
+    {
+        return !$this->isCancelled() && !$this->isFullyPaid();
+    }
+
+    public function getAvailablePaymentMethods(): array
+    {
+        return PaymentMethod::getAvailableMethodsForCustomerType($this->customer->customer_type);
+    }
+
+    public function processPayment(OrderPayment $payment, string $transactionReference = null, string $externalReference = null): bool
+    {
+        if (!$payment->process()) {
+            return false;
+        }
+
+        return $payment->complete($transactionReference, $externalReference);
+    }
+
+    public function refundPayment(OrderPayment $payment, float $refundAmount, string $reason = null): bool
+    {
+        return $payment->refund($refundAmount, $reason);
+    }
+
+    // Helper methods for payment display
+    public function getPaymentSummaryAttribute(): array
+    {
+        $payments = $this->payments;
+
+        return [
+            'total_amount' => $this->total_amount,
+            'paid_amount' => $this->getTotalPaidAmount(),
+            'remaining_amount' => $this->getRemainingAmount(),
+            'refunded_amount' => $this->getTotalRefundedAmount(),
+            'payment_count' => $payments->count(),
+            'completed_payments' => $payments->completed()->count(),
+            'pending_payments' => $payments->pending()->count(),
+            'failed_payments' => $payments->failed()->count(),
+            'is_fully_paid' => $this->isFullyPaid(),
+            'is_partially_paid' => $this->isPartiallyPaid(),
+        ];
+    }
+
+    public function getPaymentMethodsUsedAttribute(): array
+    {
+        return $this->completedPayments()
+            ->with('paymentMethod')
+            ->get()
+            ->pluck('paymentMethod.name')
+            ->unique()
+            ->values()
+            ->toArray();
+    }
+
     public function activeShipment()
     {
         return $this->shipments()->whereNotIn('status', ['delivered', 'cancelled', 'returned'])->first();
@@ -337,7 +454,7 @@ class Order extends Model
         $this->discount_amount = $discountAmount;
 
         // Calculate total with proper decimal precision
-        $this->total_amount = round($calculation, 2);
+        $this->total_amount = (float) bcadd(bcsub(bcadd($subtotal, $taxAmount, 2), $discountAmount, 2), $this->shipping_amount, 2);
 
         $this->save();
 

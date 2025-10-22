@@ -92,6 +92,11 @@ class Customer extends Authenticatable
         return $this->hasMany(Refund::class);
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(OrderPayment::class);
+    }
+
     public function activeOrders()
     {
         return $this->orders()->where('status', '!=', 'cancelled');
