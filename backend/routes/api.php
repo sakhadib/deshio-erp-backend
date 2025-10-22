@@ -19,20 +19,3 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-// Payment routes
-Route::middleware('auth:sanctum')->group(function () {
-    // Payment methods
-    Route::get('/payment-methods', [PaymentController::class, 'getMethodsByCustomerType']);
-    Route::get('/orders/{order}/payment-methods', [PaymentController::class, 'getAvailableMethods']);
-
-    // Order payments
-    Route::post('/orders/{order}/payments', [PaymentController::class, 'processPayment']);
-    Route::post('/orders/{order}/payments/multiple', [PaymentController::class, 'processMultiplePayments']);
-    Route::get('/orders/{order}/payments', [PaymentController::class, 'getOrderPayments']);
-
-    // Payment refunds
-    Route::post('/payments/{payment}/refund', [PaymentController::class, 'refundPayment']);
-
-    // Payment statistics
-    Route::get('/payments/stats', [PaymentController::class, 'getPaymentStats']);
-});
