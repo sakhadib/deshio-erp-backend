@@ -33,7 +33,7 @@ return new class extends Migration
             $table->timestamp('shipped_at')->nullable();
             $table->timestamp('delivered_at')->nullable();
             $table->timestamp('cancelled_at')->nullable();
-            $table->foreignId('created_by')->constrained('employees')->onDelete('set null');
+            $table->foreignId('created_by')->nullable()->constrained('employees')->onDelete('set null');
             $table->foreignId('processed_by')->nullable()->constrained('employees')->onDelete('set null');
             $table->foreignId('shipped_by')->nullable()->constrained('employees')->onDelete('set null');
             $table->string('tracking_number')->nullable();

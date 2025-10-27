@@ -61,7 +61,7 @@ return new class extends Migration
             $table->timestamp('rejected_date')->nullable();
 
             // Personnel
-            $table->foreignId('created_by')->constrained('employees')->onDelete('set null');
+            $table->foreignId('created_by')->nullable()->constrained('employees')->onDelete('set null');
             $table->foreignId('approved_by')->nullable()->constrained('employees')->onDelete('set null');
             $table->foreignId('processed_by')->nullable()->constrained('employees')->onDelete('set null');
             $table->foreignId('rejected_by')->nullable()->constrained('employees')->onDelete('set null');

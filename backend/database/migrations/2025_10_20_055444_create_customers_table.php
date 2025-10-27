@@ -33,8 +33,9 @@ return new class extends Migration
             $table->timestamp('first_purchase_at')->nullable();
             $table->enum('status', ['active', 'inactive', 'blocked'])->default('active');
             $table->text('notes')->nullable();
-            $table->foreignId('created_by')->constrained('employees')->onDelete('set null');
-            $table->foreignId('assigned_employee_id')->nullable()->constrained('employees')->onDelete('set null'); // For social commerce
+            $table->foreignId('created_by')->nullable()->constrained('employees')->onDelete('set null');
+            $table->foreignId('assigned_employee_id')->nullable()->constrained('employees')->onDelete('set null');
+
             $table->timestamps();
 
             $table->index(['customer_type', 'status']);
