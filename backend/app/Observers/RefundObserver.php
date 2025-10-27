@@ -4,7 +4,6 @@ namespace App\Observers;
 
 use App\Models\Refund;
 use App\Models\Transaction as AccountingTransaction;
-use App\Models\Transaction;
 
 class RefundObserver
 {

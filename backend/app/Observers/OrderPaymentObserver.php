@@ -3,7 +3,7 @@
 namespace App\Observers;
 
 use App\Models\OrderPayment;
-use App\Models\Transaction;
+use App\Models\Transaction as AccountingTransaction;
 
 class OrderPaymentObserver
 {
@@ -13,7 +13,7 @@ class OrderPaymentObserver
     public function created(OrderPayment $orderPayment): void
     {
         // Create transaction when payment is created
-        Transaction::createFromOrderPayment($orderPayment);
+        AccountingTransaction::createFromOrderPayment($orderPayment);
     }
 
     /**
@@ -24,7 +24,7 @@ class OrderPaymentObserver
         // Check if status changed to completed
         if ($orderPayment->wasChanged('status') && $orderPayment->status === 'completed') {
             // Find existing transaction or create new one
-            $transaction = Transaction::byReference(OrderPayment::class, $orderPayment->id)->first();
+            $transaction = AccountingTransaction::byReference(OrderPayment::class, $orderPayment->id)->first();
 
             if ($transaction) {
                 // Update existing transaction
@@ -34,18 +34,18 @@ class OrderPaymentObserver
                 ]);
             } else {
                 // Create new transaction if it doesn't exist
-                Transaction::createFromOrderPayment($orderPayment);
+                AccountingTransaction::createFromOrderPayment($orderPayment);
             }
         }
 
         // Handle refunds
         if ($orderPayment->wasChanged('refunded_amount') && $orderPayment->refunded_amount > 0) {
             // Create credit transaction for refund
-            Transaction::create([
+            AccountingTransaction::create([
                 'transaction_date' => now(),
                 'amount' => $orderPayment->refunded_amount,
                 'type' => 'credit',
-                'account_id' => Transaction::getCashAccountId($orderPayment->store_id),
+                'account_id' => AccountingTransaction::getCashAccountId($orderPayment->store_id),
                 'reference_type' => OrderPayment::class,
                 'reference_id' => $orderPayment->id,
                 'description' => "Refund from Order Payment - {$orderPayment->payment_number}",
@@ -67,7 +67,7 @@ class OrderPaymentObserver
     public function deleted(OrderPayment $orderPayment): void
     {
         // Mark related transactions as cancelled
-        Transaction::byReference(OrderPayment::class, $orderPayment->id)
+        AccountingTransaction::byReference(OrderPayment::class, $orderPayment->id)
             ->update(['status' => 'cancelled']);
     }
 
@@ -77,7 +77,7 @@ class OrderPaymentObserver
     public function restored(OrderPayment $orderPayment): void
     {
         // Restore related transactions
-        Transaction::byReference(OrderPayment::class, $orderPayment->id)
+        AccountingTransaction::byReference(OrderPayment::class, $orderPayment->id)
             ->update(['status' => 'completed']);
     }
 
@@ -87,6 +87,6 @@ class OrderPaymentObserver
     public function forceDeleted(OrderPayment $orderPayment): void
     {
         // Permanently delete related transactions
-        Transaction::byReference(OrderPayment::class, $orderPayment->id)->delete();
+        AccountingTransaction::byReference(OrderPayment::class, $orderPayment->id)->delete();
     }
 }

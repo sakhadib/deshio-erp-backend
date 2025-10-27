@@ -3,7 +3,7 @@
 namespace App\Observers;
 
 use App\Models\ServiceOrderPayment;
-use App\Models\Transaction;
+use App\Models\Transaction as AccountingTransaction;
 
 class ServiceOrderPaymentObserver
 {
@@ -13,7 +13,7 @@ class ServiceOrderPaymentObserver
     public function created(ServiceOrderPayment $serviceOrderPayment): void
     {
         // Create transaction when payment is created
-        Transaction::createFromServiceOrderPayment($serviceOrderPayment);
+        AccountingTransaction::createFromServiceOrderPayment($serviceOrderPayment);
     }
 
     /**
@@ -24,7 +24,7 @@ class ServiceOrderPaymentObserver
         // Check if status changed to completed
         if ($serviceOrderPayment->wasChanged('status') && $serviceOrderPayment->status === 'completed') {
             // Find existing transaction or create new one
-            $transaction = Transaction::byReference(ServiceOrderPayment::class, $serviceOrderPayment->id)->first();
+            $transaction = AccountingTransaction::byReference(ServiceOrderPayment::class, $serviceOrderPayment->id)->first();
 
             if ($transaction) {
                 // Update existing transaction
@@ -34,18 +34,18 @@ class ServiceOrderPaymentObserver
                 ]);
             } else {
                 // Create new transaction if it doesn't exist
-                Transaction::createFromServiceOrderPayment($serviceOrderPayment);
+                AccountingTransaction::createFromServiceOrderPayment($serviceOrderPayment);
             }
         }
 
         // Handle refunds
         if ($serviceOrderPayment->wasChanged('refunded_amount') && $serviceOrderPayment->refunded_amount > 0) {
             // Create credit transaction for refund
-            Transaction::create([
+            AccountingTransaction::create([
                 'transaction_date' => now(),
                 'amount' => $serviceOrderPayment->refunded_amount,
                 'type' => 'credit',
-                'account_id' => Transaction::getCashAccountId($serviceOrderPayment->store_id),
+                'account_id' => AccountingTransaction::getCashAccountId($serviceOrderPayment->store_id),
                 'reference_type' => ServiceOrderPayment::class,
                 'reference_id' => $serviceOrderPayment->id,
                 'description' => "Refund from Service Order Payment - {$serviceOrderPayment->payment_number}",
@@ -67,7 +67,7 @@ class ServiceOrderPaymentObserver
     public function deleted(ServiceOrderPayment $serviceOrderPayment): void
     {
         // Mark related transactions as cancelled
-        Transaction::byReference(ServiceOrderPayment::class, $serviceOrderPayment->id)
+        AccountingTransaction::byReference(ServiceOrderPayment::class, $serviceOrderPayment->id)
             ->update(['status' => 'cancelled']);
     }
 
@@ -77,7 +77,7 @@ class ServiceOrderPaymentObserver
     public function restored(ServiceOrderPayment $serviceOrderPayment): void
     {
         // Restore related transactions
-        Transaction::byReference(ServiceOrderPayment::class, $serviceOrderPayment->id)
+        AccountingTransaction::byReference(ServiceOrderPayment::class, $serviceOrderPayment->id)
             ->update(['status' => 'completed']);
     }
 
@@ -87,6 +87,6 @@ class ServiceOrderPaymentObserver
     public function forceDeleted(ServiceOrderPayment $serviceOrderPayment): void
     {
         // Permanently delete related transactions
-        Transaction::byReference(ServiceOrderPayment::class, $serviceOrderPayment->id)->delete();
+        AccountingTransaction::byReference(ServiceOrderPayment::class, $serviceOrderPayment->id)->delete();
     }
 }
