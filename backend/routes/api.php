@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\EmployeeController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -23,6 +24,29 @@ Route::post('/login', [AuthController::class, 'login']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
+    // Employee management routes
+    Route::prefix('employees')->group(function () {
+        Route::get('/', [EmployeeController::class, 'getEmployees']);
+        Route::post('/', [EmployeeController::class, 'createEmployee']);
+        Route::get('/stats', [EmployeeController::class, 'getEmployeeStats']);
+        Route::get('/by-store/{storeId}', [EmployeeController::class, 'getEmployeesByStore']);
+        Route::get('/by-role/{roleId}', [EmployeeController::class, 'getEmployeesByRole']);
+
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [EmployeeController::class, 'getEmployee']);
+            Route::put('/', [EmployeeController::class, 'updateEmployee']);
+            Route::delete('/', [EmployeeController::class, 'deleteEmployee']);
+            Route::patch('/role', [EmployeeController::class, 'changeEmployeeRole']);
+            Route::patch('/activate', [EmployeeController::class, 'activateEmployee']);
+            Route::patch('/deactivate', [EmployeeController::class, 'deactivateEmployee']);
+            Route::patch('/password', [EmployeeController::class, 'changePassword']);
+            Route::get('/subordinates', [EmployeeController::class, 'getSubordinates']);
+        });
+    });
+
+    // Bulk operations
+    Route::patch('/employees/bulk/status', [EmployeeController::class, 'bulkUpdateStatus']);
+
     // Payment routes
     Route::prefix('payments')->group(function () {
         Route::get('/methods', [PaymentController::class, 'getMethodsByCustomerType']);
