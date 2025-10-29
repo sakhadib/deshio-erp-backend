@@ -5,6 +5,8 @@ use App\Http\Controllers\ServiceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+
+use App\Http\Controllers\AuthController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -16,6 +18,31 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+Route::post('/signup', [AuthController::class, 'signup']);
+Route::post('/login', [AuthController::class, 'login']);
+
+// Protected routes
+Route::middleware('auth:sanctum')->group(function () {
+    // Payment routes
+    Route::prefix('payments')->group(function () {
+        Route::get('/methods', [PaymentController::class, 'getMethodsByCustomerType']);
+        Route::get('/overdue', [PaymentController::class, 'getOverduePayments']);
+        Route::get('/stats', [PaymentController::class, 'getPaymentStats']);
+    });
+
+    // Order payment routes
+    Route::prefix('orders/{order}/payments')->group(function () {
+        Route::get('/', [PaymentController::class, 'getOrderPayments']);
+        Route::post('/', [PaymentController::class, 'processPayment']);
+        Route::post('/multiple', [PaymentController::class, 'processMultiplePayments']);
+        Route::post('/installment/setup', [PaymentController::class, 'setupInstallmentPlan']);
+        Route::post('/installment', [PaymentController::class, 'addInstallmentPayment']);
+        Route::post('/partial', [PaymentController::class, 'addPartialPayment']);
+        Route::get('/methods', [PaymentController::class, 'getAvailableMethods']);
+    });
+
+    // Payment refund routes
+    Route::prefix('payments/{payment}')->group(function () {
+        Route::post('/refund', [PaymentController::class, 'refundPayment']);
+    });
 });

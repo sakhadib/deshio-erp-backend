@@ -351,36 +351,292 @@ class PaymentController extends Controller
     }
 
     /**
-     * Get payment statistics
+     * Setup installment plan for an order
      */
-    public function getPaymentStats(Request $request): JsonResponse
+    public function setupInstallmentPlan(Request $request, Order $order): JsonResponse
     {
-        $query = OrderPayment::query();
+        $validator = Validator::make($request->all(), [
+            'total_installments' => 'required|integer|min:2|max:12',
+            'installment_amount' => 'required|numeric|min:0.01',
+            'start_date' => 'nullable|date|after:today',
+            'allow_partial_payments' => 'boolean',
+            'minimum_payment_amount' => 'nullable|numeric|min:0.01',
+        ]);
 
-        // Filter by date range
-        if ($request->has('start_date') && $request->has('end_date')) {
-            $query->whereBetween('processed_at', [$request->start_date, $request->end_date]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
         }
+
+        try {
+            // Check if order can have installment plan
+            if ($order->is_installment_payment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Order already has an installment plan',
+                ], 400);
+            }
+
+            // Validate installment amount
+            $totalInstallmentAmount = $request->total_installments * $request->installment_amount;
+            if ($totalInstallmentAmount < $order->outstanding_amount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Total installment amount must be at least the outstanding balance',
+                ], 400);
+            }
+
+            $startDate = $request->start_date ? \Carbon\Carbon::parse($request->start_date) : now();
+
+            if ($order->setupInstallmentPlan(
+                $request->total_installments,
+                $request->installment_amount,
+                $startDate->format('Y-m-d')
+            )) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Installment plan created successfully',
+                    'data' => [
+                        'order' => $order->load('payments'),
+                        'installment_schedule' => $order->payment_schedule,
+                    ],
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to create installment plan',
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Installment plan setup failed',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Add installment payment to an order
+     */
+    public function addInstallmentPayment(Request $request, Order $order): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'amount' => 'required|numeric|min:0.01',
+            'payment_method_id' => 'required|exists:payment_methods,id',
+            'payment_data' => 'nullable|array',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Check if order can accept installment payment
+            if (!$order->canAcceptInstallmentPayment()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Order cannot accept installment payments',
+                ], 400);
+            }
+
+            // Validate amount matches expected installment amount
+            $nextInstallment = $order->paid_installments + 1;
+            if ($request->amount != $order->installment_amount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Installment amount must be {$order->installment_amount}",
+                ], 400);
+            }
+
+            $payment = $order->addInstallmentPayment($request->amount, [
+                'payment_method_id' => $request->payment_method_id,
+                'payment_data' => $request->payment_data ?? [],
+                'notes' => $request->notes,
+            ]);
+
+            if ($payment) {
+                // Process the payment
+                $transactionReference = $request->payment_data['transaction_reference'] ?? null;
+                $externalReference = $request->payment_data['external_reference'] ?? null;
+
+                if ($order->processPayment($payment, $transactionReference, $externalReference)) {
+                    DB::commit();
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => "Installment {$nextInstallment} payment processed successfully",
+                        'data' => [
+                            'payment' => $payment->load('paymentMethod'),
+                            'order_summary' => $order->payment_summary,
+                            'next_installment_due' => $order->next_payment_due,
+                        ],
+                    ]);
+                } else {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to process installment payment',
+                    ], 500);
+                }
+            } else {
+                DB::rollBack();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to create installment payment',
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Installment payment processing failed',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Add partial payment to an order
+     */
+    public function addPartialPayment(Request $request, Order $order): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'amount' => 'required|numeric|min:0.01',
+            'payment_method_id' => 'required|exists:payment_methods,id',
+            'payment_data' => 'nullable|array',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Check if order can accept partial payment
+            if (!$order->canAcceptPartialPayment()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Order cannot accept partial payments',
+                ], 400);
+            }
+
+            // Check minimum payment amount
+            if ($order->minimum_payment_amount && $request->amount < $order->minimum_payment_amount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Minimum payment amount is {$order->minimum_payment_amount}",
+                ], 400);
+            }
+
+            // Check remaining amount
+            $remainingAmount = $order->outstanding_amount;
+            if ($request->amount > $remainingAmount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Payment amount exceeds remaining balance of {$remainingAmount}",
+                ], 400);
+            }
+
+            $payment = $order->addPartialPayment($request->amount, [
+                'payment_method_id' => $request->payment_method_id,
+                'payment_data' => $request->payment_data ?? [],
+                'notes' => $request->notes,
+            ]);
+
+            if ($payment) {
+                // Process the payment
+                $transactionReference = $request->payment_data['transaction_reference'] ?? null;
+                $externalReference = $request->payment_data['external_reference'] ?? null;
+
+                if ($order->processPayment($payment, $transactionReference, $externalReference)) {
+                    DB::commit();
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Partial payment processed successfully',
+                        'data' => [
+                            'payment' => $payment->load('paymentMethod'),
+                            'order_summary' => $order->payment_summary,
+                            'remaining_balance' => $order->outstanding_amount,
+                        ],
+                    ]);
+                } else {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to process partial payment',
+                    ], 500);
+                }
+            } else {
+                DB::rollBack();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to create partial payment',
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Partial payment processing failed',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get overdue payments
+     */
+    public function getOverduePayments(Request $request): JsonResponse
+    {
+        $query = Order::where('payment_status', 'overdue')
+            ->orWhere(function ($q) {
+                $q->whereNotNull('next_payment_due')
+                  ->where('next_payment_due', '<', now())
+                  ->where('outstanding_amount', '>', 0);
+            })
+            ->with(['customer', 'store']);
 
         // Filter by store
         if ($request->has('store_id')) {
             $query->where('store_id', $request->store_id);
         }
 
-        $stats = [
-            'total_payments' => (clone $query)->count(),
-            'completed_payments' => (clone $query)->completed()->count(),
-            'pending_payments' => (clone $query)->pending()->count(),
-            'failed_payments' => (clone $query)->failed()->count(),
-            'refunded_payments' => (clone $query)->refunded()->count(),
-            'total_amount' => (clone $query)->completed()->sum('amount'),
-            'total_fees' => (clone $query)->completed()->sum('fee_amount'),
-            'total_refunded' => (clone $query)->refunded()->sum('refunded_amount'),
-        ];
+        $overdueOrders = $query->get();
 
         return response()->json([
             'success' => true,
-            'data' => $stats,
+            'data' => [
+                'overdue_orders' => $overdueOrders,
+                'total_overdue' => $overdueOrders->sum('outstanding_amount'),
+                'count' => $overdueOrders->count(),
+            ],
         ]);
     }
 }

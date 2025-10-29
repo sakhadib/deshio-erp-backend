@@ -25,7 +25,15 @@ class ServiceOrder extends Model
         'discount_amount',
         'total_amount',
         'paid_amount',
+        'outstanding_amount',
         'refunded_amount',
+        'is_installment_payment',
+        'total_installments',
+        'paid_installments',
+        'installment_amount',
+        'next_payment_due',
+        'allow_partial_payments',
+        'minimum_payment_amount',
         'scheduled_date',
         'scheduled_time',
         'estimated_completion',
@@ -37,6 +45,8 @@ class ServiceOrder extends Model
         'special_instructions',
         'notes',
         'metadata',
+        'payment_schedule',
+        'payment_history',
         'confirmed_at',
         'started_at',
         'completed_at',
@@ -49,16 +59,22 @@ class ServiceOrder extends Model
         'discount_amount' => 'float',
         'total_amount' => 'float',
         'paid_amount' => 'float',
+        'outstanding_amount' => 'float',
         'refunded_amount' => 'float',
+        'installment_amount' => 'float',
+        'minimum_payment_amount' => 'float',
         'scheduled_date' => 'datetime',
         'scheduled_time' => 'datetime',
         'estimated_completion' => 'datetime',
         'actual_completion' => 'datetime',
+        'next_payment_due' => 'date',
         'confirmed_at' => 'datetime',
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'metadata' => 'array',
+        'payment_schedule' => 'array',
+        'payment_history' => 'array',
     ];
 
     protected static function boot()
@@ -240,8 +256,12 @@ class ServiceOrder extends Model
 
         $this->paid_amount = $totalPaid;
         $this->refunded_amount = $totalRefunded;
+        $this->outstanding_amount = max(0, $this->total_amount - $totalPaid + $totalRefunded);
 
-        if ($totalRefunded > 0) {
+        // Check for overdue payments
+        if ($this->next_payment_due && now()->gt(\Carbon\Carbon::parse($this->next_payment_due)) && $this->outstanding_amount > 0) {
+            $this->payment_status = 'overdue';
+        } elseif ($totalRefunded > 0) {
             if ($totalRefunded >= $totalPaid) {
                 $this->payment_status = 'refunded';
             } else {
@@ -255,7 +275,141 @@ class ServiceOrder extends Model
             $this->payment_status = 'unpaid';
         }
 
+        // Update installment tracking if applicable
+        if ($this->is_installment_payment) {
+            $this->updateInstallmentProgress();
+        }
+
         $this->save();
+    }
+
+    // Fragmented payment methods
+    public function updateInstallmentProgress(): void
+    {
+        if (!$this->is_installment_payment) {
+            return;
+        }
+
+        $completedInstallments = $this->payments()
+            ->where('is_partial_payment', true)
+            ->where('payment_type', 'installment')
+            ->count();
+
+        $this->paid_installments = $completedInstallments;
+
+        // Calculate next payment due date if installment amount is set
+        if ($this->installment_amount && $this->paid_installments < $this->total_installments) {
+            $nextInstallmentNumber = $this->paid_installments + 1;
+            // This would need to be calculated based on payment schedule
+            // For now, we'll assume monthly installments
+            $this->update(['next_payment_due' => now()->addMonths($nextInstallmentNumber - 1)->format('Y-m-d')]);
+        }
+
+        $this->save();
+    }
+
+    public function canAcceptPartialPayment(): bool
+    {
+        return $this->allow_partial_payments && $this->outstanding_amount > 0 && !$this->isCancelled();
+    }
+
+    public function canAcceptInstallmentPayment(): bool
+    {
+        return $this->is_installment_payment &&
+               $this->paid_installments < $this->total_installments &&
+               $this->outstanding_amount > 0 &&
+               !$this->isCancelled();
+    }
+
+    public function isPaymentOverdue(): bool
+    {
+        return $this->payment_status === 'overdue' ||
+               ($this->next_payment_due && now()->gt(\Carbon\Carbon::parse($this->next_payment_due)) && $this->outstanding_amount > 0);
+    }
+
+    public function getDaysOverdue(): int
+    {
+        if (!$this->next_payment_due || !$this->isPaymentOverdue()) {
+            return 0;
+        }
+
+        return now()->diffInDays(\Carbon\Carbon::parse($this->next_payment_due));
+    }
+
+    public function setupInstallmentPlan(int $totalInstallments, float $installmentAmount, ?string $startDate = null): bool
+    {
+        if ($this->is_installment_payment) {
+            return false; // Already set up
+        }
+
+        $startDate = $startDate ? \Carbon\Carbon::parse($startDate) : now();
+
+        $this->update([
+            'is_installment_payment' => true,
+            'total_installments' => $totalInstallments,
+            'installment_amount' => $installmentAmount,
+            'next_payment_due' => $startDate->format('Y-m-d'),
+            'allow_partial_payments' => true,
+            'minimum_payment_amount' => $installmentAmount,
+        ]);
+
+        // Create payment schedule
+        $this->createPaymentSchedule($startDate);
+
+        return true;
+    }
+
+    public function createPaymentSchedule(\Carbon\Carbon $startDate): void
+    {
+        $schedule = [];
+        $currentDate = $startDate->copy();
+
+        for ($i = 1; $i <= $this->total_installments; $i++) {
+            $schedule[] = [
+                'installment_number' => $i,
+                'amount' => $this->installment_amount,
+                'due_date' => $currentDate->format('Y-m-d'),
+                'status' => $i <= $this->paid_installments ? 'paid' : 'pending',
+            ];
+
+            $currentDate->addMonth();
+        }
+
+        $this->payment_schedule = $schedule;
+        $this->save();
+    }
+
+    public function addInstallmentPayment(float $amount, array $paymentData = []): ?ServiceOrderPayment
+    {
+        if (!$this->canAcceptInstallmentPayment()) {
+            return null;
+        }
+
+        $nextInstallment = $this->paid_installments + 1;
+
+        $paymentData = array_merge($paymentData, [
+            'is_partial_payment' => true,
+            'installment_number' => $nextInstallment,
+            'payment_type' => 'installment',
+            'expected_installment_amount' => $this->installment_amount,
+            'installment_notes' => "Installment {$nextInstallment} of {$this->total_installments}",
+        ]);
+
+        return ServiceOrderPayment::createPayment($this, PaymentMethod::find($paymentData['payment_method_id'] ?? 1), $amount, $paymentData);
+    }
+
+    public function addPartialPayment(float $amount, array $paymentData = []): ?ServiceOrderPayment
+    {
+        if (!$this->canAcceptPartialPayment()) {
+            return null;
+        }
+
+        $paymentData = array_merge($paymentData, [
+            'is_partial_payment' => true,
+            'payment_type' => 'partial',
+        ]);
+
+        return ServiceOrderPayment::createPayment($this, PaymentMethod::find($paymentData['payment_method_id'] ?? 1), $amount, $paymentData);
     }
 
     public function calculateTotal(): float
