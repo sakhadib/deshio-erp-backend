@@ -37,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/', [EmployeeController::class, 'updateEmployee']);
             Route::delete('/', [EmployeeController::class, 'deleteEmployee']);
             Route::patch('/role', [EmployeeController::class, 'changeEmployeeRole']);
+            Route::patch('/transfer', [EmployeeController::class, 'transferEmployee']);
             Route::patch('/activate', [EmployeeController::class, 'activateEmployee']);
             Route::patch('/deactivate', [EmployeeController::class, 'deactivateEmployee']);
             Route::patch('/password', [EmployeeController::class, 'changePassword']);

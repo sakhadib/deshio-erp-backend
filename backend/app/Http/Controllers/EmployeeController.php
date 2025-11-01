@@ -98,6 +98,36 @@ class EmployeeController extends Controller
         ]);
     }
 
+    public function transferEmployee(Request $request, $id)
+    {
+        $employee = Employee::findOrFail($id);
+
+        $validated = $request->validate([
+            'new_store_id' => 'required|exists:stores,id',
+        ]);
+
+        $newStoreId = $validated['new_store_id'];
+
+        // Check if transferring to the same store
+        if ($employee->store_id == $newStoreId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee is already assigned to this store'
+            ], 400);
+        }
+
+        $oldStore = $employee->store->name ?? 'Unknown Store';
+        $newStore = Store::findOrFail($newStoreId)->name;
+
+        $employee->update(['store_id' => $newStoreId]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Employee transferred from '{$oldStore}' to '{$newStore}'",
+            'data' => $employee->load(['store', 'role', 'manager'])
+        ]);
+    }
+
     public function deleteEmployee($id)
     {
         $employee = Employee::findOrFail($id);
