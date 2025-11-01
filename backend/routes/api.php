@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\VendorController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -48,7 +49,24 @@ Route::middleware('auth:sanctum')->group(function () {
     // Bulk operations
     Route::patch('/employees/bulk/status', [EmployeeController::class, 'bulkUpdateStatus']);
 
-    // Payment routes
+    // Vendor management routes
+    Route::prefix('vendors')->group(function () {
+        Route::get('/', [VendorController::class, 'getVendors']);
+        Route::post('/', [VendorController::class, 'createVendor']);
+        Route::get('/stats', [VendorController::class, 'getVendorStats']);
+        Route::get('/by-type/{type}', [VendorController::class, 'getVendorsByType']);
+
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [VendorController::class, 'getVendor']);
+            Route::put('/', [VendorController::class, 'updateVendor']);
+            Route::delete('/', [VendorController::class, 'deleteVendor']);
+            Route::patch('/activate', [VendorController::class, 'activateVendor']);
+            Route::patch('/deactivate', [VendorController::class, 'deactivateVendor']);
+        });
+    });
+
+    // Bulk vendor operations
+    Route::patch('/vendors/bulk/status', [VendorController::class, 'bulkUpdateStatus']);
     Route::prefix('payments')->group(function () {
         Route::get('/methods', [PaymentController::class, 'getMethodsByCustomerType']);
         Route::get('/overdue', [PaymentController::class, 'getOverduePayments']);
