@@ -10,6 +10,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\StoreController;
+use App\Http\Controllers\CategoriesController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -86,8 +87,27 @@ Route::middleware('auth:sanctum')->group(function () {
         });
     });
 
-    // Bulk store operations
+        // Bulk store operations
     Route::patch('/stores/bulk/status', [StoreController::class, 'bulkUpdateStatus']);
+
+    // Category management routes
+    Route::prefix('categories')->group(function () {
+        Route::get('/', [CategoriesController::class, 'getCategories']);
+        Route::post('/', [CategoriesController::class, 'createCategory']);
+        Route::get('/stats', [CategoriesController::class, 'getCategoryStats']);
+        Route::patch('/reorder', [CategoriesController::class, 'reorderCategories']);
+
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [CategoriesController::class, 'getCategory']);
+            Route::put('/', [CategoriesController::class, 'updateCategory']);
+            Route::delete('/', [CategoriesController::class, 'deleteCategory']);
+            Route::patch('/activate', [CategoriesController::class, 'activateCategory']);
+            Route::patch('/deactivate', [CategoriesController::class, 'deactivateCategory']);
+        });
+    });
+
+    // Bulk category operations
+    Route::patch('/categories/bulk/status', [CategoriesController::class, 'bulkUpdateStatus']);
     Route::prefix('payments')->group(function () {
         Route::get('/methods', [PaymentController::class, 'getMethodsByCustomerType']);
         Route::get('/overdue', [PaymentController::class, 'getOverduePayments']);
