@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\VendorController;
+use App\Http\Controllers\StoreController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -65,8 +66,28 @@ Route::middleware('auth:sanctum')->group(function () {
         });
     });
 
-    // Bulk vendor operations
+        // Bulk vendor operations
     Route::patch('/vendors/bulk/status', [VendorController::class, 'bulkUpdateStatus']);
+
+    // Store management routes
+    Route::prefix('stores')->group(function () {
+        Route::get('/', [StoreController::class, 'getStores']);
+        Route::post('/', [StoreController::class, 'createStore']);
+        Route::get('/stats', [StoreController::class, 'getStoreStats']);
+        Route::get('/by-type/{type}', [StoreController::class, 'getStoresByType']);
+
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [StoreController::class, 'getStore']);
+            Route::put('/', [StoreController::class, 'updateStore']);
+            Route::delete('/', [StoreController::class, 'deleteStore']);
+            Route::patch('/activate', [StoreController::class, 'activateStore']);
+            Route::patch('/deactivate', [StoreController::class, 'deactivateStore']);
+            Route::get('/inventory', [StoreController::class, 'getStoreInventory']);
+        });
+    });
+
+    // Bulk store operations
+    Route::patch('/stores/bulk/status', [StoreController::class, 'bulkUpdateStatus']);
     Route::prefix('payments')->group(function () {
         Route::get('/methods', [PaymentController::class, 'getMethodsByCustomerType']);
         Route::get('/overdue', [PaymentController::class, 'getOverduePayments']);
