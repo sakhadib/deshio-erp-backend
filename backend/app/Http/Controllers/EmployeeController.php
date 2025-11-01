@@ -130,7 +130,7 @@ class EmployeeController extends Controller
 
     public function deleteEmployee($id)
     {
-        $employee = Employee::findOrFail($id);
+        $employee = Employee::findOrFail($id); 
 
         // Prevent deleting self
         if ($employee->id == auth()->id()) {
