@@ -5,6 +5,7 @@ use App\Http\Controllers\OrderPaymentController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\VendorPaymentController;
+use App\Http\Controllers\ProductController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -236,4 +237,68 @@ Route::middleware('auth:api')->group(function () {
     Route::prefix('payment-utils')->group(function () {
         Route::post('/calculate-change', [OrderPaymentController::class, 'calculateChange']);
     });
+
+    // Product Management Routes (with custom fields support)
+    Route::prefix('products')->group(function () {
+        Route::get('/', [ProductController::class, 'index']);
+        Route::post('/', [ProductController::class, 'create']);
+        Route::get('/stats', [ProductController::class, 'getStatistics']);
+        Route::get('/available-fields', [ProductController::class, 'getAvailableFields']);
+        Route::post('/search-by-field', [ProductController::class, 'searchByCustomField']);
+        Route::post('/bulk-update', [ProductController::class, 'bulkUpdate']);
+
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [ProductController::class, 'show']);
+            Route::put('/', [ProductController::class, 'update']);
+            Route::delete('/', [ProductController::class, 'destroy']);
+            Route::patch('/archive', [ProductController::class, 'archive']);
+            Route::patch('/restore', [ProductController::class, 'restore']);
+            
+            // Custom field management
+            Route::post('/custom-fields', [ProductController::class, 'updateCustomField']);
+            Route::delete('/custom-fields/{fieldId}', [ProductController::class, 'removeCustomField']);
+        });
+    });
+
+    // Purchase Order Management Routes
+    Route::prefix('purchase-orders')->group(function () {
+        Route::get('/', [PurchaseOrderController::class, 'index']);
+        Route::post('/', [PurchaseOrderController::class, 'create']);
+        Route::get('/stats', [PurchaseOrderController::class, 'statistics']);
+
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [PurchaseOrderController::class, 'show']);
+            Route::put('/', [PurchaseOrderController::class, 'update']);
+            Route::post('/approve', [PurchaseOrderController::class, 'approve']);
+            Route::post('/receive', [PurchaseOrderController::class, 'receive']);
+            Route::post('/cancel', [PurchaseOrderController::class, 'cancel']);
+            
+            // PO item management
+            Route::post('/items', [PurchaseOrderController::class, 'addItem']);
+            Route::put('/items/{itemId}', [PurchaseOrderController::class, 'updateItem']);
+            Route::delete('/items/{itemId}', [PurchaseOrderController::class, 'removeItem']);
+        });
+    });
+
+    // Vendor Payment Management Routes
+    Route::prefix('vendor-payments')->group(function () {
+        Route::get('/', [VendorPaymentController::class, 'index']);
+        Route::post('/', [VendorPaymentController::class, 'create']);
+        Route::get('/stats', [VendorPaymentController::class, 'statistics']);
+        Route::get('/purchase-order/{purchaseOrderId}', [VendorPaymentController::class, 'getByPurchaseOrder']);
+        Route::get('/outstanding/{vendorId}', [VendorPaymentController::class, 'getOutstanding']);
+
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [VendorPaymentController::class, 'show']);
+            Route::post('/allocate', [VendorPaymentController::class, 'allocateAdvance']);
+            Route::post('/cancel', [VendorPaymentController::class, 'cancel']);
+            Route::post('/refund', [VendorPaymentController::class, 'refund']);
+        });
+    });
+
+    // Enhanced Vendor Routes (analytics)
+    Route::get('/vendors/{id}/analytics', [VendorController::class, 'getVendorAnalytics']);
+    Route::get('/vendors/analytics', [VendorController::class, 'getAllVendorsAnalytics']);
+    Route::get('/vendors/{id}/purchase-history', [VendorController::class, 'getPurchaseHistory']);
+    Route::get('/vendors/{id}/payment-history', [VendorController::class, 'getPaymentHistory']);
 });
