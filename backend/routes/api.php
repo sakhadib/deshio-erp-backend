@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\OrderPaymentController;
 use App\Http\Controllers\ServiceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -128,5 +129,34 @@ Route::middleware('auth:sanctum')->group(function () {
     // Payment refund routes
     Route::prefix('payments/{payment}')->group(function () {
         Route::post('/refund', [PaymentController::class, 'refundPayment']);
+    });
+
+    // Advanced Order Payment Management Routes (with splits and cash denominations)
+    Route::prefix('orders/{order}/payments')->group(function () {
+        // Get all payments for an order
+        Route::get('/advanced', [OrderPaymentController::class, 'index']);
+        
+        // Create simple payment (single method)
+        Route::post('/simple', [OrderPaymentController::class, 'store']);
+        
+        // Create split payment (multiple methods in one transaction)
+        Route::post('/split', [OrderPaymentController::class, 'storeSplitPayment']);
+        
+        // Payment detail with splits and cash tracking
+        Route::get('/{payment}/details', [OrderPaymentController::class, 'show']);
+        
+        // Payment processing actions
+        Route::post('/{payment}/process', [OrderPaymentController::class, 'process']);
+        Route::post('/{payment}/complete', [OrderPaymentController::class, 'complete']);
+        Route::post('/{payment}/fail', [OrderPaymentController::class, 'fail']);
+        Route::post('/{payment}/refund', [OrderPaymentController::class, 'refund']);
+        
+        // Cash denomination tracking
+        Route::get('/{payment}/cash-denominations', [OrderPaymentController::class, 'getCashDenominations']);
+    });
+
+    // Utility routes for payment processing
+    Route::prefix('payment-utils')->group(function () {
+        Route::post('/calculate-change', [OrderPaymentController::class, 'calculateChange']);
     });
 });

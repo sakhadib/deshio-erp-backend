@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class OrderPayment extends Model
@@ -108,6 +109,16 @@ class OrderPayment extends Model
     public function processedBy(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'processed_by');
+    }
+
+    public function paymentSplits(): HasMany
+    {
+        return $this->hasMany(PaymentSplit::class);
+    }
+
+    public function cashDenominations(): HasMany
+    {
+        return $this->hasMany(CashDenomination::class);
     }
 
     // Scopes
@@ -294,6 +305,90 @@ class OrderPayment extends Model
     public function requiresReference(): bool
     {
         return $this->paymentMethod && $this->paymentMethod->requires_reference;
+    }
+
+    // Payment split methods
+    public function hasSplits(): bool
+    {
+        return $this->paymentSplits()->exists();
+    }
+
+    public function isSplitPayment(): bool
+    {
+        return $this->paymentSplits()->count() > 1;
+    }
+
+    public function updateSplitStatus(): void
+    {
+        if (!$this->hasSplits()) {
+            return;
+        }
+
+        $splits = $this->paymentSplits;
+        $allCompleted = $splits->every(fn($split) => $split->status === 'completed');
+        $anyFailed = $splits->contains(fn($split) => $split->status === 'failed');
+
+        if ($allCompleted) {
+            $this->complete();
+        } elseif ($anyFailed) {
+            $this->fail('One or more payment splits failed');
+        }
+    }
+
+    public function createSplits(array $splitData): bool
+    {
+        if ($this->hasSplits()) {
+            return false; // Already has splits
+        }
+
+        $totalSplitAmount = 0;
+        $sequence = 1;
+
+        foreach ($splitData as $split) {
+            $method = PaymentMethod::find($split['payment_method_id']);
+            
+            PaymentSplit::createSplit(
+                $this,
+                $method,
+                $split['amount'],
+                $sequence++,
+                $split['payment_data'] ?? []
+            );
+
+            $totalSplitAmount += $split['amount'];
+        }
+
+        // Validate total split amount matches payment amount
+        if (abs($totalSplitAmount - $this->amount) > 0.01) {
+            $this->paymentSplits()->delete();
+            throw new \Exception("Total split amount ($totalSplitAmount) does not match payment amount ({$this->amount})");
+        }
+
+        return true;
+    }
+
+    public function getSplitSummary(): array
+    {
+        if (!$this->hasSplits()) {
+            return [];
+        }
+
+        return $this->paymentSplits()
+            ->with('paymentMethod')
+            ->orderBy('split_sequence')
+            ->get()
+            ->map(function ($split) {
+                return [
+                    'sequence' => $split->split_sequence,
+                    'method' => $split->paymentMethod->name,
+                    'amount' => $split->amount,
+                    'fee' => $split->fee_amount,
+                    'net' => $split->net_amount,
+                    'status' => $split->status,
+                    'transaction_reference' => $split->transaction_reference,
+                ];
+            })
+            ->toArray();
     }
 
     private function addStatusToHistory(string $status, ?int $userId = null, ?string $notes = null): array
