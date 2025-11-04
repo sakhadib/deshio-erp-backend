@@ -11,6 +11,8 @@ use App\Http\Controllers\ProductBatchController;
 use App\Http\Controllers\ProductBarcodeController;
 use App\Http\Controllers\ProductDispatchController;
 use App\Http\Controllers\ShipmentController;
+use App\Http\Controllers\ProductReturnController;
+use App\Http\Controllers\RefundController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -425,6 +427,37 @@ Route::middleware('auth:api')->group(function () {
             
             // Create shipment from dispatch
             Route::post('/create-shipment', [ProductDispatchController::class, 'createShipment']);
+        });
+    });
+
+    // Product Return Management Routes
+    Route::prefix('returns')->group(function () {
+        Route::get('/', [ProductReturnController::class, 'index']);
+        Route::post('/', [ProductReturnController::class, 'store']);
+        Route::get('/statistics', [ProductReturnController::class, 'statistics']);
+        
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [ProductReturnController::class, 'show']);
+            Route::patch('/', [ProductReturnController::class, 'update']);
+            Route::post('/approve', [ProductReturnController::class, 'approve']);
+            Route::post('/reject', [ProductReturnController::class, 'reject']);
+            Route::post('/process', [ProductReturnController::class, 'process']);
+            Route::post('/complete', [ProductReturnController::class, 'complete']);
+        });
+    });
+
+    // Refund Management Routes
+    Route::prefix('refunds')->group(function () {
+        Route::get('/', [RefundController::class, 'index']);
+        Route::post('/', [RefundController::class, 'store']);
+        Route::get('/statistics', [RefundController::class, 'statistics']);
+        
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [RefundController::class, 'show']);
+            Route::post('/process', [RefundController::class, 'process']);
+            Route::post('/complete', [RefundController::class, 'complete']);
+            Route::post('/fail', [RefundController::class, 'fail']);
+            Route::post('/cancel', [RefundController::class, 'cancel']);
         });
     });
 });
