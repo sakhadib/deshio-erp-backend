@@ -29,6 +29,12 @@ class ProductDispatch extends Model
         'created_by',
         'approved_by',
         'approved_at',
+        // For Pathao delivery tracking
+        'for_pathao_delivery',
+        'customer_id',
+        'order_id',
+        'customer_delivery_info',
+        'shipment_id',
     ];
 
     protected $casts = [
@@ -40,6 +46,8 @@ class ProductDispatch extends Model
         'total_value' => 'decimal:2',
         'total_items' => 'integer',
         'metadata' => 'array',
+        'for_pathao_delivery' => 'boolean',
+        'customer_delivery_info' => 'array',
     ];
 
     protected static function boot()
@@ -77,6 +85,21 @@ class ProductDispatch extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'approved_by');
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function shipment(): BelongsTo
+    {
+        return $this->belongsTo(Shipment::class);
     }
 
     public function scopePending($query)
@@ -124,6 +147,18 @@ class ProductDispatch extends Model
     {
         return $query->whereDate('expected_delivery_date', today())
                     ->whereIn('status', ['pending', 'in_transit']);
+    }
+
+    public function scopeForPathaoDelivery($query)
+    {
+        return $query->where('for_pathao_delivery', true);
+    }
+
+    public function scopePendingPathaoShipment($query)
+    {
+        return $query->where('for_pathao_delivery', true)
+                    ->where('status', 'delivered')  // Delivered to warehouse
+                    ->whereNull('shipment_id');     // But no shipment created yet
     }
 
     public function isPending(): bool
@@ -390,5 +425,79 @@ class ProductDispatch extends Model
         ]);
 
         return $destinationBatch;
+    }
+
+    /**
+     * Check if this dispatch is for Pathao delivery
+     */
+    public function isForPathaoDelivery(): bool
+    {
+        return $this->for_pathao_delivery === true;
+    }
+
+    /**
+     * Check if shipment has been created for this dispatch
+     */
+    public function hasShipment(): bool
+    {
+        return $this->shipment_id !== null;
+    }
+
+    /**
+     * Check if this dispatch is ready for shipment creation
+     * (delivered to warehouse but no shipment created yet)
+     */
+    public function isReadyForShipment(): bool
+    {
+        return $this->isForPathaoDelivery() 
+            && $this->status === 'delivered' 
+            && !$this->hasShipment();
+    }
+
+    /**
+     * Get customer delivery information
+     */
+    public function getCustomerDeliveryInfo(): array
+    {
+        return $this->customer_delivery_info ?? [];
+    }
+
+    /**
+     * Create shipment from this dispatch
+     */
+    public function createShipmentForDelivery(): Shipment
+    {
+        if (!$this->isReadyForShipment()) {
+            throw new \Exception('Dispatch is not ready for shipment creation');
+        }
+
+        $deliveryInfo = $this->getCustomerDeliveryInfo();
+
+        $shipment = Shipment::create([
+            'order_id' => $this->order_id,
+            'customer_id' => $this->customer_id,
+            'store_id' => $this->destination_store_id,  // Warehouse
+            'delivery_type' => $deliveryInfo['delivery_type'] ?? 'home_delivery',
+            'package_weight' => $deliveryInfo['package_weight'] ?? 1.0,
+            'special_instructions' => $deliveryInfo['special_instructions'] ?? $this->notes,
+            'pickup_address' => [
+                'name' => $this->destinationStore->name,
+                'phone' => $this->destinationStore->phone,
+                'street' => $this->destinationStore->address,
+                'area' => $this->destinationStore->area,
+                'city' => $this->destinationStore->city,
+                'postal_code' => $this->destinationStore->postal_code,
+            ],
+            'delivery_address' => $deliveryInfo['delivery_address'] ?? [],
+            'recipient_name' => $deliveryInfo['recipient_name'] ?? $this->customer->name,
+            'recipient_phone' => $deliveryInfo['recipient_phone'] ?? $this->customer->phone,
+            'cod_amount' => $deliveryInfo['cod_amount'] ?? 0,
+            'created_by' => auth()->id(),
+        ]);
+
+        // Link shipment to dispatch
+        $this->update(['shipment_id' => $shipment->id]);
+
+        return $shipment;
     }
 }

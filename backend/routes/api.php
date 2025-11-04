@@ -1,11 +1,16 @@
 <?php
 
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderPaymentController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\VendorPaymentController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductBatchController;
+use App\Http\Controllers\ProductBarcodeController;
+use App\Http\Controllers\ProductDispatchController;
+use App\Http\Controllers\ShipmentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -187,6 +192,68 @@ Route::middleware('auth:api')->group(function () {
 
     // Bulk category operations
     Route::patch('/categories/bulk/status', [CategoriesController::class, 'bulkUpdateStatus']);
+
+    // ============================================
+    // SALES / ORDER MANAGEMENT ROUTES
+    // 3 Channels: Counter, Social Commerce, E-commerce
+    // ============================================
+    
+    Route::prefix('orders')->group(function () {
+        // List and statistics
+        Route::get('/', [OrderController::class, 'index']);
+        Route::get('/statistics', [OrderController::class, 'getStatistics']);
+
+        // Create order (all 3 channels)
+        Route::post('/', [OrderController::class, 'create']);
+
+        // Order operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [OrderController::class, 'show']);
+            
+            // Item management (before completion)
+            Route::post('/items', [OrderController::class, 'addItem']);
+            Route::put('/items/{itemId}', [OrderController::class, 'updateItem']);
+            Route::delete('/items/{itemId}', [OrderController::class, 'removeItem']);
+            
+            // Order lifecycle
+            Route::patch('/complete', [OrderController::class, 'complete']);  // Reduce inventory
+            Route::patch('/cancel', [OrderController::class, 'cancel']);
+        });
+    });
+
+    // ============================================
+    // SHIPMENT / COURIER MANAGEMENT ROUTES
+    // Pathao Integration for Delivery
+    // ============================================
+    
+    Route::prefix('shipments')->group(function () {
+        // List and statistics
+        Route::get('/', [ShipmentController::class, 'index']);
+        Route::get('/statistics', [ShipmentController::class, 'getStatistics']);
+
+        // Pathao area lookup (for creating shipments)
+        Route::get('/pathao/cities', [ShipmentController::class, 'getPathaoCities']);
+        Route::get('/pathao/zones/{cityId}', [ShipmentController::class, 'getPathaoZones']);
+        Route::get('/pathao/areas/{zoneId}', [ShipmentController::class, 'getPathaoAreas']);
+        Route::get('/pathao/stores', [ShipmentController::class, 'getPathaoStores']);
+        Route::post('/pathao/stores', [ShipmentController::class, 'createPathaoStore']);
+
+        // Bulk operations
+        Route::post('/bulk-send-to-pathao', [ShipmentController::class, 'bulkSendToPathao']);
+        Route::post('/bulk-sync-pathao-status', [ShipmentController::class, 'bulkSyncPathaoStatus']);
+
+        // Create shipment from order
+        Route::post('/', [ShipmentController::class, 'create']);
+
+        // Shipment operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [ShipmentController::class, 'show']);
+            Route::post('/send-to-pathao', [ShipmentController::class, 'sendToPathao']);
+            Route::get('/sync-pathao-status', [ShipmentController::class, 'syncPathaoStatus']);
+            Route::patch('/cancel', [ShipmentController::class, 'cancel']);
+        });
+    });
+
     Route::prefix('payments')->group(function () {
         Route::get('/methods', [PaymentController::class, 'getMethodsByCustomerType']);
         Route::get('/overdue', [PaymentController::class, 'getOverduePayments']);
@@ -301,4 +368,63 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/vendors/analytics', [VendorController::class, 'getAllVendorsAnalytics']);
     Route::get('/vendors/{id}/purchase-history', [VendorController::class, 'getPurchaseHistory']);
     Route::get('/vendors/{id}/payment-history', [VendorController::class, 'getPaymentHistory']);
+
+    // Product Batch Management Routes
+    Route::prefix('batches')->group(function () {
+        Route::get('/', [ProductBatchController::class, 'index']);
+        Route::post('/', [ProductBatchController::class, 'create']);
+        Route::get('/statistics', [ProductBatchController::class, 'getStatistics']);
+        Route::get('/low-stock', [ProductBatchController::class, 'getLowStock']);
+        Route::get('/expiring-soon', [ProductBatchController::class, 'getExpiringSoon']);
+        Route::get('/expired', [ProductBatchController::class, 'getExpired']);
+
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [ProductBatchController::class, 'show']);
+            Route::put('/', [ProductBatchController::class, 'update']);
+            Route::post('/adjust-stock', [ProductBatchController::class, 'adjustStock']);
+            Route::delete('/', [ProductBatchController::class, 'destroy']);
+        });
+    });
+
+    // Product Barcode Management Routes
+    Route::prefix('barcodes')->group(function () {
+        Route::get('/', [ProductBarcodeController::class, 'index']);
+        Route::post('/generate', [ProductBarcodeController::class, 'generate']);
+        Route::post('/scan', [ProductBarcodeController::class, 'scan']);
+        Route::post('/batch-scan', [ProductBarcodeController::class, 'batchScan']);
+        Route::get('/{barcode}/history', [ProductBarcodeController::class, 'getHistory']);
+        Route::get('/{barcode}/location', [ProductBarcodeController::class, 'getCurrentLocation']);
+        
+        Route::prefix('{id}')->group(function () {
+            Route::patch('/make-primary', [ProductBarcodeController::class, 'makePrimary']);
+            Route::delete('/', [ProductBarcodeController::class, 'deactivate']);
+        });
+    });
+
+    // Get barcodes for a specific product
+    Route::get('/products/{productId}/barcodes', [ProductBarcodeController::class, 'getProductBarcodes']);
+
+    // Product Dispatch Management Routes
+    Route::prefix('dispatches')->group(function () {
+        Route::get('/', [ProductDispatchController::class, 'index']);
+        Route::post('/', [ProductDispatchController::class, 'create']);
+        Route::get('/statistics', [ProductDispatchController::class, 'getStatistics']);
+        
+        // Pathao delivery integration
+        Route::get('/pending-shipment', [ProductDispatchController::class, 'getPendingShipment']);
+        Route::post('/bulk-create-shipment', [ProductDispatchController::class, 'bulkCreateShipment']);
+
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [ProductDispatchController::class, 'show']);
+            Route::post('/items', [ProductDispatchController::class, 'addItem']);
+            Route::delete('/items/{itemId}', [ProductDispatchController::class, 'removeItem']);
+            Route::patch('/approve', [ProductDispatchController::class, 'approve']);
+            Route::patch('/dispatch', [ProductDispatchController::class, 'markDispatched']);
+            Route::patch('/deliver', [ProductDispatchController::class, 'markDelivered']);
+            Route::patch('/cancel', [ProductDispatchController::class, 'cancel']);
+            
+            // Create shipment from dispatch
+            Route::post('/create-shipment', [ProductDispatchController::class, 'createShipment']);
+        });
+    });
 });
