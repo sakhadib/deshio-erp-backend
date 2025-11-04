@@ -3,6 +3,8 @@
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\OrderPaymentController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\VendorPaymentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -42,17 +44,41 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/stats', [EmployeeController::class, 'getEmployeeStats']);
         Route::get('/by-store/{storeId}', [EmployeeController::class, 'getEmployeesByStore']);
         Route::get('/by-role/{roleId}', [EmployeeController::class, 'getEmployeesByRole']);
+        Route::get('/by-manager/{managerId}', [EmployeeController::class, 'getEmployeesByManager']);
+        Route::get('/by-department/{department}', [EmployeeController::class, 'getEmployeesByDepartment']);
 
         Route::prefix('{id}')->group(function () {
             Route::get('/', [EmployeeController::class, 'getEmployee']);
             Route::put('/', [EmployeeController::class, 'updateEmployee']);
             Route::delete('/', [EmployeeController::class, 'deleteEmployee']);
+            
+            // Employee management actions
             Route::patch('/role', [EmployeeController::class, 'changeEmployeeRole']);
             Route::patch('/transfer', [EmployeeController::class, 'transferEmployee']);
             Route::patch('/activate', [EmployeeController::class, 'activateEmployee']);
             Route::patch('/deactivate', [EmployeeController::class, 'deactivateEmployee']);
             Route::patch('/password', [EmployeeController::class, 'changePassword']);
+            Route::patch('/salary', [EmployeeController::class, 'updateSalary']);
+            
+            // Manager/hierarchy management
             Route::get('/subordinates', [EmployeeController::class, 'getSubordinates']);
+            Route::get('/hierarchy', [EmployeeController::class, 'getHierarchy']);
+            Route::post('/assign-manager', [EmployeeController::class, 'assignManager']);
+            Route::delete('/remove-manager', [EmployeeController::class, 'removeManager']);
+            
+            // Session management
+            Route::get('/sessions', [EmployeeController::class, 'getSessions']);
+            Route::delete('/sessions/revoke-all', [EmployeeController::class, 'revokeAllSessions']);
+            Route::delete('/sessions/{sessionId}', [EmployeeController::class, 'revokeSession']);
+            
+            // MFA management
+            Route::get('/mfa', [EmployeeController::class, 'getMFASettings']);
+            Route::post('/mfa/enable', [EmployeeController::class, 'enableMFA']);
+            Route::delete('/mfa/{mfaId}/disable', [EmployeeController::class, 'disableMFA']);
+            Route::post('/mfa/{mfaId}/backup-codes/regenerate', [EmployeeController::class, 'regenerateBackupCodes']);
+            
+            // Activity tracking
+            Route::get('/activity-log', [EmployeeController::class, 'getActivityLog']);
         });
     });
 
@@ -64,6 +90,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [VendorController::class, 'getVendors']);
         Route::post('/', [VendorController::class, 'createVendor']);
         Route::get('/stats', [VendorController::class, 'getVendorStats']);
+        Route::get('/analytics', [VendorController::class, 'getAllVendorsAnalytics']);
         Route::get('/by-type/{type}', [VendorController::class, 'getVendorsByType']);
 
         Route::prefix('{id}')->group(function () {
@@ -72,11 +99,54 @@ Route::middleware('auth:api')->group(function () {
             Route::delete('/', [VendorController::class, 'deleteVendor']);
             Route::patch('/activate', [VendorController::class, 'activateVendor']);
             Route::patch('/deactivate', [VendorController::class, 'deactivateVendor']);
+            
+            // Vendor analytics and history
+            Route::get('/analytics', [VendorController::class, 'getVendorAnalytics']);
+            Route::get('/purchase-history', [VendorController::class, 'getPurchaseHistory']);
+            Route::get('/payment-history', [VendorController::class, 'getPaymentHistory']);
         });
     });
 
         // Bulk vendor operations
     Route::patch('/vendors/bulk/status', [VendorController::class, 'bulkUpdateStatus']);
+
+    // Purchase Order management routes
+    Route::prefix('purchase-orders')->group(function () {
+        Route::get('/', [PurchaseOrderController::class, 'index']);
+        Route::post('/', [PurchaseOrderController::class, 'create']);
+        Route::get('/stats', [PurchaseOrderController::class, 'statistics']);
+
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [PurchaseOrderController::class, 'show']);
+            Route::put('/', [PurchaseOrderController::class, 'update']);
+            
+            // PO Actions
+            Route::post('/approve', [PurchaseOrderController::class, 'approve']);
+            Route::post('/receive', [PurchaseOrderController::class, 'receive']);
+            Route::post('/cancel', [PurchaseOrderController::class, 'cancel']);
+            
+            // PO Items management
+            Route::post('/items', [PurchaseOrderController::class, 'addItem']);
+            Route::put('/items/{itemId}', [PurchaseOrderController::class, 'updateItem']);
+            Route::delete('/items/{itemId}', [PurchaseOrderController::class, 'removeItem']);
+        });
+    });
+
+    // Vendor Payment management routes
+    Route::prefix('vendor-payments')->group(function () {
+        Route::get('/', [VendorPaymentController::class, 'index']);
+        Route::post('/', [VendorPaymentController::class, 'create']);
+        Route::get('/stats', [VendorPaymentController::class, 'statistics']);
+        Route::get('/purchase-order/{purchaseOrderId}', [VendorPaymentController::class, 'getByPurchaseOrder']);
+        Route::get('/outstanding/{vendorId}', [VendorPaymentController::class, 'getOutstanding']);
+
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [VendorPaymentController::class, 'show']);
+            Route::post('/allocate', [VendorPaymentController::class, 'allocateAdvance']);
+            Route::post('/cancel', [VendorPaymentController::class, 'cancel']);
+            Route::post('/refund', [VendorPaymentController::class, 'refund']);
+        });
+    });
 
     // Store management routes
     Route::prefix('stores')->group(function () {
