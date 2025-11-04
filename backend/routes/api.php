@@ -26,8 +26,15 @@ use App\Http\Controllers\CategoriesController;
 Route::post('/signup', [AuthController::class, 'signup']);
 Route::post('/login', [AuthController::class, 'login']);
 
+// Auth routes (protected)
+Route::middleware('auth:api')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/refresh', [AuthController::class, 'refresh']);
+    Route::get('/me', [AuthController::class, 'me']);
+});
+
 // Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:api')->group(function () {
     // Employee management routes
     Route::prefix('employees')->group(function () {
         Route::get('/', [EmployeeController::class, 'getEmployees']);

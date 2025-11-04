@@ -16,10 +16,53 @@ class AuthController extends Controller
      */
     public function __construct()
     {
-        $this->middleware('auth:api', ['except' => ['login']]);
+        $this->middleware('auth:api', ['except' => ['login', 'signup']]);
     }
 
-        
+    /**
+     * Register a new employee
+     *
+     * @param  \Illuminate\Http\Request  $request
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function signup(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:employees',
+            'password' => 'required|string|min:6|confirmed',
+            'store_id' => 'required|exists:stores,id',
+            'role_id' => 'nullable|exists:roles,id',
+            'phone' => 'nullable|string|max:20',
+            'department' => 'nullable|string|max:100',
+        ]);
+
+        $employee = Employee::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => bcrypt($request->password),
+            'store_id' => $request->store_id,
+            'role_id' => $request->role_id,
+            'phone' => $request->phone,
+            'department' => $request->department,
+            'employee_code' => Employee::generateEmployeeCode(),
+            'hire_date' => now(),
+            'is_active' => true,
+            'is_in_service' => true,
+        ]);
+
+        $credentials = $request->only('email', 'password');
+        $token = Auth::attempt($credentials);
+
+        return response()->json([
+            'message' => 'Employee registered successfully',
+            'employee' => $employee,
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => Auth::factory()->getTTL() * 60
+        ], 201);
+    }
     
     /**
      * Get a JWT token via given credentials.
@@ -30,13 +73,24 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+        ]);
+
         $credentials = $request->only('email', 'password');
 
-        if ($token = Auth::attempt($credentials)) {
-            return $this->respondWithToken($token);
+        if (!$token = Auth::attempt($credentials)) {
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        return response()->json(['error' => 'Unauthorized'], 401);
+        // Update last login timestamp
+        $employee = Auth::user();
+        if ($employee && method_exists($employee, 'updateLastLogin')) {
+            $employee->updateLastLogin();
+        }
+
+        return $this->respondWithToken($token);
     }
 
     /**

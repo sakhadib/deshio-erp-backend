@@ -199,4 +199,13 @@ class Employee extends Authenticatable implements JWTSubject
     {
         $this->update(['last_login_at' => now()]);
     }
+
+    public static function generateEmployeeCode(): string
+    {
+        do {
+            $code = 'EMP-' . date('Ymd') . '-' . strtoupper(substr(md5(uniqid()), 0, 6));
+        } while (static::where('employee_code', $code)->exists());
+
+        return $code;
+    }
 }
