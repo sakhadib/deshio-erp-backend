@@ -182,6 +182,10 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/', [CategoriesController::class, 'createCategory']);
         Route::get('/stats', [CategoriesController::class, 'getCategoryStats']);
         Route::patch('/reorder', [CategoriesController::class, 'reorderCategories']);
+        
+        // Nested category routes
+        Route::get('/tree', [CategoriesController::class, 'getCategoryTree']);
+        Route::get('/root', [CategoriesController::class, 'getRootCategories']);
 
         Route::prefix('{id}')->group(function () {
             Route::get('/', [CategoriesController::class, 'getCategory']);
@@ -189,6 +193,12 @@ Route::middleware('auth:api')->group(function () {
             Route::delete('/', [CategoriesController::class, 'deleteCategory']);
             Route::patch('/activate', [CategoriesController::class, 'activateCategory']);
             Route::patch('/deactivate', [CategoriesController::class, 'deactivateCategory']);
+            
+            // Nested category specific routes
+            Route::get('/subcategories', [CategoriesController::class, 'getSubcategories']);
+            Route::patch('/move', [CategoriesController::class, 'moveCategory']);
+            Route::get('/breadcrumb', [CategoriesController::class, 'getCategoryBreadcrumb']);
+            Route::get('/descendants', [CategoriesController::class, 'getCategoryDescendants']);
         });
     });
 
@@ -458,6 +468,28 @@ Route::middleware('auth:api')->group(function () {
             Route::post('/complete', [RefundController::class, 'complete']);
             Route::post('/fail', [RefundController::class, 'fail']);
             Route::post('/cancel', [RefundController::class, 'cancel']);
+        });
+    });
+
+    // Defective Product Management Routes
+    Route::prefix('defective-products')->group(function () {
+        // List and statistics
+        Route::get('/', [\App\Http\Controllers\DefectiveProductController::class, 'index']);
+        Route::get('/available-for-sale', [\App\Http\Controllers\DefectiveProductController::class, 'getAvailableForSale']);
+        Route::get('/statistics', [\App\Http\Controllers\DefectiveProductController::class, 'statistics']);
+        
+        // Mark product as defective and scan barcode
+        Route::post('/mark-defective', [\App\Http\Controllers\DefectiveProductController::class, 'markAsDefective']);
+        Route::post('/scan', [\App\Http\Controllers\DefectiveProductController::class, 'scanBarcode']);
+        
+        // Individual defective product operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [\App\Http\Controllers\DefectiveProductController::class, 'show']);
+            Route::post('/inspect', [\App\Http\Controllers\DefectiveProductController::class, 'inspect']);
+            Route::post('/make-available', [\App\Http\Controllers\DefectiveProductController::class, 'makeAvailableForSale']);
+            Route::post('/sell', [\App\Http\Controllers\DefectiveProductController::class, 'sell']);
+            Route::post('/dispose', [\App\Http\Controllers\DefectiveProductController::class, 'dispose']);
+            Route::post('/return-to-vendor', [\App\Http\Controllers\DefectiveProductController::class, 'returnToVendor']);
         });
     });
 });

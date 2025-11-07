@@ -17,7 +17,19 @@ class CategoriesController extends Controller
             'color' => 'nullable|string|max:7', // hex color
             'icon' => 'nullable|string|max:100',
             'order' => 'nullable|integer|min:0',
+            'parent_id' => 'nullable|exists:categories,id',
         ]);
+
+        // Validate parent category doesn't create circular reference
+        if (isset($validated['parent_id'])) {
+            $parent = Category::find($validated['parent_id']);
+            if (!$parent) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Parent category not found'
+                ], 404);
+            }
+        }
 
         // Generate slug from title if not provided
         if (!isset($validated['slug'])) {
@@ -33,6 +45,9 @@ class CategoriesController extends Controller
         }
 
         $category = Category::create($validated);
+
+        // Load relationships
+        $category->load('parent', 'children');
 
         return response()->json([
             'success' => true,
@@ -51,7 +66,27 @@ class CategoriesController extends Controller
             'color' => 'nullable|string|max:7',
             'icon' => 'nullable|string|max:100',
             'order' => 'nullable|integer|min:0',
+            'parent_id' => 'nullable|exists:categories,id',
         ]);
+
+        // Prevent setting self as parent
+        if (isset($validated['parent_id']) && $validated['parent_id'] == $category->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Category cannot be its own parent'
+            ], 400);
+        }
+
+        // Prevent circular reference (setting a descendant as parent)
+        if (isset($validated['parent_id'])) {
+            $descendants = $category->descendants();
+            if ($descendants->contains('id', $validated['parent_id'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot set a descendant category as parent (circular reference)'
+                ], 400);
+            }
+        }
 
         // Update slug if title changed
         if (isset($validated['title']) && $validated['title'] !== $category->title) {
@@ -67,6 +102,9 @@ class CategoriesController extends Controller
 
         $category->update($validated);
 
+        // Load relationships
+        $category->load('parent', 'children');
+
         return response()->json([
             'success' => true,
             'message' => 'Category updated successfully',
@@ -77,6 +115,14 @@ class CategoriesController extends Controller
     public function deleteCategory($id)
     {
         $category = Category::findOrFail($id);
+
+        // Check if category has children
+        if ($category->hasChildren()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete category with subcategories. Delete or move subcategories first.'
+            ], 400);
+        }
 
         // Check if category has products
         if ($category->products()->exists()) {
@@ -137,6 +183,30 @@ class CategoriesController extends Controller
             $query->where('is_active', $request->boolean('is_active'));
         }
 
+        // Filter by parent_id (null for root categories)
+        if ($request->has('parent_id')) {
+            if ($request->parent_id === 'null' || $request->parent_id === null) {
+                $query->whereNull('parent_id');
+            } else {
+                $query->where('parent_id', $request->parent_id);
+            }
+        }
+
+        // Filter by level
+        if ($request->has('level')) {
+            $query->where('level', $request->level);
+        }
+
+        // Get hierarchical tree structure
+        if ($request->boolean('tree')) {
+            $categories = $query->with('allChildren')->whereNull('parent_id')->get();
+            
+            return response()->json([
+                'success' => true,
+                'data' => $categories
+            ]);
+        }
+
         if ($request->has('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -146,11 +216,14 @@ class CategoriesController extends Controller
             });
         }
 
+        // Load relationships
+        $query->with(['parent', 'children']);
+
         // Sorting
         $sortBy = $request->get('sort_by', 'order');
         $sortDirection = $request->get('sort_direction', 'asc');
 
-        $allowedSortFields = ['title', 'slug', 'order', 'created_at'];
+        $allowedSortFields = ['title', 'slug', 'order', 'created_at', 'level'];
         if (in_array($sortBy, $allowedSortFields)) {
             $query->orderBy($sortBy, $sortDirection);
         }
@@ -166,14 +239,23 @@ class CategoriesController extends Controller
     public function getCategory($id)
     {
         $category = Category::with([
+            'parent',
+            'children.children',
             'activeProducts' => function($query) {
                 $query->select('id', 'name', 'category_id', 'is_active')->limit(10);
             }
         ])->findOrFail($id);
 
+        // Add full path and additional info
+        $categoryArray = $category->toArray();
+        $categoryArray['full_path'] = $category->getFullPath();
+        $categoryArray['ancestors'] = $category->ancestors()->toArray();
+        $categoryArray['has_children'] = $category->hasChildren();
+        $categoryArray['is_root'] = $category->isRoot();
+
         return response()->json([
             'success' => true,
-            'data' => $category
+            'data' => $categoryArray
         ]);
     }
 
@@ -248,6 +330,128 @@ class CategoriesController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Categories reordered successfully'
+        ]);
+    }
+
+    // Nested category specific endpoints
+
+    public function getCategoryTree(Request $request)
+    {
+        $query = Category::query();
+
+        // Filter by active status
+        if ($request->has('is_active')) {
+            $query->where('is_active', $request->boolean('is_active'));
+        }
+
+        // Get all root categories with nested children
+        $categories = $query->with('allChildren')->whereNull('parent_id')->orderBy('order')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $categories
+        ]);
+    }
+
+    public function getRootCategories(Request $request)
+    {
+        $query = Category::rootCategories();
+
+        if ($request->has('is_active')) {
+            $query->where('is_active', $request->boolean('is_active'));
+        }
+
+        $query->with('children')->orderBy('order');
+
+        $categories = $query->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $categories
+        ]);
+    }
+
+    public function getSubcategories($parentId)
+    {
+        $parent = Category::findOrFail($parentId);
+
+        $subcategories = $parent->children()
+            ->with('children')
+            ->orderBy('order')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'parent' => $parent,
+                'subcategories' => $subcategories
+            ]
+        ]);
+    }
+
+    public function moveCategory(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'new_parent_id' => 'nullable|exists:categories,id',
+        ]);
+
+        $category = Category::findOrFail($id);
+
+        // Prevent setting self as parent
+        if (isset($validated['new_parent_id']) && $validated['new_parent_id'] == $category->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Category cannot be its own parent'
+            ], 400);
+        }
+
+        // Prevent circular reference
+        if (isset($validated['new_parent_id'])) {
+            $descendants = $category->descendants();
+            if ($descendants->contains('id', $validated['new_parent_id'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot move category under its own descendant'
+                ], 400);
+            }
+        }
+
+        $category->update(['parent_id' => $validated['new_parent_id']]);
+        $category->load('parent', 'children');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Category moved successfully',
+            'data' => $category
+        ]);
+    }
+
+    public function getCategoryBreadcrumb($id)
+    {
+        $category = Category::findOrFail($id);
+
+        $breadcrumb = $category->ancestors()->reverse()->values();
+        $breadcrumb->push($category);
+
+        return response()->json([
+            'success' => true,
+            'data' => $breadcrumb
+        ]);
+    }
+
+    public function getCategoryDescendants($id)
+    {
+        $category = Category::findOrFail($id);
+
+        $descendants = $category->descendants();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'category' => $category,
+                'descendants' => $descendants,
+                'total_descendants' => $descendants->count()
+            ]
         ]);
     }
 }

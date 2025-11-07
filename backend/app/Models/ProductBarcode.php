@@ -18,11 +18,13 @@ class ProductBarcode extends Model
         'is_primary',
         'is_active',
         'generated_at',
+        'is_defective',
     ];
 
     protected $casts = [
         'is_primary' => 'boolean',
         'is_active' => 'boolean',
+        'is_defective' => 'boolean',
         'generated_at' => 'datetime',
     ];
 
@@ -47,6 +49,11 @@ class ProductBarcode extends Model
         return $this->hasMany(ProductBatch::class, 'barcode_id');
     }
 
+    public function defectiveRecord(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(DefectiveProduct::class, 'product_barcode_id');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
@@ -65,6 +72,16 @@ class ProductBarcode extends Model
     public function scopeByType($query, $type)
     {
         return $query->where('type', $type);
+    }
+
+    public function scopeDefective($query)
+    {
+        return $query->where('is_defective', true);
+    }
+
+    public function scopeNonDefective($query)
+    {
+        return $query->where('is_defective', false);
     }
 
     public function makePrimary()
@@ -273,5 +290,67 @@ class ProductBarcode extends Model
     {
         $shipment = $this->getCurrentShipment();
         return $shipment ? ($shipment->pathao_tracking_number ?? $shipment->shipment_number) : null;
+    }
+
+    // Defective product methods
+    public function markAsDefective(array $defectData): DefectiveProduct
+    {
+        // Mark barcode as defective
+        $this->update(['is_defective' => true, 'is_active' => false]);
+
+        // Create defective product record
+        $defectiveProduct = DefectiveProduct::create([
+            'product_id' => $this->product_id,
+            'product_barcode_id' => $this->id,
+            'product_batch_id' => $defectData['product_batch_id'] ?? null,
+            'store_id' => $defectData['store_id'],
+            'defect_type' => $defectData['defect_type'],
+            'defect_description' => $defectData['defect_description'],
+            'defect_images' => $defectData['defect_images'] ?? null,
+            'severity' => $defectData['severity'] ?? 'moderate',
+            'original_price' => $defectData['original_price'],
+            'identified_by' => $defectData['identified_by'] ?? null,
+            'internal_notes' => $defectData['internal_notes'] ?? null,
+        ]);
+
+        // Remove from regular inventory if batch is provided
+        if (isset($defectData['product_batch_id'])) {
+            $batch = ProductBatch::find($defectData['product_batch_id']);
+            if ($batch && $batch->quantity > 0) {
+                $batch->decrement('quantity', 1);
+
+                // Log the removal
+                ProductMovement::create([
+                    'product_id' => $this->product_id,
+                    'product_batch_id' => $batch->id,
+                    'store_id' => $defectData['store_id'],
+                    'movement_type' => 'defective',
+                    'quantity' => -1,
+                    'unit_cost' => $defectData['original_price'],
+                    'total_cost' => $defectData['original_price'],
+                    'reference_type' => 'defective_product',
+                    'reference_id' => $defectiveProduct->id,
+                    'notes' => "Marked as defective: {$defectData['defect_type']}",
+                    'created_by' => $defectData['identified_by'] ?? null,
+                ]);
+            }
+        }
+
+        return $defectiveProduct;
+    }
+
+    public function isDefective(): bool
+    {
+        return $this->is_defective ?? false;
+    }
+
+    public function getDefectiveRecord(): ?DefectiveProduct
+    {
+        return $this->defectiveRecord;
+    }
+
+    public function canBeMarkedAsDefective(): bool
+    {
+        return !$this->is_defective && $this->is_active;
     }
 }
