@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class CategoriesController extends Controller
@@ -14,6 +15,7 @@ class CategoriesController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048', // max 2MB
             'color' => 'nullable|string|max:7', // hex color
             'icon' => 'nullable|string|max:100',
             'order' => 'nullable|integer|min:0',
@@ -29,6 +31,14 @@ class CategoriesController extends Controller
                     'message' => 'Parent category not found'
                 ], 404);
             }
+        }
+
+        // Handle image upload
+        if ($request->hasFile('image')) {
+            $image = $request->file('image');
+            $imageName = time() . '_' . Str::slug($validated['title']) . '.' . $image->getClientOriginalExtension();
+            $imagePath = $image->storeAs('categories', $imageName, 'public');
+            $validated['image'] = $imagePath;
         }
 
         // Generate slug from title if not provided
@@ -63,6 +73,8 @@ class CategoriesController extends Controller
         $validated = $request->validate([
             'title' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048', // max 2MB
+            'remove_image' => 'nullable|boolean', // flag to remove existing image
             'color' => 'nullable|string|max:7',
             'icon' => 'nullable|string|max:100',
             'order' => 'nullable|integer|min:0',
@@ -86,6 +98,27 @@ class CategoriesController extends Controller
                     'message' => 'Cannot set a descendant category as parent (circular reference)'
                 ], 400);
             }
+        }
+
+        // Handle image removal
+        if ($request->has('remove_image') && $request->remove_image == true) {
+            if ($category->image) {
+                \Storage::disk('public')->delete($category->image);
+                $validated['image'] = null;
+            }
+        }
+
+        // Handle new image upload
+        if ($request->hasFile('image')) {
+            // Delete old image if exists
+            if ($category->image) {
+                \Storage::disk('public')->delete($category->image);
+            }
+            
+            $image = $request->file('image');
+            $imageName = time() . '_' . Str::slug($validated['title'] ?? $category->title) . '.' . $image->getClientOriginalExtension();
+            $imagePath = $image->storeAs('categories', $imageName, 'public');
+            $validated['image'] = $imagePath;
         }
 
         // Update slug if title changed

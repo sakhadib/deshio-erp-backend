@@ -3,10 +3,12 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use App\Models\Category;
 use App\Models\OrderPayment;
 use App\Models\ServiceOrderPayment;
 use App\Models\Refund;
 use App\Models\Expense;
+use App\Observers\CategoryObserver;
 use App\Observers\OrderPaymentObserver;
 use App\Observers\ServiceOrderPaymentObserver;
 use App\Observers\RefundObserver;
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Register observers for automatic transaction creation
+        Category::observe(CategoryObserver::class);
         OrderPayment::observe(OrderPaymentObserver::class);
         ServiceOrderPayment::observe(ServiceOrderPaymentObserver::class);
         Refund::observe(RefundObserver::class);

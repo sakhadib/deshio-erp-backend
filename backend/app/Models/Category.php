@@ -12,6 +12,7 @@ class Category extends Model
     protected $fillable = [
         'title',
         'description',
+        'image',
         'color',
         'icon',
         'slug',
@@ -26,6 +27,10 @@ class Category extends Model
         'is_active' => 'boolean',
         'order' => 'integer',
         'level' => 'integer',
+    ];
+
+    protected $appends = [
+        'image_url',
     ];
 
     // Boot method to auto-update level and path
@@ -173,5 +178,18 @@ class Category extends Model
     public function activeProducts()
     {
         return $this->products()->active();
+    }
+
+    // Accessors
+
+    /**
+     * Get the full URL for the category image
+     */
+    public function getImageUrlAttribute()
+    {
+        if ($this->image) {
+            return asset('storage/' . $this->image);
+        }
+        return null;
     }
 }
