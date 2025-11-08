@@ -119,11 +119,11 @@ class ProductController extends Controller
         $validated = $request->validate([
             'category_id' => 'required|exists:categories,id',
             'vendor_id' => 'required|exists:vendors,id',
-            'sku' => 'required|string|unique:products,sku',
+            'sku' => 'required|string', // SKU not unique - supports variations
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'custom_fields' => 'nullable|array',
-            'custom_fields.*.field_id' => 'required|exists:fields,id',
+            'custom_fields.*.field_id' => 'required|exists:fields,id|distinct', // Prevent duplicate field_ids
             'custom_fields.*.value' => 'nullable',
         ]);
 
@@ -147,11 +147,16 @@ class ProductController extends Controller
                     // Validate field value against field type
                     $this->validateFieldValue($field, $fieldData['value'] ?? null);
                     
-                    ProductField::create([
-                        'product_id' => $product->id,
-                        'field_id' => $field->id,
-                        'value' => $this->formatFieldValue($field, $fieldData['value'] ?? null),
-                    ]);
+                    // Use updateOrCreate to handle potential duplicates in request
+                    ProductField::updateOrCreate(
+                        [
+                            'product_id' => $product->id,
+                            'field_id' => $field->id,
+                        ],
+                        [
+                            'value' => $this->formatFieldValue($field, $fieldData['value'] ?? null),
+                        ]
+                    );
                 }
             }
 
@@ -181,11 +186,11 @@ class ProductController extends Controller
         $validated = $request->validate([
             'category_id' => 'sometimes|exists:categories,id',
             'vendor_id' => 'sometimes|exists:vendors,id',
-            'sku' => ['sometimes', 'string', Rule::unique('products')->ignore($product->id)],
+            'sku' => 'sometimes|string', // SKU not unique - supports variations
             'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
             'custom_fields' => 'nullable|array',
-            'custom_fields.*.field_id' => 'required|exists:fields,id',
+            'custom_fields.*.field_id' => 'required|exists:fields,id|distinct', // Prevent duplicate field_ids
             'custom_fields.*.value' => 'nullable',
         ]);
 

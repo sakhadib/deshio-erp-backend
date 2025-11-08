@@ -12,6 +12,15 @@ class Product extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /**
+     * SKU (Stock Keeping Unit) is not unique to support product variations.
+     * Multiple products can share the same SKU with different variations 
+     * defined through ProductFields (e.g., color, size, storage).
+     * 
+     * Each physical item is uniquely tracked via ProductBarcode.
+     * Stock is managed through ProductBatch.
+     */
+
     protected $fillable = [
         'category_id',
         'vendor_id',
