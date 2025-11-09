@@ -7,6 +7,7 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\VendorPaymentController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductSearchController;
 use App\Http\Controllers\ProductBatchController;
 use App\Http\Controllers\ProductBarcodeController;
 use App\Http\Controllers\ProductDispatchController;
@@ -339,6 +340,26 @@ Route::middleware('auth:api')->group(function () {
             Route::post('/custom-fields', [ProductController::class, 'updateCustomField']);
             Route::delete('/custom-fields/{fieldId}', [ProductController::class, 'removeCustomField']);
         });
+    });
+
+    // ============================================
+    // PRODUCT SEARCH ROUTES
+    // Multi-language search with fuzzy matching
+    // Supports: English, Bangla Unicode, Romanized Bangla, Misspellings
+    // ============================================
+    
+    Route::prefix('products')->group(function () {
+        // Advanced search with multi-language and fuzzy matching
+        Route::post('/advanced-search', [ProductSearchController::class, 'advancedSearch']);
+        
+        // Quick search for autocomplete
+        Route::get('/quick-search', [ProductSearchController::class, 'quickSearch']);
+        
+        // Search suggestions
+        Route::get('/search-suggestions', [ProductSearchController::class, 'searchSuggestions']);
+        
+        // Search analytics
+        Route::get('/search-stats', [ProductSearchController::class, 'getSearchStats']);
     });
 
     // Purchase Order Management Routes
