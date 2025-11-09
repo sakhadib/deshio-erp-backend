@@ -13,6 +13,8 @@ use App\Http\Controllers\ProductDispatchController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\ProductReturnController;
 use App\Http\Controllers\RefundController;
+use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\InventoryRebalancingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -490,6 +492,46 @@ Route::middleware('auth:api')->group(function () {
             Route::post('/sell', [\App\Http\Controllers\DefectiveProductController::class, 'sell']);
             Route::post('/dispose', [\App\Http\Controllers\DefectiveProductController::class, 'dispose']);
             Route::post('/return-to-vendor', [\App\Http\Controllers\DefectiveProductController::class, 'returnToVendor']);
+        });
+    });
+
+    // ============================================
+    // GLOBAL INVENTORY MANAGEMENT ROUTES
+    // Company-wide inventory tracking and analytics
+    // ============================================
+    
+    Route::prefix('inventory')->group(function () {
+        // Global inventory overview
+        Route::get('/global', [InventoryController::class, 'getGlobalInventory']);
+        Route::get('/statistics', [InventoryController::class, 'getStatistics']);
+        Route::get('/value', [InventoryController::class, 'getInventoryValue']);
+        
+        // Search and alerts
+        Route::post('/search', [InventoryController::class, 'searchProductAcrossStores']);
+        Route::get('/low-stock-alerts', [InventoryController::class, 'getLowStockAlerts']);
+        Route::get('/stock-aging', [InventoryController::class, 'getStockAging']);
+    });
+
+    // ============================================
+    // INVENTORY REBALANCING ROUTES
+    // Automated suggestions and manual rebalancing between stores
+    // ============================================
+    
+    Route::prefix('inventory-rebalancing')->group(function () {
+        // List and statistics
+        Route::get('/', [InventoryRebalancingController::class, 'index']);
+        Route::get('/statistics', [InventoryRebalancingController::class, 'getStatistics']);
+        Route::get('/suggestions', [InventoryRebalancingController::class, 'getSuggestions']);
+        
+        // Create rebalancing request
+        Route::post('/', [InventoryRebalancingController::class, 'create']);
+        
+        // Rebalancing operations
+        Route::prefix('{id}')->group(function () {
+            Route::post('/approve', [InventoryRebalancingController::class, 'approve']);
+            Route::post('/reject', [InventoryRebalancingController::class, 'reject']);
+            Route::post('/cancel', [InventoryRebalancingController::class, 'cancel']);
+            Route::post('/complete', [InventoryRebalancingController::class, 'complete']);
         });
     });
 });

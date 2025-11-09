@@ -27,6 +27,7 @@ class InventoryRebalancing extends Model
         'requested_by',
         'approved_by',
         'completed_by',
+        'dispatch_id',
         'notes',
     ];
 
@@ -81,6 +82,11 @@ class InventoryRebalancing extends Model
     public function completedBy(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'completed_by');
+    }
+
+    public function dispatch(): BelongsTo
+    {
+        return $this->belongsTo(ProductDispatch::class, 'dispatch_id');
     }
 
     public function scopePending($query)
