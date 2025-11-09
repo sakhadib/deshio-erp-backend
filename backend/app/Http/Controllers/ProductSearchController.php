@@ -317,7 +317,9 @@ class ProductSearchController extends Controller
 
         $searchTerms = $this->prepareSearchTerms($query);
         
-        $results = Product::with(['category', 'vendor'])
+        $results = Product::with(['category', 'vendor', 'images' => function($q) {
+            $q->where('is_active', true)->where('is_primary', true);
+        }])
             ->where('is_archived', false)
             ->where(function($q) use ($searchTerms) {
                 foreach ($searchTerms as $term) {
@@ -331,12 +333,18 @@ class ProductSearchController extends Controller
         return response()->json([
             'success' => true,
             'data' => $results->map(function($product) {
+                $primaryImage = $product->images->first();
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
                     'sku' => $product->sku,
                     'category' => $product->category->name ?? null,
                     'vendor' => $product->vendor->name ?? null,
+                    'primary_image' => $primaryImage ? [
+                        'id' => $primaryImage->id,
+                        'url' => $primaryImage->image_url,
+                        'alt_text' => $primaryImage->alt_text,
+                    ] : null,
                 ];
             }),
         ]);
@@ -492,7 +500,9 @@ class ProductSearchController extends Controller
      */
     private function executeFuzzySearch($searchTerms, $searchFields, $filters, $threshold)
     {
-        $query = Product::with(['category', 'vendor', 'productFields.field'])
+        $query = Product::with(['category', 'vendor', 'productFields.field', 'images' => function($q) {
+            $q->where('is_active', true)->orderBy('is_primary', 'desc')->orderBy('sort_order');
+        }])
             ->where('is_archived', $filters['is_archived'] ?? false);
         
         if (isset($filters['category_id'])) {
@@ -588,7 +598,9 @@ class ProductSearchController extends Controller
      */
     private function searchExact($searchTerms, $searchFields, $filters)
     {
-        $query = Product::with(['category', 'vendor', 'productFields.field'])
+        $query = Product::with(['category', 'vendor', 'productFields.field', 'images' => function($q) {
+            $q->where('is_active', true)->orderBy('is_primary', 'desc')->orderBy('sort_order');
+        }])
             ->where('is_archived', $filters['is_archived'] ?? false);
         
         if (isset($filters['category_id'])) {
@@ -623,7 +635,9 @@ class ProductSearchController extends Controller
      */
     private function searchStartsWith($searchTerms, $searchFields, $filters)
     {
-        $query = Product::with(['category', 'vendor', 'productFields.field'])
+        $query = Product::with(['category', 'vendor', 'productFields.field', 'images' => function($q) {
+            $q->where('is_active', true)->orderBy('is_primary', 'desc')->orderBy('sort_order');
+        }])
             ->where('is_archived', $filters['is_archived'] ?? false);
         
         if (isset($filters['category_id'])) {
@@ -658,7 +672,9 @@ class ProductSearchController extends Controller
      */
     private function searchContains($searchTerms, $searchFields, $filters)
     {
-        $query = Product::with(['category', 'vendor', 'productFields.field'])
+        $query = Product::with(['category', 'vendor', 'productFields.field', 'images' => function($q) {
+            $q->where('is_active', true)->orderBy('is_primary', 'desc')->orderBy('sort_order');
+        }])
             ->where('is_archived', $filters['is_archived'] ?? false);
         
         if (isset($filters['category_id'])) {

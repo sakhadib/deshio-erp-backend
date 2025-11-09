@@ -18,7 +18,9 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Product::with(['category', 'vendor', 'productFields.field']);
+        $query = Product::with(['category', 'vendor', 'productFields.field', 'images' => function($q) {
+            $q->where('is_active', true)->orderBy('is_primary', 'desc')->orderBy('sort_order');
+        }]);
 
         // Filters
         if ($request->has('category_id')) {
@@ -496,7 +498,9 @@ class ProductController extends Controller
             $q->where('field_id', $validated['field_id'])
               ->where('value', $operator, $value);
         })
-        ->with(['category', 'vendor', 'productFields.field'])
+        ->with(['category', 'vendor', 'productFields.field', 'images' => function($q) {
+            $q->where('is_active', true)->orderBy('is_primary', 'desc')->orderBy('sort_order');
+        }])
         ->where('is_archived', false)
         ->paginate($request->get('per_page', 15));
 

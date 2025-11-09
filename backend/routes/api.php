@@ -8,6 +8,7 @@ use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\VendorPaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductSearchController;
+use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\ProductBatchController;
 use App\Http\Controllers\ProductBarcodeController;
 use App\Http\Controllers\ProductDispatchController;
@@ -360,6 +361,32 @@ Route::middleware('auth:api')->group(function () {
         
         // Search analytics
         Route::get('/search-stats', [ProductSearchController::class, 'getSearchStats']);
+    });
+
+    // ============================================
+    // PRODUCT IMAGE MANAGEMENT ROUTES
+    // Upload, manage, and organize product images
+    // Support for single and bulk uploads, primary image, reordering
+    // ============================================
+    
+    // Product-specific image routes
+    Route::prefix('products/{productId}/images')->group(function () {
+        Route::get('/', [ProductImageController::class, 'index']);                      // Get all images
+        Route::post('/', [ProductImageController::class, 'upload']);                    // Upload single image
+        Route::post('/bulk-upload', [ProductImageController::class, 'bulkUpload']);     // Upload multiple images
+        Route::patch('/reorder', [ProductImageController::class, 'reorder']);           // Reorder images
+        Route::delete('/delete-all', [ProductImageController::class, 'destroyAll']);    // Delete all images
+        Route::get('/statistics', [ProductImageController::class, 'getStatistics']);    // Image statistics
+        Route::get('/primary', [ProductImageController::class, 'getPrimary']);          // Get primary image
+    });
+
+    // Individual image management routes
+    Route::prefix('product-images')->group(function () {
+        Route::get('/{id}', [ProductImageController::class, 'show']);                   // Get single image
+        Route::put('/{id}', [ProductImageController::class, 'update']);                 // Update image details
+        Route::delete('/{id}', [ProductImageController::class, 'destroy']);             // Delete image
+        Route::patch('/{id}/make-primary', [ProductImageController::class, 'makePrimary']); // Set as primary
+        Route::patch('/{id}/toggle-active', [ProductImageController::class, 'toggleActive']); // Toggle active status
     });
 
     // Purchase Order Management Routes
