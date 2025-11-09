@@ -14,6 +14,7 @@ class OrderItem extends Model
         'order_id',
         'product_id',
         'product_batch_id',
+        'product_barcode_id',  // NEW: Track individual barcode sold
         'product_name',
         'product_sku',
         'quantity',
@@ -64,6 +65,14 @@ class OrderItem extends Model
     public function batch(): BelongsTo
     {
         return $this->belongsTo(ProductBatch::class, 'product_batch_id');
+    }
+
+    /**
+     * NEW: Relationship to the specific barcode/unit sold
+     */
+    public function barcode(): BelongsTo
+    {
+        return $this->belongsTo(ProductBarcode::class, 'product_barcode_id');
     }
 
     public function getFormattedOptionsAttribute()

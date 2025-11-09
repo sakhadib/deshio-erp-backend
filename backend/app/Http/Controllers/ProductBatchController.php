@@ -133,6 +133,13 @@ class ProductBatchController extends Controller
     /**
      * Create new batch (physical inventory received)
      * 
+     * IMPORTANT: By default, generates individual barcodes for EACH physical unit
+     * This is essential for:
+     * - Tracking individual defective items
+     * - Individual sales and returns
+     * - Inventory audits
+     * - Item-level traceability
+     * 
      * POST /api/batches
      * Body: {
      *   "product_id": 1,
@@ -142,8 +149,8 @@ class ProductBatchController extends Controller
      *   "sell_price": 750.00,
      *   "manufactured_date": "2024-01-01",
      *   "expiry_date": "2026-01-01",
-     *   "generate_barcodes": true,  // Generate individual barcodes for each unit
      *   "barcode_type": "CODE128",
+     *   "skip_barcode_generation": false,  // Set to true to skip (NOT RECOMMENDED)
      *   "notes": "Received from vendor X"
      * }
      */
@@ -152,12 +159,12 @@ class ProductBatchController extends Controller
         $validator = Validator::make($request->all(), [
             'product_id' => 'required|exists:products,id',
             'store_id' => 'required|exists:stores,id',
-            'quantity' => 'required|integer|min:1',
+            'quantity' => 'required|integer|min:1|max:10000',  // Max 10k units per batch for performance
             'cost_price' => 'required|numeric|min:0',
             'sell_price' => 'required|numeric|min:0',
             'manufactured_date' => 'nullable|date',
             'expiry_date' => 'nullable|date|after:manufactured_date',
-            'generate_barcodes' => 'boolean',
+            'skip_barcode_generation' => 'boolean',
             'barcode_type' => 'string|in:CODE128,EAN13,QR',
             'notes' => 'nullable|string'
         ]);
@@ -168,6 +175,14 @@ class ProductBatchController extends Controller
                 'message' => 'Validation failed',
                 'errors' => $validator->errors()
             ], 422);
+        }
+
+        // Warning for large batches
+        if ($request->quantity > 1000) {
+            \Log::warning("Large batch creation: {$request->quantity} units. This will generate {$request->quantity} barcodes.", [
+                'product_id' => $request->product_id,
+                'store_id' => $request->store_id,
+            ]);
         }
 
         DB::beginTransaction();
@@ -186,51 +201,62 @@ class ProductBatchController extends Controller
                 'is_active' => true,
             ]);
 
-            // Generate barcodes if requested
+            // Generate individual barcodes for EACH unit (unless explicitly skipped)
             $barcodes = [];
-            if ($request->input('generate_barcodes', false)) {
+            $skipBarcodes = $request->input('skip_barcode_generation', false);
+            
+            if (!$skipBarcodes) {
                 $barcodeType = $request->input('barcode_type', 'CODE128');
+                $quantity = $request->quantity;
                 
-                // Create a primary barcode for the batch
-                $primaryBarcode = ProductBarcode::create([
-                    'product_id' => $request->product_id,
-                    'type' => $barcodeType,
-                    'is_primary' => true,
-                    'is_active' => true,
-                    'generated_at' => now(),
-                ]);
-
-                // Associate the barcode with the batch
-                $batch->update(['barcode_id' => $primaryBarcode->id]);
-                
-                $barcodes[] = $primaryBarcode;
-
-                // Optionally generate individual barcodes for each unit
-                // This can be expensive for large quantities, so we limit it
-                if ($request->input('individual_barcodes', false) && $request->quantity <= 100) {
-                    for ($i = 1; $i < $request->quantity; $i++) {
-                        $barcodes[] = ProductBarcode::create([
-                            'product_id' => $request->product_id,
-                            'type' => $barcodeType,
-                            'is_primary' => false,
-                            'is_active' => true,
-                            'generated_at' => now(),
-                        ]);
+                // Generate barcodes for all units
+                // First barcode is the primary one (associated with batch)
+                for ($i = 0; $i < $quantity; $i++) {
+                    $barcode = ProductBarcode::create([
+                        'product_id' => $request->product_id,
+                        'batch_id' => $batch->id,  // Link barcode to batch
+                        'type' => $barcodeType,
+                        'is_primary' => ($i === 0),  // First barcode is primary
+                        'is_active' => true,
+                        'generated_at' => now(),
+                    ]);
+                    
+                    $barcodes[] = $barcode;
+                    
+                    // Associate primary barcode with batch
+                    if ($i === 0) {
+                        $batch->update(['barcode_id' => $barcode->id]);
                     }
                 }
             }
 
             DB::commit();
 
-            return response()->json([
+            $response = [
                 'success' => true,
-                'message' => 'Batch created successfully',
+                'message' => $skipBarcodes 
+                    ? 'Batch created successfully (barcodes skipped)' 
+                    : "Batch created successfully with {$request->quantity} individual barcodes",
                 'data' => [
                     'batch' => $this->formatBatchResponse($batch->fresh(['product', 'store', 'barcode']), true),
                     'barcodes_generated' => count($barcodes),
                     'primary_barcode' => $barcodes[0] ?? null,
                 ]
-            ], 201);
+            ];
+
+            // Include all barcodes for small batches
+            if (count($barcodes) <= 20) {
+                $response['data']['all_barcodes'] = array_map(function($bc) {
+                    return [
+                        'id' => $bc->id,
+                        'barcode' => $bc->barcode,
+                        'type' => $bc->type,
+                        'is_primary' => $bc->is_primary,
+                    ];
+                }, $barcodes);
+            }
+
+            return response()->json($response, 201);
 
         } catch (\Exception $e) {
             DB::rollBack();

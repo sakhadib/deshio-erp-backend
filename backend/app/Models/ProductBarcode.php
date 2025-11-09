@@ -13,6 +13,7 @@ class ProductBarcode extends Model
 
     protected $fillable = [
         'product_id',
+        'batch_id',
         'barcode',
         'type',
         'is_primary',
@@ -42,6 +43,11 @@ class ProductBarcode extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(ProductBatch::class, 'batch_id');
     }
 
     public function batches(): HasMany

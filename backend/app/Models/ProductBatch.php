@@ -61,6 +61,21 @@ class ProductBatch extends Model
         return $this->belongsTo(ProductBarcode::class, 'barcode_id');
     }
 
+    public function barcodes(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ProductBarcode::class, 'batch_id');
+    }
+
+    public function primaryBarcode(): BelongsTo
+    {
+        return $this->barcode();
+    }
+
+    public function allBarcodes(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->barcodes();
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
