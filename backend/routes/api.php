@@ -17,6 +17,7 @@ use App\Http\Controllers\ProductReturnController;
 use App\Http\Controllers\RefundController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryRebalancingController;
+use App\Http\Controllers\BarcodeLocationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -581,5 +582,35 @@ Route::middleware('auth:api')->group(function () {
             Route::post('/cancel', [InventoryRebalancingController::class, 'cancel']);
             Route::post('/complete', [InventoryRebalancingController::class, 'complete']);
         });
+    });
+
+    // ============================================
+    // BARCODE LOCATION TRACKING ROUTES
+    // Track exact location and complete history of every physical unit
+    // ============================================
+    
+    Route::prefix('barcode-tracking')->group(function () {
+        // Individual barcode tracking
+        Route::get('/{barcode}/location', [BarcodeLocationController::class, 'getBarcodeLocation']);
+        Route::get('/{barcode}/history', [BarcodeLocationController::class, 'getBarcodeHistory']);
+        
+        // Store-based tracking
+        Route::get('/store/{storeId}', [BarcodeLocationController::class, 'getBarcodesAtStore']);
+        
+        // Advanced search and filtering
+        Route::post('/search', [BarcodeLocationController::class, 'advancedSearch']);
+        
+        // Grouped views
+        Route::get('/grouped-by-status', [BarcodeLocationController::class, 'getGroupedByStatus']);
+        Route::get('/grouped-by-store', [BarcodeLocationController::class, 'getGroupedByStore']);
+        Route::get('/grouped-by-product', [BarcodeLocationController::class, 'getGroupedByProduct']);
+        
+        // Movement history
+        Route::get('/movements', [BarcodeLocationController::class, 'getMovements']);
+        
+        // Statistics and analytics
+        Route::get('/statistics', [BarcodeLocationController::class, 'getStatistics']);
+        Route::get('/stagnant', [BarcodeLocationController::class, 'getStagnantBarcodes']);
+        Route::get('/overdue-transit', [BarcodeLocationController::class, 'getOverdueTransit']);
     });
 });
