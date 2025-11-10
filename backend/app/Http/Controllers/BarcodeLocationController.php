@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\ProductBarcode;
 use App\Models\ProductMovement;
+use App\Models\ProductBatch;
 use App\Models\Store;
 use App\Models\Product;
+use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -751,6 +753,474 @@ class BarcodeLocationController extends Controller
                         'dispatch_id' => $barcode->location_metadata['dispatch_id'] ?? null,
                     ];
                 })
+            ]
+        ]);
+    }
+
+    /**
+     * Get all barcodes for a specific product
+     * 
+     * GET /api/barcode-tracking/by-product/{productId}
+     * Query params: status, store_id, available_only, per_page
+     */
+    public function getByProduct(Request $request, $productId)
+    {
+        $product = Product::find($productId);
+
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found'
+            ], 404);
+        }
+
+        $query = ProductBarcode::where('product_id', $productId)
+            ->with(['currentStore', 'batch']);
+
+        // Filter by status
+        if ($request->has('status')) {
+            $query->where('current_status', $request->status);
+        }
+
+        // Filter by store
+        if ($request->has('store_id')) {
+            $query->atStore($request->store_id);
+        }
+
+        // Only available for sale
+        if ($request->boolean('available_only')) {
+            $query->availableForSale();
+        }
+
+        // Pagination
+        $perPage = $request->input('per_page', 50);
+        $barcodes = $query->paginate($perPage);
+
+        // Summary statistics
+        $totalCount = ProductBarcode::where('product_id', $productId)->count();
+        $activeCount = ProductBarcode::where('product_id', $productId)->active()->count();
+        $availableCount = ProductBarcode::where('product_id', $productId)->availableForSale()->count();
+        $soldCount = ProductBarcode::where('product_id', $productId)->withCustomer()->count();
+
+        // Status breakdown
+        $statusBreakdown = ProductBarcode::where('product_id', $productId)
+            ->select('current_status', DB::raw('count(*) as count'))
+            ->groupBy('current_status')
+            ->get()
+            ->pluck('count', 'current_status');
+
+        // Store distribution
+        $storeDistribution = ProductBarcode::where('product_id', $productId)
+            ->whereNotNull('current_store_id')
+            ->with('currentStore:id,name')
+            ->get()
+            ->groupBy('current_store_id')
+            ->map(function ($items) {
+                $store = $items->first()->currentStore;
+                return [
+                    'store_id' => $store->id,
+                    'store_name' => $store->name,
+                    'count' => $items->count(),
+                    'available' => $items->filter(fn($b) => $b->isAvailableForSale())->count(),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'product' => [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'sku' => $product->sku,
+                ],
+                'summary' => [
+                    'total_units' => $totalCount,
+                    'active' => $activeCount,
+                    'inactive' => $totalCount - $activeCount,
+                    'available_for_sale' => $availableCount,
+                    'sold' => $soldCount,
+                ],
+                'status_breakdown' => $statusBreakdown,
+                'store_distribution' => $storeDistribution,
+                'filters' => [
+                    'status' => $request->status,
+                    'store_id' => $request->store_id,
+                    'available_only' => $request->boolean('available_only'),
+                ],
+                'barcodes' => $barcodes->items(),
+                'pagination' => [
+                    'current_page' => $barcodes->currentPage(),
+                    'per_page' => $barcodes->perPage(),
+                    'total' => $barcodes->total(),
+                    'last_page' => $barcodes->lastPage(),
+                ]
+            ]
+        ]);
+    }
+
+    /**
+     * Get all barcodes for a specific batch
+     * 
+     * GET /api/barcode-tracking/by-batch/{batchId}
+     * Query params: status, store_id, available_only
+     */
+    public function getByBatch(Request $request, $batchId)
+    {
+        $batch = ProductBatch::with('product')->find($batchId);
+
+        if (!$batch) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Batch not found'
+            ], 404);
+        }
+
+        $query = ProductBarcode::where('batch_id', $batchId)
+            ->with(['currentStore', 'product']);
+
+        // Filter by status
+        if ($request->has('status')) {
+            $query->where('current_status', $request->status);
+        }
+
+        // Filter by store
+        if ($request->has('store_id')) {
+            $query->atStore($request->store_id);
+        }
+
+        // Only available for sale
+        if ($request->boolean('available_only')) {
+            $query->availableForSale();
+        }
+
+        $barcodes = $query->get();
+
+        // Summary
+        $summary = [
+            'total_units' => $barcodes->count(),
+            'active' => $barcodes->where('is_active', true)->count(),
+            'available_for_sale' => $barcodes->filter(fn($b) => $b->isAvailableForSale())->count(),
+            'sold' => $barcodes->where('current_status', 'with_customer')->count(),
+            'defective' => $barcodes->where('is_defective', true)->count(),
+        ];
+
+        // Status breakdown
+        $statusBreakdown = $barcodes->groupBy('current_status')
+            ->map(fn($items, $status) => [
+                'status' => $status,
+                'count' => $items->count()
+            ])
+            ->values();
+
+        // Store distribution
+        $storeDistribution = $barcodes->groupBy('current_store_id')
+            ->map(function ($items) {
+                $store = $items->first()->currentStore;
+                return [
+                    'store_id' => $store->id ?? null,
+                    'store_name' => $store->name ?? 'Unknown',
+                    'count' => $items->count(),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'batch' => [
+                    'id' => $batch->id,
+                    'batch_number' => $batch->batch_number,
+                    'product' => [
+                        'id' => $batch->product_id,
+                        'name' => $batch->product->name ?? 'Unknown',
+                        'sku' => $batch->product->sku ?? null,
+                    ],
+                    'original_quantity' => $batch->quantity,
+                ],
+                'summary' => $summary,
+                'status_breakdown' => $statusBreakdown,
+                'store_distribution' => $storeDistribution,
+                'filters' => [
+                    'status' => $request->status,
+                    'store_id' => $request->store_id,
+                    'available_only' => $request->boolean('available_only'),
+                ],
+                'barcodes' => $barcodes->map(function ($barcode) {
+                    return [
+                        'id' => $barcode->id,
+                        'barcode' => $barcode->barcode,
+                        'current_store' => $barcode->currentStore ? [
+                            'id' => $barcode->currentStore->id,
+                            'name' => $barcode->currentStore->name,
+                        ] : null,
+                        'current_status' => $barcode->current_status,
+                        'status_label' => $barcode->getStatusLabel(),
+                        'is_active' => $barcode->is_active,
+                        'is_defective' => $barcode->is_defective,
+                        'is_available_for_sale' => $barcode->isAvailableForSale(),
+                        'location_updated_at' => $barcode->location_updated_at,
+                    ];
+                })
+            ]
+        ]);
+    }
+
+    /**
+     * Get barcodes sold within a date range
+     * 
+     * GET /api/barcode-tracking/sales
+     * Query params: from_date, to_date, store_id, product_id, per_page
+     */
+    public function getSales(Request $request)
+    {
+        $request->validate([
+            'from_date' => 'required|date',
+            'to_date' => 'required|date|after_or_equal:from_date',
+        ]);
+
+        $query = ProductMovement::where('movement_type', 'sale')
+            ->whereBetween('movement_date', [$request->from_date, $request->to_date])
+            ->with(['barcode.product', 'toStore', 'performedBy']);
+
+        // Filter by store
+        if ($request->has('store_id')) {
+            $query->where('to_store_id', $request->store_id);
+        }
+
+        // Filter by product
+        if ($request->has('product_id')) {
+            $query->whereHas('barcode', function ($q) use ($request) {
+                $q->where('product_id', $request->product_id);
+            });
+        }
+
+        // Pagination
+        $perPage = $request->input('per_page', 50);
+        $sales = $query->orderBy('movement_date', 'desc')->paginate($perPage);
+
+        // Summary statistics
+        $totalSales = $query->count();
+        $uniqueProducts = ProductMovement::where('movement_type', 'sale')
+            ->whereBetween('movement_date', [$request->from_date, $request->to_date])
+            ->when($request->has('store_id'), function ($q) use ($request) {
+                $q->where('to_store_id', $request->store_id);
+            })
+            ->join('product_barcodes', 'product_movements.product_barcode_id', '=', 'product_barcodes.id')
+            ->distinct('product_barcodes.product_id')
+            ->count('product_barcodes.product_id');
+
+        // Sales by date
+        $salesByDate = ProductMovement::where('movement_type', 'sale')
+            ->whereBetween('movement_date', [$request->from_date, $request->to_date])
+            ->when($request->has('store_id'), function ($q) use ($request) {
+                $q->where('to_store_id', $request->store_id);
+            })
+            ->when($request->has('product_id'), function ($q) use ($request) {
+                $q->whereHas('barcode', function ($q2) use ($request) {
+                    $q2->where('product_id', $request->product_id);
+                });
+            })
+            ->selectRaw('DATE(movement_date) as date, COUNT(*) as count')
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'date_range' => [
+                    'from' => $request->from_date,
+                    'to' => $request->to_date,
+                ],
+                'filters' => [
+                    'store_id' => $request->store_id,
+                    'product_id' => $request->product_id,
+                ],
+                'summary' => [
+                    'total_sales' => $totalSales,
+                    'unique_products_sold' => $uniqueProducts,
+                    'daily_average' => round($totalSales / max(1, now()->parse($request->to_date)->diffInDays($request->from_date) + 1), 2),
+                ],
+                'sales_by_date' => $salesByDate,
+                'sales' => array_map(function ($movement) {
+                    return [
+                        'id' => $movement->id,
+                        'sale_date' => $movement->movement_date,
+                        'barcode' => $movement->barcode ? [
+                            'id' => $movement->barcode->id,
+                            'barcode' => $movement->barcode->barcode,
+                            'product' => [
+                                'id' => $movement->barcode->product_id,
+                                'name' => $movement->barcode->product->name ?? 'Unknown',
+                                'sku' => $movement->barcode->product->sku ?? null,
+                            ],
+                        ] : null,
+                        'store' => $movement->toStore ? [
+                            'id' => $movement->toStore->id,
+                            'name' => $movement->toStore->name,
+                        ] : null,
+                        'sold_by' => $movement->performedBy ? [
+                            'id' => $movement->performedBy->id,
+                            'name' => $movement->performedBy->name,
+                        ] : null,
+                        'reference_type' => $movement->reference_type,
+                        'reference_id' => $movement->reference_id,
+                        'notes' => $movement->notes,
+                    ];
+                }, $sales->items()),
+                'pagination' => [
+                    'current_page' => $sales->currentPage(),
+                    'per_page' => $sales->perPage(),
+                    'total' => $sales->total(),
+                    'last_page' => $sales->lastPage(),
+                ]
+            ]
+        ]);
+    }
+
+    /**
+     * Get barcodes by multiple stores comparison
+     * 
+     * POST /api/barcode-tracking/compare-stores
+     * Body: { store_ids: [1,2,3], product_id, status }
+     */
+    public function compareStores(Request $request)
+    {
+        $request->validate([
+            'store_ids' => 'required|array|min:2',
+            'store_ids.*' => 'exists:stores,id',
+        ]);
+
+        $query = ProductBarcode::whereIn('current_store_id', $request->store_ids)
+            ->with(['product', 'currentStore', 'batch']);
+
+        // Filter by product
+        if ($request->has('product_id')) {
+            $query->where('product_id', $request->product_id);
+        }
+
+        // Filter by status
+        if ($request->has('status')) {
+            $query->where('current_status', $request->status);
+        }
+
+        $barcodes = $query->get();
+
+        // Group by store
+        $storeComparison = collect($request->store_ids)->map(function ($storeId) use ($barcodes) {
+            $store = Store::find($storeId);
+            $storeBarcodes = $barcodes->where('current_store_id', $storeId);
+
+            return [
+                'store' => [
+                    'id' => $store->id,
+                    'name' => $store->name,
+                    'type' => $store->store_type,
+                ],
+                'summary' => [
+                    'total_units' => $storeBarcodes->count(),
+                    'available_for_sale' => $storeBarcodes->filter(fn($b) => $b->isAvailableForSale())->count(),
+                    'on_display' => $storeBarcodes->where('current_status', 'on_display')->count(),
+                    'in_warehouse' => $storeBarcodes->where('current_status', 'in_warehouse')->count(),
+                ],
+                'status_breakdown' => $storeBarcodes->groupBy('current_status')
+                    ->map(fn($items, $status) => [
+                        'status' => $status,
+                        'count' => $items->count()
+                    ])
+                    ->values(),
+                'product_breakdown' => $storeBarcodes->groupBy('product_id')
+                    ->map(function ($items) {
+                        $product = $items->first()->product;
+                        return [
+                            'product_id' => $product->id ?? null,
+                            'product_name' => $product->name ?? 'Unknown',
+                            'count' => $items->count(),
+                        ];
+                    })
+                    ->values(),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'filters' => [
+                    'store_ids' => $request->store_ids,
+                    'product_id' => $request->product_id,
+                    'status' => $request->status,
+                ],
+                'total_barcodes' => $barcodes->count(),
+                'store_comparison' => $storeComparison,
+            ]
+        ]);
+    }
+
+    /**
+     * Get recently added barcodes
+     * 
+     * GET /api/barcode-tracking/recent
+     * Query params: days (default: 7), store_id, product_id, per_page
+     */
+    public function getRecent(Request $request)
+    {
+        $days = $request->input('days', 7);
+        $sinceDate = now()->subDays($days);
+
+        $query = ProductBarcode::where('created_at', '>=', $sinceDate)
+            ->with(['product', 'currentStore', 'batch']);
+
+        // Filter by store
+        if ($request->has('store_id')) {
+            $query->atStore($request->store_id);
+        }
+
+        // Filter by product
+        if ($request->has('product_id')) {
+            $query->where('product_id', $request->product_id);
+        }
+
+        // Pagination
+        $perPage = $request->input('per_page', 50);
+        $barcodes = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+        // Summary by date
+        $byDate = ProductBarcode::where('created_at', '>=', $sinceDate)
+            ->when($request->has('store_id'), function ($q) use ($request) {
+                $q->atStore($request->store_id);
+            })
+            ->when($request->has('product_id'), function ($q) use ($request) {
+                $q->where('product_id', $request->product_id);
+            })
+            ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
+            ->groupBy('date')
+            ->orderBy('date', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'period' => [
+                    'days' => $days,
+                    'since' => $sinceDate,
+                ],
+                'filters' => [
+                    'store_id' => $request->store_id,
+                    'product_id' => $request->product_id,
+                ],
+                'summary' => [
+                    'total_new_barcodes' => $query->count(),
+                    'daily_average' => round($query->count() / $days, 2),
+                ],
+                'by_date' => $byDate,
+                'barcodes' => $barcodes->items(),
+                'pagination' => [
+                    'current_page' => $barcodes->currentPage(),
+                    'per_page' => $barcodes->perPage(),
+                    'total' => $barcodes->total(),
+                    'last_page' => $barcodes->lastPage(),
+                ]
             ]
         ]);
     }

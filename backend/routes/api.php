@@ -612,5 +612,12 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/statistics', [BarcodeLocationController::class, 'getStatistics']);
         Route::get('/stagnant', [BarcodeLocationController::class, 'getStagnantBarcodes']);
         Route::get('/overdue-transit', [BarcodeLocationController::class, 'getOverdueTransit']);
+        
+        // Specialized view endpoints
+        Route::get('/by-product/{productId}', [BarcodeLocationController::class, 'getByProduct']);
+        Route::get('/by-batch/{batchId}', [BarcodeLocationController::class, 'getByBatch']);
+        Route::get('/sales', [BarcodeLocationController::class, 'getSales']);
+        Route::post('/compare-stores', [BarcodeLocationController::class, 'compareStores']);
+        Route::get('/recent', [BarcodeLocationController::class, 'getRecent']);
     });
 });
