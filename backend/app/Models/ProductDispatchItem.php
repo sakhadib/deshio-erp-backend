@@ -13,6 +13,7 @@ class ProductDispatchItem extends Model
     protected $fillable = [
         'product_dispatch_id',
         'product_batch_id',
+        'product_barcode_id',  // NEW: Track individual physical unit
         'quantity',
         'unit_cost',
         'unit_price',
@@ -65,6 +66,14 @@ class ProductDispatchItem extends Model
     public function batch(): BelongsTo
     {
         return $this->belongsTo(ProductBatch::class, 'product_batch_id');
+    }
+
+    /**
+     * NEW: Relationship to specific barcode/unit being dispatched
+     */
+    public function barcode(): BelongsTo
+    {
+        return $this->belongsTo(ProductBarcode::class, 'product_barcode_id');
     }
 
     public function product()

@@ -24,6 +24,10 @@ class ProductMovement extends Model
         'total_value',
         'movement_date',
         'reference_number',
+        'reference_type',       // NEW: Type of reference (order, dispatch, return, etc.)
+        'reference_id',         // NEW: ID of referenced record
+        'status_before',        // NEW: Status before movement
+        'status_after',         // NEW: Status after movement
         'notes',
         'performed_by',
     ];

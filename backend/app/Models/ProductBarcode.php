@@ -20,6 +20,10 @@ class ProductBarcode extends Model
         'is_active',
         'generated_at',
         'is_defective',
+        'current_store_id',       // NEW: Current physical location
+        'current_status',          // NEW: Current state (in_warehouse, in_shop, etc.)
+        'location_updated_at',     // NEW: When location/status last changed
+        'location_metadata',       // NEW: Additional location details (shelf, bin, etc.)
     ];
 
     protected $casts = [
@@ -27,6 +31,8 @@ class ProductBarcode extends Model
         'is_active' => 'boolean',
         'is_defective' => 'boolean',
         'generated_at' => 'datetime',
+        'location_updated_at' => 'datetime',   // NEW
+        'location_metadata' => 'array',         // NEW
     ];
 
     protected static function boot()
@@ -58,6 +64,314 @@ class ProductBarcode extends Model
     public function defectiveRecord(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(DefectiveProduct::class, 'product_barcode_id');
+    }
+
+    /**
+     * NEW: Current physical location relationship
+     */
+    public function currentStore(): BelongsTo
+    {
+        return $this->belongsTo(Store::class, 'current_store_id');
+    }
+
+    // ============================================
+    // LOCATION & STATUS TRACKING SCOPES
+    // ============================================
+
+    public function scopeAtStore($query, $storeId)
+    {
+        return $query->where('current_store_id', $storeId);
+    }
+
+    public function scopeByStatus($query, $status)
+    {
+        return $query->where('current_status', $status);
+    }
+
+    public function scopeInWarehouse($query)
+    {
+        return $query->where('current_status', 'in_warehouse');
+    }
+
+    public function scopeInShop($query)
+    {
+        return $query->where('current_status', 'in_shop');
+    }
+
+    public function scopeOnDisplay($query)
+    {
+        return $query->where('current_status', 'on_display');
+    }
+
+    public function scopeInTransit($query)
+    {
+        return $query->where('current_status', 'in_transit');
+    }
+
+    public function scopeInShipment($query)
+    {
+        return $query->where('current_status', 'in_shipment');
+    }
+
+    public function scopeWithCustomer($query)
+    {
+        return $query->where('current_status', 'with_customer');
+    }
+
+    public function scopeAvailableForSale($query)
+    {
+        return $query->where('is_active', true)
+                    ->where('is_defective', false)
+                    ->whereIn('current_status', ['in_shop', 'on_display', 'in_warehouse']);
+    }
+
+    // ============================================
+    // LOCATION & STATUS TRACKING METHODS
+    // ============================================
+
+    /**
+     * Update physical location and status of this barcode
+     */
+    public function updateLocation($storeId, $status, array $metadata = [], $createMovement = true)
+    {
+        $oldStore = $this->current_store_id;
+        $oldStatus = $this->current_status;
+
+        $this->update([
+            'current_store_id' => $storeId,
+            'current_status' => $status,
+            'location_updated_at' => now(),
+            'location_metadata' => array_merge($this->location_metadata ?? [], $metadata),
+        ]);
+
+        // Create movement record for audit trail
+        if ($createMovement && ($oldStore != $storeId || $oldStatus != $status)) {
+            ProductMovement::create([
+                'product_batch_id' => $this->batch_id,
+                'product_barcode_id' => $this->id,
+                'from_store_id' => $oldStore,
+                'to_store_id' => $storeId,
+                'movement_type' => $this->determineMovementType($oldStatus, $status),
+                'quantity' => 1,
+                'status_before' => $oldStatus,
+                'status_after' => $status,
+                'notes' => "Location updated: {$oldStatus} → {$status}",
+            ]);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Move barcode to warehouse
+     */
+    public function moveToWarehouse($storeId, array $metadata = [])
+    {
+        return $this->updateLocation($storeId, 'in_warehouse', $metadata);
+    }
+
+    /**
+     * Move barcode to shop floor
+     */
+    public function moveToShop($storeId, array $metadata = [])
+    {
+        return $this->updateLocation($storeId, 'in_shop', $metadata);
+    }
+
+    /**
+     * Place barcode on display
+     */
+    public function placeOnDisplay($storeId, array $metadata = [])
+    {
+        return $this->updateLocation($storeId, 'on_display', array_merge($metadata, [
+            'display_started_at' => now()->toDateTimeString(),
+        ]));
+    }
+
+    /**
+     * Mark as in transit (during dispatch/transfer)
+     */
+    public function markInTransit($toStoreId, $dispatchId = null)
+    {
+        return $this->updateLocation($toStoreId, 'in_transit', [
+            'transit_started_at' => now()->toDateTimeString(),
+            'dispatch_id' => $dispatchId,
+        ]);
+    }
+
+    /**
+     * Mark as in shipment (for customer delivery)
+     */
+    public function markInShipment($shipmentId, $trackingNumber = null)
+    {
+        $metadata = [
+            'shipment_id' => $shipmentId,
+            'shipment_started_at' => now()->toDateTimeString(),
+        ];
+        
+        if ($trackingNumber) {
+            $metadata['tracking_number'] = $trackingNumber;
+        }
+
+        return $this->updateLocation($this->current_store_id, 'in_shipment', $metadata);
+    }
+
+    /**
+     * Mark as sold and with customer
+     */
+    public function markSold($orderId, $customerId)
+    {
+        $this->update([
+            'is_active' => false,  // Mark as sold
+            'current_status' => 'with_customer',
+            'location_updated_at' => now(),
+            'location_metadata' => array_merge($this->location_metadata ?? [], [
+                'sold_at' => now()->toDateTimeString(),
+                'order_id' => $orderId,
+                'customer_id' => $customerId,
+            ]),
+        ]);
+
+        return $this;
+    }
+
+    /**
+     * Mark as returned by customer
+     */
+    public function markReturned($returnId, $reason = null)
+    {
+        $this->update([
+            'is_active' => true,  // Reactivate for resale
+            'current_status' => 'in_return',
+            'location_updated_at' => now(),
+            'location_metadata' => array_merge($this->location_metadata ?? [], [
+                'returned_at' => now()->toDateTimeString(),
+                'return_id' => $returnId,
+                'return_reason' => $reason,
+            ]),
+        ]);
+
+        return $this;
+    }
+
+    /**
+     * Get complete location history with details
+     */
+    public function getDetailedLocationHistory()
+    {
+        return ProductMovement::where('product_barcode_id', $this->id)
+            ->with(['fromStore', 'toStore', 'batch.product', 'performedBy', 'dispatch'])
+            ->orderBy('movement_date', 'desc')
+            ->get()
+            ->map(function ($movement) {
+                return [
+                    'id' => $movement->id,
+                    'date' => $movement->movement_date,
+                    'from_store' => $movement->fromStore?->name,
+                    'to_store' => $movement->toStore?->name,
+                    'movement_type' => $movement->movement_type,
+                    'status_before' => $movement->status_before,
+                    'status_after' => $movement->status_after,
+                    'reference_type' => $movement->reference_type,
+                    'reference_id' => $movement->reference_id,
+                    'performed_by' => $movement->performedBy?->name,
+                    'notes' => $movement->notes,
+                ];
+            });
+    }
+
+    /**
+     * Get current location details
+     */
+    public function getCurrentLocationDetails()
+    {
+        return [
+            'barcode' => $this->barcode,
+            'product' => [
+                'id' => $this->product_id,
+                'name' => $this->product->name ?? 'Unknown',
+                'sku' => $this->product->sku ?? null,
+            ],
+            'current_store' => $this->currentStore ? [
+                'id' => $this->currentStore->id,
+                'name' => $this->currentStore->name,
+                'type' => $this->currentStore->store_type,
+                'address' => $this->currentStore->address,
+            ] : null,
+            'current_status' => $this->current_status,
+            'status_label' => $this->getStatusLabel(),
+            'is_active' => $this->is_active,
+            'is_defective' => $this->is_defective,
+            'is_available_for_sale' => $this->isAvailableForSale(),
+            'location_updated_at' => $this->location_updated_at,
+            'location_metadata' => $this->location_metadata,
+            'batch' => $this->batch ? [
+                'id' => $this->batch->id,
+                'batch_number' => $this->batch->batch_number,
+                'quantity' => $this->batch->quantity,
+            ] : null,
+        ];
+    }
+
+    /**
+     * Check if barcode is available for sale
+     */
+    public function isAvailableForSale(): bool
+    {
+        return $this->is_active 
+            && !$this->is_defective 
+            && in_array($this->current_status, ['in_shop', 'on_display', 'in_warehouse']);
+    }
+
+    /**
+     * Check if barcode is currently in transit
+     */
+    public function isCurrentlyInTransit(): bool
+    {
+        return $this->current_status === 'in_transit';
+    }
+
+    /**
+     * Check if barcode is with customer
+     */
+    public function isWithCustomer(): bool
+    {
+        return $this->current_status === 'with_customer';
+    }
+
+    /**
+     * Get human-readable status label
+     */
+    public function getStatusLabel(): string
+    {
+        return match($this->current_status) {
+            'in_warehouse' => 'In Warehouse',
+            'in_shop' => 'In Shop Inventory',
+            'on_display' => 'On Display Floor',
+            'in_transit' => 'In Transit',
+            'in_shipment' => 'In Customer Shipment',
+            'with_customer' => 'Sold - With Customer',
+            'in_return' => 'Customer Return Processing',
+            'defective' => 'Marked as Defective',
+            'repair' => 'Sent for Repair',
+            'vendor_return' => 'Returned to Vendor',
+            'disposed' => 'Disposed/Written Off',
+            default => 'Unknown Status',
+        };
+    }
+
+    /**
+     * Determine movement type based on status change
+     */
+    protected function determineMovementType($oldStatus, $newStatus): string
+    {
+        if ($newStatus === 'with_customer') return 'sale';
+        if ($newStatus === 'in_return') return 'return';
+        if ($newStatus === 'in_transit') return 'dispatch';
+        if ($newStatus === 'defective') return 'defective';
+        if ($oldStatus === 'in_warehouse' && $newStatus === 'in_shop') return 'transfer';
+        
+        return 'adjustment';
     }
 
     public function scopeActive($query)
