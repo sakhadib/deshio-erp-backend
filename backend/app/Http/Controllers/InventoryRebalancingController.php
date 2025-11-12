@@ -150,6 +150,7 @@ class InventoryRebalancingController extends Controller
         $request->validate([
             'product_id' => 'required|exists:products,id',
             'source_store_id' => 'required|exists:stores,id',
+            'source_batch_id' => 'nullable|exists:product_batches,id',
             'destination_store_id' => 'required|exists:stores,id|different:source_store_id',
             'quantity' => 'required|integer|min:1',
             'reason' => 'nullable|string',
@@ -159,29 +160,30 @@ class InventoryRebalancingController extends Controller
         DB::beginTransaction();
         try {
             // Verify source store has enough quantity
-            $sourceQuantity = ProductBatch::where('product_id', $request->product_id)
+            $query = ProductBatch::where('product_id', $request->product_id)
                 ->where('store_id', $request->source_store_id)
-                ->where('quantity', '>', 0)
-                ->sum('quantity');
+                ->where('quantity', '>', 0);
+            
+            if ($request->source_batch_id) {
+                $query->where('id', $request->source_batch_id);
+            }
+            
+            $sourceQuantity = $query->sum('quantity');
 
             if ($sourceQuantity < $request->quantity) {
                 throw new \Exception("Source store doesn't have enough quantity. Available: {$sourceQuantity}");
             }
 
-            $employee = Auth::guard('employee')->user();
-            if (!$employee) {
-                throw new \Exception('Employee authentication required');
-            }
-
             $rebalancing = InventoryRebalancing::create([
                 'product_id' => $request->product_id,
                 'source_store_id' => $request->source_store_id,
+                'source_batch_id' => $request->source_batch_id,
                 'destination_store_id' => $request->destination_store_id,
                 'quantity' => $request->quantity,
                 'reason' => $request->reason,
                 'priority' => $request->priority ?? 'medium',
                 'status' => 'pending',
-                'requested_by' => $employee->id,
+                'requested_by' => Auth::id(),
             ]);
 
             DB::commit();
@@ -213,11 +215,6 @@ class InventoryRebalancingController extends Controller
                 throw new \Exception('Only pending rebalancing requests can be approved');
             }
 
-            $employee = Auth::guard('employee')->user();
-            if (!$employee) {
-                throw new \Exception('Employee authentication required');
-            }
-
             // Create a product dispatch to execute the rebalancing
             $dispatch = ProductDispatch::create([
                 'source_store_id' => $rebalancing->source_store_id,
@@ -230,7 +227,7 @@ class InventoryRebalancingController extends Controller
             // Update rebalancing
             $rebalancing->update([
                 'status' => 'approved',
-                'approved_by' => $employee->id,
+                'approved_by' => Auth::id(),
                 'approved_at' => now(),
                 'dispatch_id' => $dispatch->id,
             ]);
@@ -268,14 +265,9 @@ class InventoryRebalancingController extends Controller
                 throw new \Exception('Only pending rebalancing requests can be rejected');
             }
 
-            $employee = Auth::guard('employee')->user();
-            if (!$employee) {
-                throw new \Exception('Employee authentication required');
-            }
-
             $rebalancing->update([
                 'status' => 'rejected',
-                'approved_by' => $employee->id,
+                'approved_by' => Auth::id(),
                 'approved_at' => now(),
                 'reason' => $rebalancing->reason . ' | Rejected: ' . $request->rejection_reason,
             ]);

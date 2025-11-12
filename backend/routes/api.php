@@ -18,8 +18,23 @@ use App\Http\Controllers\RefundController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryRebalancingController;
 use App\Http\Controllers\BarcodeLocationController;
+use App\Http\Controllers\FieldController;
+use App\Http\Controllers\RecycleBinController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpenseCategoryController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\AccountController;
+use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\PromotionController;
+use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\CollectionController;
+use App\Http\Controllers\PriceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
 
 
 use App\Http\Controllers\AuthController;
@@ -209,6 +224,361 @@ Route::middleware('auth:api')->group(function () {
 
     // Bulk category operations
     Route::patch('/categories/bulk/status', [CategoriesController::class, 'bulkUpdateStatus']);
+
+    // ============================================
+    // CUSTOMER MANAGEMENT ROUTES
+    // Customer profiles, orders, analytics, segmentation
+    // ============================================
+    
+    Route::prefix('customers')->group(function () {
+        // List and statistics
+        Route::get('/', [CustomerController::class, 'index']);
+        Route::get('/statistics', [CustomerController::class, 'getStatistics']);
+        Route::get('/segments', [CustomerController::class, 'getSegments']);
+        Route::get('/search', [CustomerController::class, 'search']);
+        
+        // Create customer
+        Route::post('/', [CustomerController::class, 'store']);
+        
+        // Bulk operations
+        Route::patch('/bulk/status', [CustomerController::class, 'bulkUpdateStatus']);
+        
+        // Individual customer operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [CustomerController::class, 'show']);
+            Route::put('/', [CustomerController::class, 'update']);
+            Route::delete('/', [CustomerController::class, 'destroy']);
+            Route::patch('/activate', [CustomerController::class, 'activate']);
+            Route::patch('/deactivate', [CustomerController::class, 'deactivate']);
+            Route::patch('/block', [CustomerController::class, 'block']);
+            
+            // Customer analytics and history
+            Route::get('/orders', [CustomerController::class, 'getOrderHistory']);
+            Route::get('/analytics', [CustomerController::class, 'getAnalytics']);
+            Route::post('/notes', [CustomerController::class, 'addNote']);
+            Route::post('/assign-employee', [CustomerController::class, 'assignEmployee']);
+        });
+    });
+
+    // ============================================
+    // SERVICE MANAGEMENT ROUTES
+    // Tailoring, alterations, and custom services
+    // ============================================
+    
+    Route::prefix('services')->group(function () {
+        // List and statistics
+        Route::get('/', [ServiceController::class, 'index']);
+        Route::get('/active', [ServiceController::class, 'getActiveServices']);
+        Route::get('/statistics', [ServiceController::class, 'getStatistics']);
+        Route::get('/by-category/{category}', [ServiceController::class, 'getByCategory']);
+        
+        // Create service
+        Route::post('/', [ServiceController::class, 'store']);
+        
+        // Bulk operations
+        Route::patch('/bulk/status', [ServiceController::class, 'bulkUpdateStatus']);
+        Route::patch('/reorder', [ServiceController::class, 'reorder']);
+        
+        // Individual service operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [ServiceController::class, 'show']);
+            Route::put('/', [ServiceController::class, 'update']);
+            Route::delete('/', [ServiceController::class, 'destroy']);
+            Route::patch('/activate', [ServiceController::class, 'activate']);
+            Route::patch('/deactivate', [ServiceController::class, 'deactivate']);
+        });
+    });
+
+    // ============================================
+    // EXPENSE MANAGEMENT ROUTES
+    // Track business expenses, payments, budgets
+    // ============================================
+    
+    Route::prefix('expenses')->group(function () {
+        // List and statistics
+        Route::get('/', [ExpenseController::class, 'index']);
+        Route::get('/statistics', [ExpenseController::class, 'getStatistics']);
+        Route::get('/overdue', [ExpenseController::class, 'getOverdue']);
+        
+        // Create expense
+        Route::post('/', [ExpenseController::class, 'store']);
+        
+        // Individual expense operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [ExpenseController::class, 'show']);
+            Route::put('/', [ExpenseController::class, 'update']);
+            Route::delete('/', [ExpenseController::class, 'destroy']);
+            Route::post('/approve', [ExpenseController::class, 'approve']);
+            Route::post('/reject', [ExpenseController::class, 'reject']);
+            Route::post('/payments', [ExpenseController::class, 'addPayment']);
+        });
+    });
+
+    // Expense Category Management Routes
+    Route::prefix('expense-categories')->group(function () {
+        Route::get('/', [ExpenseCategoryController::class, 'index']);
+        Route::post('/', [ExpenseCategoryController::class, 'store']);
+        Route::get('/tree', [ExpenseCategoryController::class, 'getTree']);
+        Route::get('/statistics', [ExpenseCategoryController::class, 'getStatistics']);
+        
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [ExpenseCategoryController::class, 'show']);
+            Route::put('/', [ExpenseCategoryController::class, 'update']);
+            Route::delete('/', [ExpenseCategoryController::class, 'destroy']);
+        });
+    });
+
+    // ============================================
+    // ROLE & PERMISSION MANAGEMENT ROUTES
+    // RBAC system for access control
+    // ============================================
+    
+    Route::prefix('roles')->group(function () {
+        Route::get('/', [RoleController::class, 'index']);
+        Route::post('/', [RoleController::class, 'store']);
+        Route::get('/statistics', [RoleController::class, 'getStatistics']);
+        
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [RoleController::class, 'show']);
+            Route::put('/', [RoleController::class, 'update']);
+            Route::delete('/', [RoleController::class, 'destroy']);
+            Route::post('/permissions', [RoleController::class, 'assignPermissions']);
+            Route::delete('/permissions', [RoleController::class, 'removePermissions']);
+        });
+    });
+
+    Route::prefix('permissions')->group(function () {
+        Route::get('/', [PermissionController::class, 'index']);
+        Route::post('/', [PermissionController::class, 'store']);
+        Route::get('/by-module', [PermissionController::class, 'getByModule']);
+        Route::get('/statistics', [PermissionController::class, 'getStatistics']);
+        
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [PermissionController::class, 'show']);
+            Route::put('/', [PermissionController::class, 'update']);
+            Route::delete('/', [PermissionController::class, 'destroy']);
+        });
+    });
+
+    // ============================================
+    // REPORTING & ANALYTICS ROUTES
+    // Business intelligence and dashboard metrics
+    // ============================================
+    
+    Route::prefix('reports')->group(function () {
+        // Dashboard
+        Route::get('/dashboard', [ReportController::class, 'dashboard']);
+        
+        // Sales Reports
+        Route::get('/sales/summary', [ReportController::class, 'salesSummary']);
+        Route::get('/sales/best-sellers', [ReportController::class, 'bestSellers']);
+        Route::get('/sales/slow-moving', [ReportController::class, 'slowMoving']);
+        Route::get('/sales/profit-margins', [ReportController::class, 'profitMargins']);
+        
+        // Staff Reports
+        Route::get('/staff/performance', [ReportController::class, 'staffPerformance']);
+        
+        // Customer Reports
+        Route::get('/customers/acquisition', [ReportController::class, 'customerAcquisition']);
+        
+        // Inventory Reports
+        Route::get('/inventory/value', [ReportController::class, 'inventoryValue']);
+        
+        // Expense Reports
+        Route::get('/expenses/summary', [ReportController::class, 'expenseSummary']);
+    });
+
+    // ============================================
+    // ACCOUNT & TRANSACTION MANAGEMENT ROUTES
+    // Chart of accounts and financial transactions
+    // ============================================
+    
+    Route::prefix('accounts')->group(function () {
+        // List and statistics
+        Route::get('/', [AccountController::class, 'index']);
+        Route::get('/statistics', [AccountController::class, 'getStatistics']);
+        Route::get('/tree', [AccountController::class, 'getTree']);
+        Route::get('/chart-of-accounts', [AccountController::class, 'getChartOfAccounts']);
+        Route::post('/initialize-defaults', [AccountController::class, 'initializeDefaultAccounts']);
+        
+        // Create account
+        Route::post('/', [AccountController::class, 'store']);
+        
+        // Account details
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [AccountController::class, 'show']);
+            Route::put('/', [AccountController::class, 'update']);
+            Route::delete('/', [AccountController::class, 'destroy']);
+            Route::get('/balance', [AccountController::class, 'getBalance']);
+            Route::post('/activate', [AccountController::class, 'activate']);
+            Route::post('/deactivate', [AccountController::class, 'deactivate']);
+            Route::get('/transactions', [TransactionController::class, 'getAccountTransactions']);
+        });
+    });
+    
+    Route::prefix('transactions')->group(function () {
+        // List and statistics
+        Route::get('/', [TransactionController::class, 'index']);
+        Route::get('/statistics', [TransactionController::class, 'getStatistics']);
+        Route::get('/trial-balance', [TransactionController::class, 'getTrialBalance']);
+        Route::get('/ledger/{accountId}', [TransactionController::class, 'getLedger']);
+        
+        // Create transaction
+        Route::post('/', [TransactionController::class, 'store']);
+        Route::post('/bulk-complete', [TransactionController::class, 'bulkComplete']);
+        
+        // Transaction details
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [TransactionController::class, 'show']);
+            Route::put('/', [TransactionController::class, 'update']);
+            Route::delete('/', [TransactionController::class, 'destroy']);
+            Route::post('/complete', [TransactionController::class, 'complete']);
+            Route::post('/fail', [TransactionController::class, 'fail']);
+            Route::post('/cancel', [TransactionController::class, 'cancel']);
+        });
+    });
+
+    // ============================================
+    // PROMOTION & DISCOUNT MANAGEMENT ROUTES
+    // Coupon codes, discount rules, validation
+    // ============================================
+    
+    Route::prefix('promotions')->group(function () {
+        // List and statistics
+        Route::get('/', [PromotionController::class, 'index']);
+        Route::get('/statistics', [PromotionController::class, 'getStatistics']);
+        
+        // Validation and application
+        Route::post('/validate', [PromotionController::class, 'validateCode']);
+        Route::post('/apply', [PromotionController::class, 'applyToOrder']);
+        
+        // Create promotion
+        Route::post('/', [PromotionController::class, 'store']);
+        
+        // Individual promotion operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [PromotionController::class, 'show']);
+            Route::put('/', [PromotionController::class, 'update']);
+            Route::delete('/', [PromotionController::class, 'destroy']);
+            Route::post('/activate', [PromotionController::class, 'activate']);
+            Route::post('/deactivate', [PromotionController::class, 'deactivate']);
+            Route::get('/usage-history', [PromotionController::class, 'getUsageHistory']);
+            Route::post('/duplicate', [PromotionController::class, 'duplicate']);
+        });
+    });
+
+    // ============================================
+    // PRODUCT VARIANT MANAGEMENT ROUTES
+    // Size/color matrices for clothing products
+    // ============================================
+    
+    // Variant options (sizes, colors, etc.)
+    Route::prefix('variant-options')->group(function () {
+        Route::get('/', [ProductVariantController::class, 'getOptions']);
+        Route::post('/', [ProductVariantController::class, 'storeOption']);
+    });
+    
+    // Product variants
+    Route::prefix('products/{productId}/variants')->group(function () {
+        Route::get('/', [ProductVariantController::class, 'index']);
+        Route::post('/', [ProductVariantController::class, 'store']);
+        Route::get('/statistics', [ProductVariantController::class, 'getStatistics']);
+        Route::post('/generate-matrix', [ProductVariantController::class, 'generateMatrix']);
+        
+        Route::prefix('{variantId}')->group(function () {
+            Route::get('/', [ProductVariantController::class, 'show']);
+            Route::put('/', [ProductVariantController::class, 'update']);
+            Route::delete('/', [ProductVariantController::class, 'destroy']);
+        });
+    });
+
+    // ============================================
+    // COLLECTION/SEASON MANAGEMENT ROUTES
+    // Fashion collections and seasonal catalogs
+    // ============================================
+    
+    Route::prefix('collections')->group(function () {
+        // List and statistics
+        Route::get('/', [CollectionController::class, 'index']);
+        Route::get('/statistics', [CollectionController::class, 'getStatistics']);
+        
+        // Create collection
+        Route::post('/', [CollectionController::class, 'store']);
+        
+        // Individual collection operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [CollectionController::class, 'show']);
+            Route::put('/', [CollectionController::class, 'update']);
+            Route::delete('/', [CollectionController::class, 'destroy']);
+            Route::post('/duplicate', [CollectionController::class, 'duplicate']);
+            
+            // Product management
+            Route::get('/products', [CollectionController::class, 'getProducts']);
+            Route::post('/products', [CollectionController::class, 'addProducts']);
+            Route::delete('/products/{productId}', [CollectionController::class, 'removeProduct']);
+            Route::patch('/products/reorder', [CollectionController::class, 'reorderProducts']);
+        });
+    });
+
+    // ============================================
+    // PRICE MANAGEMENT ROUTES
+    // Price overrides, history, bulk updates
+    // ============================================
+    
+    Route::prefix('price-overrides')->group(function () {
+        // List and statistics
+        Route::get('/', [PriceController::class, 'index']);
+        Route::get('/statistics', [PriceController::class, 'getStatistics']);
+        
+        // Create and bulk operations
+        Route::post('/', [PriceController::class, 'store']);
+        Route::post('/bulk-update', [PriceController::class, 'bulkUpdate']);
+        
+        // Individual override operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [PriceController::class, 'show']);
+            Route::put('/', [PriceController::class, 'update']);
+            Route::delete('/', [PriceController::class, 'destroy']);
+            Route::post('/approve', [PriceController::class, 'approve']);
+        });
+    });
+    
+    // Product price utilities
+    Route::get('/products/{productId}/price-history', [PriceController::class, 'getPriceHistory']);
+    Route::get('/products/{productId}/active-price', [PriceController::class, 'getActivePrice']);
+
+    // ============================================
+    // FIELD MANAGEMENT ROUTES
+    // Custom fields for products and services
+    // ============================================
+
+
+    
+    Route::prefix('fields')->group(function () {
+        // List and statistics
+        Route::get('/', [FieldController::class, 'index']);
+        Route::get('/active', [FieldController::class, 'getActiveFields']);
+        Route::get('/statistics', [FieldController::class, 'getStatistics']);
+        Route::get('/types', [FieldController::class, 'getTypes']);
+        Route::get('/by-type/{type}', [FieldController::class, 'getByType']);
+        
+        // Create field
+        Route::post('/', [FieldController::class, 'store']);
+        
+        // Bulk operations
+        Route::patch('/bulk/status', [FieldController::class, 'bulkUpdateStatus']);
+        Route::patch('/reorder', [FieldController::class, 'reorder']);
+        
+        // Individual field operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [FieldController::class, 'show']);
+            Route::put('/', [FieldController::class, 'update']);
+            Route::delete('/', [FieldController::class, 'destroy']);
+            Route::patch('/activate', [FieldController::class, 'activate']);
+            Route::patch('/deactivate', [FieldController::class, 'deactivate']);
+            Route::post('/duplicate', [FieldController::class, 'duplicate']);
+        });
+    });
 
     // ============================================
     // SALES / ORDER MANAGEMENT ROUTES
@@ -619,5 +989,30 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/sales', [BarcodeLocationController::class, 'getSales']);
         Route::post('/compare-stores', [BarcodeLocationController::class, 'compareStores']);
         Route::get('/recent', [BarcodeLocationController::class, 'getRecent']);
+    });
+
+    // ============================================
+    // RECYCLE BIN / SOFT DELETE MANAGEMENT
+    // Manage deleted items with 7-day recovery period
+    // ============================================
+    
+    Route::prefix('recycle-bin')->group(function () {
+        // List and statistics
+        Route::get('/', [RecycleBinController::class, 'index']);
+        Route::get('/statistics', [RecycleBinController::class, 'getStatistics']);
+        
+        // View deleted item details
+        Route::get('/{type}/{id}', [RecycleBinController::class, 'show']);
+        
+        // Restore operations
+        Route::post('/restore', [RecycleBinController::class, 'restore']);
+        Route::post('/restore-multiple', [RecycleBinController::class, 'restoreMultiple']);
+        
+        // Permanent delete operations
+        Route::delete('/permanent-delete', [RecycleBinController::class, 'permanentDelete']);
+        Route::delete('/empty', [RecycleBinController::class, 'emptyRecycleBin']);
+        
+        // Auto-cleanup (for scheduled jobs)
+        Route::post('/auto-cleanup', [RecycleBinController::class, 'autoCleanup']);
     });
 });

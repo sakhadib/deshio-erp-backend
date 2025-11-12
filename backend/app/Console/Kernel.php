@@ -12,7 +12,11 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Auto-cleanup recycle bin - runs daily at 2 AM
+        // Permanently deletes items that have been in recycle bin for more than 7 days
+        $schedule->call(function () {
+            app(\App\Http\Controllers\RecycleBinController::class)->autoCleanup();
+        })->dailyAt('02:00')->name('recycle-bin-cleanup');
     }
 
     /**
