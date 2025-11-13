@@ -52,7 +52,8 @@ class PurchaseOrderController extends Controller
                 'po_number' => PurchaseOrder::generatePONumber(),
                 'vendor_id' => $validated['vendor_id'],
                 'store_id' => $validated['store_id'],
-                'employee_id' => auth()->id(),
+                'created_by' => auth()->id(),
+                'order_date' => now()->format('Y-m-d'),
                 'expected_delivery_date' => $validated['expected_delivery_date'] ?? null,
                 'status' => 'draft',
                 'payment_status' => 'unpaid',
@@ -106,7 +107,7 @@ class PurchaseOrderController extends Controller
      */
     public function index(Request $request)
     {
-        $query = PurchaseOrder::with(['vendor', 'store', 'employee']);
+        $query = PurchaseOrder::with(['vendor', 'store', 'createdBy']);
 
         // Filters
         if ($request->has('vendor_id')) {
@@ -154,7 +155,9 @@ class PurchaseOrderController extends Controller
         $po = PurchaseOrder::with([
             'vendor',
             'store',
-            'employee',
+            'createdBy',
+            'approvedBy',
+            'receivedBy',
             'items.product',
             'items.productBatch',
             'payments.vendorPayment'
@@ -327,6 +330,8 @@ class PurchaseOrderController extends Controller
         }
 
         $po->status = 'approved';
+        $po->approved_by = auth()->id();
+        $po->approved_at = now();
         $po->save();
 
         return response()->json([
@@ -361,6 +366,11 @@ class PurchaseOrderController extends Controller
 
         try {
             $po->markAsReceived($validated['items']);
+            
+            // Update received_by and received_at
+            $po->received_by = auth()->id();
+            $po->received_at = now();
+            $po->save();
 
             return response()->json([
                 'success' => true,
@@ -394,6 +404,8 @@ class PurchaseOrderController extends Controller
         ]);
 
         $po->cancel($validated['reason'] ?? null);
+        $po->cancelled_at = now();
+        $po->save();
 
         return response()->json([
             'success' => true,

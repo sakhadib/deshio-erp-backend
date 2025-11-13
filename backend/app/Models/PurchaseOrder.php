@@ -16,30 +16,48 @@ class PurchaseOrder extends Model
         'po_number',
         'vendor_id',
         'store_id',
-        'employee_id',
+        'created_by',
+        'approved_by',
+        'received_by',
+        'order_date',
         'expected_delivery_date',
         'actual_delivery_date',
+        'approved_at',
+        'sent_at',
+        'received_at',
+        'cancelled_at',
         'status',
         'payment_status',
         'subtotal',
         'tax_amount',
         'discount_amount',
         'shipping_cost',
+        'other_charges',
         'total_amount',
         'paid_amount',
         'outstanding_amount',
+        'payment_due_date',
+        'reference_number',
         'notes',
         'terms_and_conditions',
+        'cancellation_reason',
         'metadata',
     ];
 
     protected $casts = [
+        'order_date' => 'date',
         'expected_delivery_date' => 'date',
         'actual_delivery_date' => 'date',
+        'payment_due_date' => 'date',
+        'approved_at' => 'datetime',
+        'sent_at' => 'datetime',
+        'received_at' => 'datetime',
+        'cancelled_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'shipping_cost' => 'decimal:2',
+        'other_charges' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'paid_amount' => 'decimal:2',
         'outstanding_amount' => 'decimal:2',
@@ -59,9 +77,25 @@ class PurchaseOrder extends Model
         return $this->belongsTo(Store::class);
     }
 
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'created_by');
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'approved_by');
+    }
+
+    public function receivedBy(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'received_by');
+    }
+
+    // Alias for backward compatibility
     public function employee(): BelongsTo
     {
-        return $this->belongsTo(Employee::class);
+        return $this->createdBy();
     }
 
     public function items(): HasMany

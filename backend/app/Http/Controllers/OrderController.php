@@ -204,6 +204,7 @@ class OrderController extends Controller
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.batch_id' => 'required|exists:product_batches,id',
+            'items.*.barcode' => 'nullable|string|exists:product_barcodes,barcode',  // Optional barcode for tracking
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.discount_amount' => 'nullable|numeric|min:0',
@@ -298,6 +299,29 @@ class OrderController extends Controller
                     throw new \Exception("Product batch not available at this store");
                 }
 
+                // NEW: Handle barcode if provided
+                $barcodeId = null;
+                if (!empty($itemData['barcode'])) {
+                    $barcode = \App\Models\ProductBarcode::where('barcode', $itemData['barcode'])
+                        ->where('product_id', $product->id)
+                        ->where('batch_id', $batch->id)
+                        ->first();
+                    
+                    if (!$barcode) {
+                        throw new \Exception("Barcode {$itemData['barcode']} not found for product {$product->name}");
+                    }
+                    
+                    if (!$barcode->is_active) {
+                        throw new \Exception("Barcode {$itemData['barcode']} is not active");
+                    }
+                    
+                    if ($barcode->is_defective) {
+                        throw new \Exception("Barcode {$itemData['barcode']} is marked as defective");
+                    }
+                    
+                    $barcodeId = $barcode->id;
+                }
+
                 $quantity = $itemData['quantity'];
                 $unitPrice = $itemData['unit_price'];
                 $discount = $itemData['discount_amount'] ?? 0;
@@ -310,6 +334,7 @@ class OrderController extends Controller
                     'order_id' => $order->id,
                     'product_id' => $product->id,
                     'product_batch_id' => $batch->id,
+                    'product_barcode_id' => $barcodeId,  // NEW: Store barcode if provided
                     'product_name' => $product->name,
                     'product_sku' => $product->sku,
                     'quantity' => $quantity,
@@ -688,7 +713,9 @@ class OrderController extends Controller
     /**
      * Complete order and reduce inventory
      * 
-     * UPDATED: Now marks individual barcodes as sold
+     * UPDATED: Handles both barcode-tracked and non-barcode orders
+     * For barcode-tracked items: marks individual barcodes as sold
+     * For non-barcode items: just reduces batch quantity
      * This is called after payment is complete or for credit sales
      * 
      * PATCH /api/orders/{id}/complete
@@ -722,33 +749,39 @@ class OrderController extends Controller
                     throw new \Exception("Batch not found for item {$item->product_name}");
                 }
 
-                // NEW: Validate barcode tracking
-                if (!$barcode) {
-                    throw new \Exception("Barcode not found for item {$item->product_name}. Cannot complete order without individual unit tracking.");
-                }
-
-                // NEW: Validate barcode is still active
-                if (!$barcode->is_active) {
-                    throw new \Exception("Barcode {$barcode->barcode} for {$item->product_name} is no longer active.");
-                }
-
                 if ($batch->quantity < $item->quantity) {
                     throw new \Exception("Insufficient stock for {$item->product_name}. Available: {$batch->quantity}");
                 }
 
+                // Handle barcode-tracked items
+                if ($barcode) {
+                    // Validate barcode is still active
+                    if (!$barcode->is_active) {
+                        throw new \Exception("Barcode {$barcode->barcode} for {$item->product_name} is no longer active.");
+                    }
+
+                    // Mark barcode as sold (inactive)
+                    $barcode->update(['is_active' => false]);
+
+                    // Log barcode sale
+                    $note = sprintf(
+                        "[%s] Sold 1 unit (Barcode: %s) via Order #%s",
+                        now()->format('Y-m-d H:i:s'),
+                        $barcode->barcode,
+                        $order->order_number
+                    );
+                } else {
+                    // Log non-barcode sale
+                    $note = sprintf(
+                        "[%s] Sold %d unit(s) (No barcode tracking) via Order #%s",
+                        now()->format('Y-m-d H:i:s'),
+                        $item->quantity,
+                        $order->order_number
+                    );
+                }
+
                 // Reduce batch quantity
                 $batch->removeStock($item->quantity);
-
-                // NEW: Mark barcode as sold (inactive)
-                $barcode->update(['is_active' => false]);
-
-                // Log in notes
-                $note = sprintf(
-                    "[%s] Sold 1 unit (Barcode: %s) via Order #%s",
-                    now()->format('Y-m-d H:i:s'),
-                    $barcode->barcode,
-                    $order->order_number
-                );
                 
                 $batch->update([
                     'notes' => ($batch->notes ? $batch->notes . "\n" : '') . $note
@@ -766,9 +799,21 @@ class OrderController extends Controller
 
             DB::commit();
 
+            $message = 'Order completed successfully. Inventory updated.';
+            $items = collect($order->items);
+            $trackedCount = $items->filter(fn($item) => $item->barcode)->count();
+            $untrackedCount = $items->count() - $trackedCount;
+            
+            if ($trackedCount > 0) {
+                $message .= " {$trackedCount} item(s) tracked with barcodes.";
+            }
+            if ($untrackedCount > 0) {
+                $message .= " {$untrackedCount} item(s) completed without barcode tracking.";
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Order completed successfully. Inventory updated and barcodes marked as sold.',
+                'message' => $message,
                 'data' => $this->formatOrderResponse($order->fresh([
                     'customer',
                     'store',
