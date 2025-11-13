@@ -209,13 +209,11 @@ class ProductBatchController extends Controller
                 $barcodeType = $request->input('barcode_type', 'CODE128');
                 $quantity = $request->quantity;
                 
-                // Determine initial status based on store type
-                $store = Store::find($request->store_id);
-                $initialStatus = $store && $store->store_type === 'warehouse' 
-                    ? 'in_warehouse' 
-                    : 'in_shop';
-                
-                // Generate barcodes for all units
+            // Determine initial status based on store type
+            $store = Store::find($request->store_id);
+            $initialStatus = $store && $store->is_warehouse 
+                ? 'in_warehouse' 
+                : 'in_shop';                // Generate barcodes for all units
                 // First barcode is the primary one (associated with batch)
                 for ($i = 0; $i < $quantity; $i++) {
                     $barcode = ProductBarcode::create([

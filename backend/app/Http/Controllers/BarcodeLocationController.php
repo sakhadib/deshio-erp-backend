@@ -269,7 +269,7 @@ class BarcodeLocationController extends Controller
                         'current_store' => $barcode->currentStore ? [
                             'id' => $barcode->currentStore->id,
                             'name' => $barcode->currentStore->name,
-                            'type' => $barcode->currentStore->store_type,
+                            'type' => $barcode->currentStore->is_warehouse ? 'warehouse' : ($barcode->currentStore->is_online ? 'online' : 'retail'),
                         ] : null,
                         'batch' => $barcode->batch ? [
                             'id' => $barcode->batch->id,
@@ -377,7 +377,7 @@ class BarcodeLocationController extends Controller
                 'store' => $store ? [
                     'id' => $store->id,
                     'name' => $store->name,
-                    'type' => $store->store_type,
+                    'type' => $store->is_warehouse ? 'warehouse' : ($store->is_online ? 'online' : 'retail'),
                 ] : ['id' => null, 'name' => 'Unknown', 'type' => null],
                 'count' => $barcodes->count(),
                 'status_breakdown' => $barcodes->groupBy('current_status')->map(function ($items, $status) {
@@ -1116,7 +1116,7 @@ class BarcodeLocationController extends Controller
                 'store' => [
                     'id' => $store->id,
                     'name' => $store->name,
-                    'type' => $store->store_type,
+                    'type' => $store->is_warehouse ? 'warehouse' : ($store->is_online ? 'online' : 'retail'),
                 ],
                 'summary' => [
                     'total_units' => $storeBarcodes->count(),

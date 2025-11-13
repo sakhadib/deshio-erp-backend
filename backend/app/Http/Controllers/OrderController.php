@@ -299,7 +299,7 @@ class OrderController extends Controller
                     throw new \Exception("Product batch not available at this store");
                 }
 
-                // NEW: Handle barcode if provided
+                // Handle barcode if provided (optional for backward compatibility)
                 $barcodeId = null;
                 if (!empty($itemData['barcode'])) {
                     $barcode = \App\Models\ProductBarcode::where('barcode', $itemData['barcode'])
@@ -321,6 +321,14 @@ class OrderController extends Controller
                     
                     $barcodeId = $barcode->id;
                 }
+                
+                // Debug: Log barcode capture
+                \Log::info('Order item barcode capture', [
+                    'barcode_value' => $itemData['barcode'] ?? 'NOT_PROVIDED',
+                    'barcode_id' => $barcodeId,
+                    'product_id' => $product->id,
+                    'batch_id' => $batch->id
+                ]);
 
                 $quantity = $itemData['quantity'];
                 $unitPrice = $itemData['unit_price'];
@@ -788,9 +796,9 @@ class OrderController extends Controller
                 ]);
             }
 
-            // Update order status
+            // Update order status to confirmed (delivered will be set when shipment is delivered)
             $order->update([
-                'status' => 'completed',
+                'status' => 'confirmed',
                 'confirmed_at' => now(),
             ]);
 

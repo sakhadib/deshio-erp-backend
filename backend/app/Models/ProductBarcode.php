@@ -295,7 +295,7 @@ class ProductBarcode extends Model
             'current_store' => $this->currentStore ? [
                 'id' => $this->currentStore->id,
                 'name' => $this->currentStore->name,
-                'type' => $this->currentStore->store_type,
+                'type' => $this->currentStore->is_warehouse ? 'warehouse' : ($this->currentStore->is_online ? 'online' : 'retail'),
                 'address' => $this->currentStore->address,
             ] : null,
             'current_status' => $this->current_status,

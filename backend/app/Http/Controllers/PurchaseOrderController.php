@@ -38,7 +38,7 @@ class PurchaseOrderController extends Controller
 
         // Verify store is a warehouse
         $store = Store::findOrFail($validated['store_id']);
-        if ($store->store_type !== 'warehouse') {
+        if (!$store->is_warehouse) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only warehouse can receive products from vendors'

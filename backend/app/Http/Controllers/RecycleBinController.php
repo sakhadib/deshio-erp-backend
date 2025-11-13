@@ -156,7 +156,7 @@ class RecycleBinController extends Controller
                             'name' => $item->name,
                             'identifier' => $item->store_code ?? 'N/A',
                             'details' => [
-                                'type' => $item->store_type ?? 'N/A',
+                                'type' => $item->is_warehouse ? 'warehouse' : ($item->is_online ? 'online' : 'retail'),
                                 'address' => $item->address ?? 'N/A',
                             ],
                             'deleted_at' => $item->deleted_at,
