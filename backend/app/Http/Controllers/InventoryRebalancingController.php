@@ -221,6 +221,7 @@ class InventoryRebalancingController extends Controller
                 'destination_store_id' => $rebalancing->destination_store_id,
                 'dispatch_date' => now(),
                 'status' => 'pending',
+                'created_by' => Auth::id(),  // Set the employee approving the rebalancing
                 'notes' => "Inventory Rebalancing: {$rebalancing->reason}",
             ]);
 
