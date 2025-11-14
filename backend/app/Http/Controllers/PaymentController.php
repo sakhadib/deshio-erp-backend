@@ -29,6 +29,15 @@ class PaymentController extends Controller
 
     /**
      * Get payment methods for a customer type
+     * 
+     * PUBLIC API - No authentication required
+     * 
+     * Customer Types:
+     * - counter: POS/Counter sales (phone-only, no account needed)
+     * - social_commerce: WhatsApp/Facebook sales (phone-only, no account needed)
+     * - ecommerce: Website sales (requires account with email/password)
+     * 
+     * GET /api/payment-methods?customer_type=counter
      */
     public function getMethodsByCustomerType(Request $request): JsonResponse
     {
@@ -48,7 +57,13 @@ class PaymentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $methods,
+            'data' => [
+                'customer_type' => $request->customer_type,
+                'payment_methods' => $methods,
+                'note' => $request->customer_type === 'ecommerce' 
+                    ? 'E-commerce customers require account registration'
+                    : 'No customer account required - phone number only'
+            ],
         ]);
     }
 

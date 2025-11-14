@@ -56,6 +56,9 @@ use App\Http\Controllers\CategoriesController;
 Route::post('/signup', [AuthController::class, 'signup']);
 Route::post('/login', [AuthController::class, 'login']);
 
+// Public API for payment methods (no auth required for POS/Social Commerce)
+Route::get('/payment-methods', [PaymentController::class, 'getMethodsByCustomerType']);
+
 // Auth routes (protected)
 Route::middleware('auth:api')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);

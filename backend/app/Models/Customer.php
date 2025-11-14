@@ -353,33 +353,57 @@ class Customer extends Authenticatable
     }
 
     // Static factory methods for different customer types
+    /**
+     * Create counter customer (POS) - NO PASSWORD REQUIRED
+     * Identified by phone number only
+     */
     public static function createCounterCustomer(array $data)
     {
+        // Remove password if accidentally provided - counter customers don't need accounts
+        unset($data['password']);
+        
         return static::create(array_merge($data, [
             'customer_type' => 'counter',
             'created_by' => $data['created_by'] ?? auth()->id(),
+            'status' => 'active', // Auto-activate
         ]));
     }
 
+    /**
+     * Create social commerce customer - NO PASSWORD REQUIRED
+     * Identified by phone number only (WhatsApp, Facebook, etc.)
+     */
     public static function createSocialCommerceCustomer(array $data)
     {
+        // Remove password if accidentally provided - social customers don't need accounts
+        unset($data['password']);
+        
         return static::create(array_merge($data, [
             'customer_type' => 'social_commerce',
             'created_by' => $data['created_by'] ?? auth()->id(),
+            'status' => 'active', // Auto-activate
         ]));
     }
 
+    /**
+     * Create e-commerce customer - PASSWORD REQUIRED
+     * These customers have accounts and can login to the website
+     */
     public static function createEcommerceCustomer(array $data)
     {
+        // E-commerce customers MUST have passwords
+        if (empty($data['password'])) {
+            throw new \InvalidArgumentException('E-commerce customers must have a password');
+        }
+        
         $customer = static::create(array_merge($data, [
             'customer_type' => 'ecommerce',
             'created_by' => $data['created_by'] ?? auth()->id(),
+            'status' => 'active', // Pending email verification can be handled separately
         ]));
 
-        // Set password if provided
-        if (isset($data['password'])) {
-            $customer->setPassword($data['password']);
-        }
+        // Set password (encrypted)
+        $customer->setPassword($data['password']);
 
         return $customer;
     }
@@ -479,8 +503,22 @@ class Customer extends Authenticatable
         // This would typically use Laravel's built-in notification system
     }
 
+    /**
+     * Only e-commerce customers can login (have accounts with passwords)
+     * Counter and Social Commerce customers are identified by phone only
+     */
     public function canLogin(): bool
     {
-        return $this->isEcommerceCustomer() && $this->isActive() && $this->hasVerifiedEmail();
+        return $this->isEcommerceCustomer() && $this->isActive() && !empty($this->password);
+    }
+    
+    /**
+     * Check if customer requires authentication
+     * Counter and Social Commerce: NO (phone-only identification)
+     * E-commerce: YES (account-based with password)
+     */
+    public function requiresAuthentication(): bool
+    {
+        return $this->isEcommerceCustomer();
     }
 }
