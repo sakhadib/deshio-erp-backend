@@ -59,6 +59,9 @@ Route::post('/login', [AuthController::class, 'login']);
 // Public API for payment methods (no auth required for POS/Social Commerce)
 Route::get('/payment-methods', [PaymentController::class, 'getMethodsByCustomerType']);
 
+// Get all payment methods (for vendor payments, expenses, etc.)
+Route::get('/payment-methods/all', [PaymentController::class, 'getAllPaymentMethods']);
+
 // Auth routes (protected)
 Route::middleware('auth:api')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);

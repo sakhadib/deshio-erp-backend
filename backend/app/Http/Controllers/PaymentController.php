@@ -28,6 +28,50 @@ class PaymentController extends Controller
     }
 
     /**
+     * Get all active payment methods (for vendor payments, expenses, etc.)
+     * 
+     * This endpoint returns ALL active payment methods without customer type filtering.
+     * Used for:
+     * - Vendor payments (purchase orders)
+     * - Expense payments
+     * - Internal transactions
+     * - Any B2B payments
+     * 
+     * GET /api/payment-methods/all
+     */
+    public function getAllPaymentMethods(Request $request): JsonResponse
+    {
+        $methods = PaymentMethod::active()
+            ->ordered()
+            ->get([
+                'id',
+                'code',
+                'name',
+                'description',
+                'type',
+                'is_active',
+                'requires_reference',
+                'supports_partial',
+                'min_amount',
+                'max_amount',
+                'fixed_fee',
+                'percentage_fee',
+                'icon',
+                'sort_order'
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment methods retrieved successfully',
+            'data' => [
+                'payment_methods' => $methods,
+                'total_count' => $methods->count(),
+                'note' => 'All active payment methods - no customer type restrictions'
+            ],
+        ]);
+    }
+
+    /**
      * Get payment methods for a customer type
      * 
      * PUBLIC API - No authentication required
