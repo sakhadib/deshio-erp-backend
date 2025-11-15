@@ -235,7 +235,7 @@ class PurchaseOrder extends Model
     }
 
     /**
-     * Mark PO as received and create product batches
+     * Mark PO as received and create product batches with barcodes
      */
     public function markAsReceived(array $receivedItems = []): void
     {
@@ -259,6 +259,38 @@ class PurchaseOrder extends Model
                     'expiry_date' => $itemData['expiry_date'] ?? null,
                 ]);
 
+                // Generate barcodes for each unit in the batch
+                $store = $this->store;
+                $initialStatus = $store && $store->is_warehouse ? 'in_warehouse' : 'in_shop';
+                
+                $generatedBarcodes = [];
+                for ($i = 0; $i < $quantityReceived; $i++) {
+                    $barcode = ProductBarcode::create([
+                        'product_id' => $item->product_id,
+                        'batch_id' => $batch->id,
+                        'barcode' => ProductBarcode::generateUniqueBarcode(),
+                        'status' => $initialStatus,
+                        'is_primary' => ($i === 0), // First barcode is primary
+                    ]);
+                    
+                    $generatedBarcodes[] = $barcode;
+                    
+                    // Track location for each barcode
+                    BarcodeLocation::create([
+                        'barcode_id' => $barcode->id,
+                        'store_id' => $this->store_id,
+                        'status' => $initialStatus,
+                        'moved_at' => now(),
+                        'notes' => "Received from vendor via PO: {$this->po_number}",
+                    ]);
+                }
+                
+                // Set primary barcode for batch
+                if (!empty($generatedBarcodes)) {
+                    $batch->barcode_id = $generatedBarcodes[0]->id;
+                    $batch->save();
+                }
+
                 // Update item
                 $item->product_batch_id = $batch->id;
                 $item->batch_number = $batch->batch_number;
@@ -274,6 +306,9 @@ class PurchaseOrder extends Model
                     $item->receive_status = 'partially_received';
                 }
                 $item->save();
+                
+                // Log barcode generation
+                \Log::info("Generated {$quantityReceived} barcodes for PO {$this->po_number}, Batch {$batch->batch_number}");
             }
 
             // Update PO status
@@ -291,6 +326,7 @@ class PurchaseOrder extends Model
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
+            \Log::error("Failed to receive PO {$this->po_number}: " . $e->getMessage());
             throw $e;
         }
     }
