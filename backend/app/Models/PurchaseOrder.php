@@ -268,21 +268,21 @@ class PurchaseOrder extends Model
                     $barcode = ProductBarcode::create([
                         'product_id' => $item->product_id,
                         'batch_id' => $batch->id,
-                        'barcode' => ProductBarcode::generateUniqueBarcode(),
-                        'status' => $initialStatus,
+                        'type' => 'CODE128',
                         'is_primary' => ($i === 0), // First barcode is primary
+                        'is_active' => true,
+                        'generated_at' => now(),
+                        'current_store_id' => $this->store_id,
+                        'current_status' => $initialStatus,
+                        'location_updated_at' => now(),
+                        'location_metadata' => [
+                            'source' => 'purchase_order',
+                            'po_number' => $this->po_number,
+                            'received_date' => now()->format('Y-m-d H:i:s'),
+                        ],
                     ]);
                     
                     $generatedBarcodes[] = $barcode;
-                    
-                    // Track location for each barcode
-                    BarcodeLocation::create([
-                        'barcode_id' => $barcode->id,
-                        'store_id' => $this->store_id,
-                        'status' => $initialStatus,
-                        'moved_at' => now(),
-                        'notes' => "Received from vendor via PO: {$this->po_number}",
-                    ]);
                 }
                 
                 // Set primary barcode for batch
