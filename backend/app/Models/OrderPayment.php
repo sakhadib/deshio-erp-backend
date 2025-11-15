@@ -15,7 +15,7 @@ class OrderPayment extends Model
     protected $fillable = [
         'payment_number',
         'order_id',
-        'payment_method_id',
+        'payment_method_id', // Nullable for split payments (when payment uses multiple methods)
         'customer_id',
         'store_id',
         'processed_by',
@@ -77,10 +77,17 @@ class OrderPayment extends Model
             }
 
             // Calculate net amount if not provided
+            // Skip calculation for split payments (payment_method_id is null)
             if (!isset($payment->net_amount) && isset($payment->amount)) {
-                $fee = $payment->paymentMethod ? $payment->paymentMethod->calculateFee($payment->amount) : 0;
-                $payment->fee_amount = $fee;
-                $payment->net_amount = $payment->amount - $fee;
+                if ($payment->payment_method_id && $payment->paymentMethod) {
+                    $fee = $payment->paymentMethod->calculateFee($payment->amount);
+                    $payment->fee_amount = $fee;
+                    $payment->net_amount = $payment->amount - $fee;
+                } else {
+                    // For split payments, fees will be calculated from splits
+                    $payment->fee_amount = 0;
+                    $payment->net_amount = $payment->amount;
+                }
             }
         });
     }
@@ -315,7 +322,12 @@ class OrderPayment extends Model
 
     public function isSplitPayment(): bool
     {
-        return $this->paymentSplits()->count() > 1;
+        return $this->payment_method_id === null && $this->paymentSplits()->count() > 1;
+    }
+
+    public function isSimplePayment(): bool
+    {
+        return $this->payment_method_id !== null && !$this->hasSplits();
     }
 
     public function updateSplitStatus(): void

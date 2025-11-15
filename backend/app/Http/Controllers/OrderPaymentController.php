@@ -46,6 +46,14 @@ class OrderPaymentController extends Controller
 
     /**
      * Create a simple payment (single payment method, no splits)
+     * 
+     * Use this endpoint when:
+     * - Customer pays with ONE payment method
+     * - Making multiple separate payments over time (installments)
+     * - Each payment is a separate transaction
+     * 
+     * Example: Customer pays $500 cash today, then $500 card next week
+     * Result: 2 separate OrderPayment records, NO payment splits
      */
     public function store(Request $request, $orderId)
     {
@@ -152,6 +160,17 @@ class OrderPaymentController extends Controller
 
     /**
      * Create a split payment (single payment split across multiple methods)
+     * 
+     * Use this endpoint when:
+     * - Customer pays with MULTIPLE payment methods AT THE SAME TIME
+     * - One transaction split into parts (e.g., $300 cash + $700 card)
+     * 
+     * Example: Customer pays $1000 total: $300 cash + $500 bank + $200 card
+     * Result: 1 OrderPayment (payment_method_id=null) + 3 PaymentSplit records
+     * 
+     * IMPORTANT: This is different from multiple separate payments!
+     * Split = Single transaction with multiple methods
+     * Multiple payments = Different transactions over time
      */
     public function storeSplitPayment(Request $request, $orderId)
     {
