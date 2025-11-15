@@ -751,7 +751,6 @@ class OrderController extends Controller
             // Reduce inventory for each item
             foreach ($order->items as $item) {
                 $batch = $item->batch;
-                $barcode = $item->barcode;
 
                 if (!$batch) {
                     throw new \Exception("Batch not found for item {$item->product_name}");
@@ -761,8 +760,10 @@ class OrderController extends Controller
                     throw new \Exception("Insufficient stock for {$item->product_name}. Available: {$batch->quantity}");
                 }
 
-                // Handle barcode-tracked items
-                if ($barcode) {
+                // Handle barcode-tracked items (check if barcode exists and is not null)
+                if ($item->product_barcode_id && $item->barcode) {
+                    $barcode = $item->barcode;
+                    
                     // Validate barcode is still active
                     if (!$barcode->is_active) {
                         throw new \Exception("Barcode {$barcode->barcode} for {$item->product_name} is no longer active.");
@@ -809,7 +810,7 @@ class OrderController extends Controller
 
             $message = 'Order completed successfully. Inventory updated.';
             $items = collect($order->items);
-            $trackedCount = $items->filter(fn($item) => $item->barcode)->count();
+            $trackedCount = $items->filter(fn($item) => $item->product_barcode_id && $item->barcode)->count();
             $untrackedCount = $items->count() - $trackedCount;
             
             if ($trackedCount > 0) {
