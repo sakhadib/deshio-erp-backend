@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class DefectiveProductController extends Controller
 {
@@ -139,6 +140,7 @@ class DefectiveProductController extends Controller
             'original_price' => 'required|numeric|min:0',
             'product_batch_id' => 'nullable|exists:product_batches,id',
             'defect_images' => 'nullable|array',
+            'defect_images.*' => 'image|mimes:jpeg,png,jpg,gif|max:5120',
             'internal_notes' => 'nullable|string',
         ]);
 
@@ -156,6 +158,15 @@ class DefectiveProductController extends Controller
                 throw new \Exception('Employee authentication required');
             }
 
+            // Handle image uploads
+            $imagePaths = [];
+            if ($request->hasFile('defect_images')) {
+                foreach ($request->file('defect_images') as $image) {
+                    $path = $image->store('defective-products', 'public');
+                    $imagePaths[] = $path;
+                }
+            }
+
             // Mark barcode as defective and create defective product record
             $defectiveProduct = $barcode->markAsDefective([
                 'store_id' => $request->store_id,
@@ -164,7 +175,7 @@ class DefectiveProductController extends Controller
                 'defect_description' => $request->defect_description,
                 'severity' => $request->severity,
                 'original_price' => $request->original_price,
-                'defect_images' => $request->defect_images,
+                'defect_images' => !empty($imagePaths) ? $imagePaths : null,
                 'identified_by' => $employee->id,
                 'internal_notes' => $request->internal_notes,
             ]);
@@ -535,6 +546,140 @@ class DefectiveProductController extends Controller
                 'success' => false,
                 'message' => 'Failed to scan barcode: ' . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    /**
+     * Upload additional images for a defective product
+     */
+    public function uploadImages(Request $request, $id): JsonResponse
+    {
+        $request->validate([
+            'images' => 'required|array|min:1|max:5',
+            'images.*' => 'required|image|mimes:jpeg,png,jpg,gif|max:5120',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $defectiveProduct = DefectiveProduct::findOrFail($id);
+
+            // Get existing images
+            $existingImages = $defectiveProduct->defect_images ?? [];
+
+            // Upload new images
+            $newImagePaths = [];
+            foreach ($request->file('images') as $image) {
+                $path = $image->store('defective-products', 'public');
+                $newImagePaths[] = $path;
+            }
+
+            // Merge with existing images
+            $allImages = array_merge($existingImages, $newImagePaths);
+
+            // Update defective product
+            $defectiveProduct->update([
+                'defect_images' => $allImages,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Images uploaded successfully',
+                'data' => [
+                    'id' => $defectiveProduct->id,
+                    'defect_images' => $allImages,
+                    'image_urls' => array_map(function ($path) {
+                        return Storage::url($path);
+                    }, $allImages),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to upload images: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete an image from defective product
+     */
+    public function deleteImage(Request $request, $id): JsonResponse
+    {
+        $request->validate([
+            'image_path' => 'required|string',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $defectiveProduct = DefectiveProduct::findOrFail($id);
+            $existingImages = $defectiveProduct->defect_images ?? [];
+
+            // Remove the specified image from array
+            $updatedImages = array_filter($existingImages, function ($path) use ($request) {
+                return $path !== $request->image_path;
+            });
+
+            // Delete file from storage
+            if (Storage::disk('public')->exists($request->image_path)) {
+                Storage::disk('public')->delete($request->image_path);
+            }
+
+            // Update defective product
+            $defectiveProduct->update([
+                'defect_images' => array_values($updatedImages),
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Image deleted successfully',
+                'data' => [
+                    'id' => $defectiveProduct->id,
+                    'defect_images' => array_values($updatedImages),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete image: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get image URLs for a defective product
+     */
+    public function getImages($id): JsonResponse
+    {
+        try {
+            $defectiveProduct = DefectiveProduct::findOrFail($id);
+            $images = $defectiveProduct->defect_images ?? [];
+
+            $imageUrls = array_map(function ($path) {
+                return [
+                    'path' => $path,
+                    'url' => Storage::url($path),
+                ];
+            }, $images);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $defectiveProduct->id,
+                    'images' => $imageUrls,
+                    'count' => count($imageUrls),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get images: ' . $e->getMessage(),
+            ], 404);
         }
     }
 }

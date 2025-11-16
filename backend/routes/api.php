@@ -924,6 +924,11 @@ Route::middleware('auth:api')->group(function () {
             Route::post('/sell', [\App\Http\Controllers\DefectiveProductController::class, 'sell']);
             Route::post('/dispose', [\App\Http\Controllers\DefectiveProductController::class, 'dispose']);
             Route::post('/return-to-vendor', [\App\Http\Controllers\DefectiveProductController::class, 'returnToVendor']);
+            
+            // Image management routes
+            Route::post('/images', [\App\Http\Controllers\DefectiveProductController::class, 'uploadImages']);
+            Route::get('/images', [\App\Http\Controllers\DefectiveProductController::class, 'getImages']);
+            Route::delete('/images', [\App\Http\Controllers\DefectiveProductController::class, 'deleteImage']);
         });
     });
 

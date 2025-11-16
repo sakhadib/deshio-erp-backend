@@ -46,8 +46,10 @@ class ProductBarcodeController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
+                'barcode_id' => $scanResult['barcode']->id,
                 'barcode' => $scanResult['barcode']->barcode,
                 'barcode_type' => $scanResult['barcode']->type,
+                'is_defective' => $scanResult['barcode']->is_defective,
                 'product' => [
                     'id' => $scanResult['product']->id,
                     'name' => $scanResult['product']->name,
