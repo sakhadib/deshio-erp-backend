@@ -1040,15 +1040,28 @@ class OrderController extends Controller
             });
 
             $response['payments'] = $order->payments->map(function ($payment) {
-                return [
+                $paymentData = [
                     'id' => $payment->id,
                     'amount' => number_format((float)$payment->amount, 2),
-                    'payment_method' => $payment->paymentMethod->name,
+                    'payment_method' => $payment->payment_method_name,
                     'payment_type' => $payment->payment_type,
                     'status' => $payment->status,
                     'processed_by' => $payment->processedBy?->name,
                     'created_at' => $payment->created_at->format('Y-m-d H:i:s'),
                 ];
+
+                // Include split details if it's a split payment
+                if ($payment->isSplitPayment()) {
+                    $paymentData['splits'] = $payment->paymentSplits->map(function ($split) {
+                        return [
+                            'payment_method' => $split->paymentMethod->name,
+                            'amount' => number_format((float)$split->amount, 2),
+                            'status' => $split->status,
+                        ];
+                    });
+                }
+
+                return $paymentData;
             });
 
             if ($order->is_installment_payment) {

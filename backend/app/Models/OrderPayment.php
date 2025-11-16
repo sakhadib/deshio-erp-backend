@@ -446,6 +446,12 @@ class OrderPayment extends Model
 
     public function getPaymentMethodNameAttribute(): string
     {
+        // For split payments, show "Split Payment" with count
+        if ($this->payment_method_id === null && $this->hasSplits()) {
+            $splitCount = $this->paymentSplits()->count();
+            return "Split Payment ({$splitCount} methods)";
+        }
+        
         return $this->paymentMethod ? $this->paymentMethod->name : 'Unknown';
     }
 
