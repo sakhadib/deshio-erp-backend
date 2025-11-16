@@ -11,10 +11,13 @@ The Transaction system automatically tracks all financial movements (money in/ou
 Transactions are **automatically created** when:
 - ✅ An order payment is made
 - ✅ A service order payment is made  
-- ✅ An expense is approved or paid
+- ✅ An expense payment is completed (actual cash outflow)
+- ✅ A vendor payment is completed
 - ✅ A refund is processed
 
 **You don't need to manually create transactions** - the observers handle everything!
+
+**Note**: Expense approval does NOT create transactions - only actual ExpensePayment creates transactions (cash basis accounting).
 
 ---
 
@@ -24,22 +27,28 @@ Transactions are **automatically created** when:
 1. **Transaction** (`app/Models/Transaction.php`) - Main accounting transaction model
 2. **OrderPayment** - Customer payments for product orders
 3. **ServiceOrderPayment** - Customer payments for service orders
-4. **Expense** - Business expenses
-5. **Refund** - Customer refunds
+4. **ExpensePayment** - Actual expense payment transactions (creates transactions)
+5. **VendorPayment** - Payments to vendors/suppliers
+6. **Refund** - Customer refunds
+7. **Expense** - Business expense records (does NOT create transactions directly)
 
 ### Observers (Auto-Trigger)
 Located in `app/Observers/`:
 - **OrderPaymentObserver** - Triggers on order payment events
 - **ServiceOrderPaymentObserver** - Triggers on service payment events
-- **ExpenseObserver** - Triggers on expense events
+- **ExpensePaymentObserver** - Triggers on expense payment events ✅ **Creates transactions**
+- **VendorPaymentObserver** - Triggers on vendor payment events
 - **RefundObserver** - Triggers on refund events
+- **ExpenseObserver** - Monitors expense lifecycle (cleanup only, no transaction creation)
 
 ### Observer Registration
 Observers are registered in `app/Providers/AppServiceProvider.php`:
 ```php
 OrderPayment::observe(OrderPaymentObserver::class);
 ServiceOrderPayment::observe(ServiceOrderPaymentObserver::class);
-Expense::observe(ExpenseObserver::class);
+Expense::observe(ExpenseObserver::class);           // For cleanup only
+ExpensePayment::observe(ExpensePaymentObserver::class); // Creates transactions
+VendorPayment::observe(VendorPaymentObserver::class);
 Refund::observe(RefundObserver::class);
 ```
 
@@ -53,9 +62,12 @@ Refund::observe(RefundObserver::class);
 - **Account affected**: Cash/Bank Account
 
 ### 🔴 Credit (Money OUT)
-- Expenses
-- Refunds
+- Expense payments (actual payment transactions) ✅ **Creates transactions**
+- Vendor payments (payments to suppliers)
+- Refunds (to customers)
 - **Account affected**: Cash/Bank or Expense Account
+
+**Note**: Approving an Expense does NOT create a transaction. Only when ExpensePayment is completed does the transaction get created.
 
 ---
 
@@ -85,28 +97,31 @@ OrderPayment::create([
 }
 ```
 
-### 2. Expense → Transaction
-**Trigger**: When `Expense` is approved or paid
+### 2. Expense Payment → Transaction
+**Trigger**: When `ExpensePayment` is completed (actual cash outflow)
 
-**Observer**: `ExpenseObserver`
+**Observer**: `ExpensePaymentObserver`
 ```php
 // Automatically happens when:
-Expense::create([
-    'category_id' => 1,
-    'amount' => 3000,
-    'status' => 'approved'
+ExpensePayment::create([
+    'expense_id' => 1,
+    'amount' => 5000,
+    'payment_method_id' => 1,
+    'status' => 'completed'
 ]);
 
 // Creates Transaction:
 {
     "type": "credit",
-    "amount": 3000,
-    "reference_type": "Expense",
+    "amount": 5000,
+    "reference_type": "ExpensePayment",
     "reference_id": 1,
-    "description": "Expense - EXP-001: Office Rent",
+    "description": "Expense Payment - EXPPAY-20251116-ABC123",
     "status": "completed"
 }
 ```
+
+**Note**: Creating or approving an Expense record does NOT create a transaction. Only ExpensePayment creates transactions.
 
 ### 3. Refund → Transaction
 **Trigger**: When `Refund` is completed
@@ -127,6 +142,30 @@ Refund::create([
     "reference_type": "Refund",
     "reference_id": 1,
     "description": "Refund - REF-001",
+    "status": "completed"
+}
+```
+
+### 4. Vendor Payment → Transaction
+**Trigger**: When `VendorPayment` is completed
+
+**Observer**: `VendorPaymentObserver`
+```php
+// Automatically happens when:
+VendorPayment::create([
+    'vendor_id' => 1,
+    'amount' => 50000,
+    'payment_method_id' => 1,
+    'status' => 'completed'
+]);
+
+// Creates Transaction:
+{
+    "type": "credit",
+    "amount": 50000,
+    "reference_type": "VendorPayment",
+    "reference_id": 1,
+    "description": "Vendor Payment - VP-20251116-000001",
     "status": "completed"
 }
 ```
@@ -347,6 +386,8 @@ $transaction->isCredit();        // Check if credit
 Transaction::createFromOrderPayment($orderPayment);
 Transaction::createFromServiceOrderPayment($servicePayment);
 Transaction::createFromExpense($expense);
+Transaction::createFromExpensePayment($expensePayment);
+Transaction::createFromVendorPayment($vendorPayment);
 Transaction::createFromRefund($refund);
 ```
 

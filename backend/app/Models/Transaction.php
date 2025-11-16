@@ -289,6 +289,30 @@ class Transaction extends Model
         ]);
     }
 
+    public static function createFromVendorPayment(VendorPayment $payment): self
+    {
+        $status = $payment->status === 'completed' ? 'completed' : 'pending';
+
+        return static::create([
+            'transaction_date' => $payment->processed_at ?? $payment->payment_date ?? now(),
+            'amount' => $payment->amount,
+            'type' => 'credit', // Money going out to vendor
+            'account_id' => static::getCashAccountId(),
+            'reference_type' => VendorPayment::class,
+            'reference_id' => $payment->id,
+            'description' => "Vendor Payment - {$payment->payment_number}",
+            'created_by' => $payment->employee_id,
+            'metadata' => [
+                'payment_method' => $payment->paymentMethod->name ?? 'Unknown',
+                'vendor_name' => $payment->vendor->name ?? null,
+                'payment_type' => $payment->payment_type,
+                'allocated_amount' => $payment->allocated_amount,
+                'unallocated_amount' => $payment->unallocated_amount,
+            ],
+            'status' => $status,
+        ]);
+    }
+
     // Helper methods for account IDs
     private static function getCashAccountId($storeId = null): ?int
     {

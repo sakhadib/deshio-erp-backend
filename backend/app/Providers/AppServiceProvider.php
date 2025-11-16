@@ -8,11 +8,15 @@ use App\Models\OrderPayment;
 use App\Models\ServiceOrderPayment;
 use App\Models\Refund;
 use App\Models\Expense;
+use App\Models\ExpensePayment;
+use App\Models\VendorPayment;
 use App\Observers\CategoryObserver;
 use App\Observers\OrderPaymentObserver;
 use App\Observers\ServiceOrderPaymentObserver;
 use App\Observers\RefundObserver;
 use App\Observers\ExpenseObserver;
+use App\Observers\ExpensePaymentObserver;
+use App\Observers\VendorPaymentObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -35,5 +39,7 @@ class AppServiceProvider extends ServiceProvider
         ServiceOrderPayment::observe(ServiceOrderPaymentObserver::class);
         Refund::observe(RefundObserver::class);
         Expense::observe(ExpenseObserver::class);
+        ExpensePayment::observe(ExpensePaymentObserver::class);
+        VendorPayment::observe(VendorPaymentObserver::class);
     }
 }

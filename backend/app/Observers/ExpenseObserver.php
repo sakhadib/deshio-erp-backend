@@ -9,47 +9,24 @@ class ExpenseObserver
 {
     /**
      * Handle the Expense "created" event.
+     * 
+     * Note: We don't create transactions here because ExpensePayment observer
+     * handles the actual cash flow when payment is made.
      */
     public function created(Expense $expense): void
     {
-        // Create transaction when expense is created (if it's already approved/paid)
-        if ($expense->status === 'approved' || $expense->payment_status === 'paid') {
-            AccountingTransaction::createFromExpense($expense);
-        }
+        // No transaction created - wait for actual payment via ExpensePayment
     }
 
     /**
      * Handle the Expense "updated" event.
+     * 
+     * Note: We don't create transactions here because ExpensePayment observer
+     * handles the actual cash flow when payment is made.
      */
     public function updated(Expense $expense): void
     {
-        // Check if status changed to approved
-        if ($expense->wasChanged('status') && $expense->status === 'approved') {
-            // Find existing transaction or create new one
-            $transaction = AccountingTransaction::byReference(Expense::class, $expense->id)->first();
-
-            if (!$transaction) {
-                // Create new transaction for approved expense
-                AccountingTransaction::createFromExpense($expense);
-            }
-        }
-
-        // Check if payment status changed to paid
-        if ($expense->wasChanged('payment_status') && $expense->payment_status === 'paid') {
-            // Find existing transaction or create new one
-            $transaction = AccountingTransaction::byReference(Expense::class, $expense->id)->first();
-
-            if ($transaction) {
-                // Update existing transaction
-                $transaction->update([
-                    'status' => 'completed',
-                    'transaction_date' => $expense->expense_date,
-                ]);
-            } else {
-                // Create new transaction if it doesn't exist
-                AccountingTransaction::createFromExpense($expense);
-            }
-        }
+        // No transaction updates - ExpensePayment handles the cash flow
     }
 
     /**
@@ -57,7 +34,7 @@ class ExpenseObserver
      */
     public function deleted(Expense $expense): void
     {
-        // Mark related transactions as cancelled
+        // Mark related transactions as cancelled (if any were created via payments)
         AccountingTransaction::byReference(Expense::class, $expense->id)
             ->update(['status' => 'cancelled']);
     }
@@ -67,11 +44,9 @@ class ExpenseObserver
      */
     public function restored(Expense $expense): void
     {
-        // Restore related transactions based on current expense status
-        $status = ($expense->status === 'approved' || $expense->payment_status === 'paid') ? 'completed' : 'pending';
-
+        // Restore related transactions (if any)
         AccountingTransaction::byReference(Expense::class, $expense->id)
-            ->update(['status' => $status]);
+            ->update(['status' => 'completed']);
     }
 
     /**
