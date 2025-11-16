@@ -550,7 +550,7 @@ class ProductBarcode extends Model
     public static function scanBarcode($barcode)
     {
         $barcodeRecord = static::where('barcode', $barcode)
-            ->with(['product', 'batch', 'currentStore'])
+            ->with(['product.category', 'product.vendor', 'batch', 'currentStore'])
             ->first();
 
         if (!$barcodeRecord) {
