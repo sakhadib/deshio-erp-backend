@@ -648,15 +648,17 @@ class ProductBarcode extends Model
                 ProductMovement::create([
                     'product_id' => $this->product_id,
                     'product_batch_id' => $batch->id,
-                    'store_id' => $defectData['store_id'],
+                    'product_barcode_id' => $this->id,
+                    'to_store_id' => $defectData['store_id'],
                     'movement_type' => 'defective',
                     'quantity' => -1,
                     'unit_cost' => $defectData['original_price'],
                     'total_cost' => $defectData['original_price'],
+                    'movement_date' => now(),
                     'reference_type' => 'defective_product',
                     'reference_id' => $defectiveProduct->id,
                     'notes' => "Marked as defective: {$defectData['defect_type']}",
-                    'created_by' => $defectData['identified_by'] ?? null,
+                    'performed_by' => $defectData['identified_by'] ?? null,
                 ]);
             }
         }
