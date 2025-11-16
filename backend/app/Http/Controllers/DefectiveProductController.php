@@ -153,7 +153,7 @@ class DefectiveProductController extends Controller
                 throw new \Exception('This product is already marked as defective');
             }
 
-            $employee = Auth::guard('employee')->user();
+            $employee = auth()->user();
             if (!$employee) {
                 throw new \Exception('Employee authentication required');
             }
@@ -210,7 +210,7 @@ class DefectiveProductController extends Controller
         try {
             $defectiveProduct = DefectiveProduct::findOrFail($id);
 
-            $employee = Auth::guard('employee')->user();
+            $employee = auth()->user();
             if (!$employee) {
                 throw new \Exception('Employee authentication required');
             }
@@ -291,7 +291,7 @@ class DefectiveProductController extends Controller
                 throw new \Exception("Selling price cannot be less than minimum price of ৳{$defectiveProduct->minimum_selling_price}");
             }
 
-            $employee = Auth::guard('employee')->user();
+            $employee = auth()->user();
             if (!$employee) {
                 throw new \Exception('Employee authentication required');
             }
