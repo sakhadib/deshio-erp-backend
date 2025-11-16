@@ -549,7 +549,9 @@ class ProductBarcode extends Model
 
     public static function scanBarcode($barcode)
     {
-        $barcodeRecord = static::where('barcode', $barcode)->first();
+        $barcodeRecord = static::where('barcode', $barcode)
+            ->with(['product', 'batch', 'currentStore'])
+            ->first();
 
         if (!$barcodeRecord) {
             return [
@@ -558,8 +560,11 @@ class ProductBarcode extends Model
             ];
         }
 
-        $currentLocation = $barcodeRecord->getCurrentStore();
-        $currentBatch = $barcodeRecord->getCurrentBatch();
+        // Use direct relationships instead of searching through movements
+        $currentLocation = $barcodeRecord->currentStore;
+        $currentBatch = $barcodeRecord->batch;
+        
+        // Get last movement for history tracking
         $lastMovement = ProductMovement::byBarcode($barcodeRecord->id)
                                       ->orderBy('movement_date', 'desc')
                                       ->first();
@@ -572,7 +577,7 @@ class ProductBarcode extends Model
             'current_batch' => $currentBatch,
             'last_movement' => $lastMovement,
             'location_history' => $barcodeRecord->getLocationHistory(),
-            'is_available' => $currentBatch ? $currentBatch->isAvailable() : false,
+            'is_available' => $barcodeRecord->isAvailableForSale(),
             'quantity_available' => $currentBatch ? $currentBatch->quantity : 0,
         ];
     }
