@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Expense;
 use App\Models\ExpensePayment;
+use App\Models\ExpenseReceipt;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class ExpenseController extends Controller
@@ -120,7 +122,8 @@ class ExpenseController extends Controller
             'createdBy',
             'approvedBy',
             'processedBy',
-            'payments'
+            'payments',
+            'receipts.uploadedBy'
         ])->findOrFail($id);
 
         return response()->json(['success' => true, 'data' => $expense]);
@@ -359,6 +362,175 @@ class ExpenseController extends Controller
             ->paginate($request->get('per_page', 15));
 
         return response()->json(['success' => true, 'data' => $expenses]);
+    }
+
+    // ============================================
+    // RECEIPT MANAGEMENT METHODS
+    // ============================================
+
+    /**
+     * Upload receipt image for an expense
+     */
+    public function uploadReceipt(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'receipt' => 'required|file|mimes:jpeg,jpg,png,pdf|max:5120', // 5MB max
+            'description' => 'nullable|string|max:500',
+            'is_primary' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $expense = Expense::findOrFail($id);
+
+        try {
+            $file = $request->file('receipt');
+            $originalName = $file->getClientOriginalName();
+            $extension = $file->getClientOriginalExtension();
+            $fileName = 'expense_' . $expense->id . '_' . time() . '_' . uniqid() . '.' . $extension;
+            
+            // Store in expense-receipts directory
+            $filePath = $file->storeAs('expense-receipts', $fileName, 'public');
+
+            $receipt = ExpenseReceipt::create([
+                'expense_id' => $expense->id,
+                'file_name' => $fileName,
+                'file_path' => $filePath,
+                'file_extension' => $extension,
+                'mime_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+                'original_name' => $originalName,
+                'uploaded_by' => Auth::id(),
+                'description' => $request->description,
+                'is_primary' => $request->boolean('is_primary', false),
+                'metadata' => [
+                    'uploaded_at' => now()->toDateTimeString(),
+                    'ip_address' => $request->ip(),
+                ],
+            ]);
+
+            // If marked as primary, unset other primary receipts
+            if ($receipt->is_primary) {
+                ExpenseReceipt::where('expense_id', $expense->id)
+                    ->where('id', '!=', $receipt->id)
+                    ->update(['is_primary' => false]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Receipt uploaded successfully',
+                'data' => $receipt->load('uploadedBy')
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to upload receipt: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all receipts for an expense
+     */
+    public function getReceipts($id)
+    {
+        $expense = Expense::findOrFail($id);
+        $receipts = $expense->receipts()->with('uploadedBy')->orderBy('is_primary', 'desc')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $receipts
+        ]);
+    }
+
+    /**
+     * Delete a receipt
+     */
+    public function deleteReceipt($expenseId, $receiptId)
+    {
+        $expense = Expense::findOrFail($expenseId);
+        $receipt = ExpenseReceipt::where('expense_id', $expense->id)
+            ->where('id', $receiptId)
+            ->firstOrFail();
+
+        try {
+            // Delete file from storage
+            if (Storage::disk('public')->exists($receipt->file_path)) {
+                Storage::disk('public')->delete($receipt->file_path);
+            }
+
+            $receipt->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Receipt deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete receipt: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Set a receipt as primary
+     */
+    public function setPrimaryReceipt($expenseId, $receiptId)
+    {
+        $expense = Expense::findOrFail($expenseId);
+        $receipt = ExpenseReceipt::where('expense_id', $expense->id)
+            ->where('id', $receiptId)
+            ->firstOrFail();
+
+        DB::beginTransaction();
+        try {
+            // Unset all primary receipts
+            ExpenseReceipt::where('expense_id', $expense->id)
+                ->update(['is_primary' => false]);
+
+            // Set this as primary
+            $receipt->is_primary = true;
+            $receipt->save();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Receipt set as primary',
+                'data' => $receipt
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to set primary receipt: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Download a receipt
+     */
+    public function downloadReceipt($expenseId, $receiptId)
+    {
+        $expense = Expense::findOrFail($expenseId);
+        $receipt = ExpenseReceipt::where('expense_id', $expense->id)
+            ->where('id', $receiptId)
+            ->firstOrFail();
+
+        $filePath = storage_path('app/public/' . $receipt->file_path);
+
+        if (!file_exists($filePath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'File not found'
+            ], 404);
+        }
+
+        return response()->download($filePath, $receipt->original_name);
     }
 }
 

@@ -317,6 +317,13 @@ Route::middleware('auth:api')->group(function () {
             Route::post('/approve', [ExpenseController::class, 'approve']);
             Route::post('/reject', [ExpenseController::class, 'reject']);
             Route::post('/payments', [ExpenseController::class, 'addPayment']);
+            
+            // Receipt management routes
+            Route::post('/receipts', [ExpenseController::class, 'uploadReceipt']);
+            Route::get('/receipts', [ExpenseController::class, 'getReceipts']);
+            Route::delete('/receipts/{receiptId}', [ExpenseController::class, 'deleteReceipt']);
+            Route::patch('/receipts/{receiptId}/set-primary', [ExpenseController::class, 'setPrimaryReceipt']);
+            Route::get('/receipts/{receiptId}/download', [ExpenseController::class, 'downloadReceipt']);
         });
     });
 

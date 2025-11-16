@@ -153,6 +153,16 @@ class Expense extends Model
         return $this->hasMany(Expense::class, 'parent_expense_id');
     }
 
+    public function receipts(): HasMany
+    {
+        return $this->hasMany(ExpenseReceipt::class);
+    }
+
+    public function primaryReceipt()
+    {
+        return $this->hasOne(ExpenseReceipt::class)->where('is_primary', true);
+    }
+
     // Scopes
     public function scopeDraft($query)
     {
