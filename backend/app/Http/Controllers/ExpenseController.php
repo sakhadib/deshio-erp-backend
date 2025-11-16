@@ -91,6 +91,12 @@ class ExpenseController extends Controller
         $data['status'] = 'pending';
         $data['payment_status'] = 'unpaid';
         
+        // If store_id not provided, use authenticated employee's store
+        if (!isset($data['store_id'])) {
+            $employee = Auth::user();
+            $data['store_id'] = $employee->store_id ?? null;
+        }
+        
         // Calculate total
         $data['total_amount'] = $data['amount'] + ($data['tax_amount'] ?? 0) - ($data['discount_amount'] ?? 0);
         $data['outstanding_amount'] = $data['total_amount'];
