@@ -864,6 +864,11 @@ Route::middleware('auth:api')->group(function () {
             Route::get('/', [ProductDispatchController::class, 'show']);
             Route::post('/items', [ProductDispatchController::class, 'addItem']);
             Route::delete('/items/{itemId}', [ProductDispatchController::class, 'removeItem']);
+            
+            // Barcode scanning for dispatch items
+            Route::post('/items/{itemId}/scan-barcode', [ProductDispatchController::class, 'scanBarcode']);
+            Route::get('/items/{itemId}/scanned-barcodes', [ProductDispatchController::class, 'getScannedBarcodes']);
+            
             Route::patch('/approve', [ProductDispatchController::class, 'approve']);
             Route::patch('/dispatch', [ProductDispatchController::class, 'markDispatched']);
             Route::patch('/deliver', [ProductDispatchController::class, 'markDelivered']);

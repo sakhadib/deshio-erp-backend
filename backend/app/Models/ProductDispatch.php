@@ -402,21 +402,50 @@ class ProductDispatch extends Model
             'is_active' => true,
         ]);
 
-        // Record the movement
-        ProductMovement::recordMovement([
-            'product_batch_id' => $destinationBatch->id,
-            'product_barcode_id' => $sourceBatch->barcode_id,
-            'from_store_id' => $this->source_store_id,
-            'to_store_id' => $this->destination_store_id,
-            'product_dispatch_id' => $this->id,
-            'movement_type' => 'dispatch',
-            'quantity' => $receivedQuantity,
-            'unit_cost' => $sourceBatch->cost_price,
-            'unit_price' => $sourceBatch->sell_price,
-            'reference_number' => $this->dispatch_number,
-            'notes' => 'Product dispatch delivery',
-            'performed_by' => $this->approved_by ?? $this->created_by,
-        ]);
+        // Transfer individual barcodes if they are tracked
+        if ($item->scannedBarcodes && $item->scannedBarcodes->count() > 0) {
+            foreach ($item->scannedBarcodes as $scannedBarcode) {
+                // Update barcode location to destination store
+                $barcode = ProductBarcode::find($scannedBarcode->product_barcode_id);
+                if ($barcode) {
+                    $barcode->update(['store_id' => $this->destination_store_id]);
+                    
+                    // Record individual barcode movement
+                    ProductMovement::recordMovement([
+                        'product_batch_id' => $destinationBatch->id,
+                        'product_barcode_id' => $barcode->id,
+                        'from_store_id' => $this->source_store_id,
+                        'to_store_id' => $this->destination_store_id,
+                        'product_dispatch_id' => $this->id,
+                        'movement_type' => 'transfer',
+                        'quantity' => 1,
+                        'unit_cost' => $sourceBatch->cost_price,
+                        'unit_price' => $sourceBatch->sell_price,
+                        'reference_number' => $this->dispatch_number,
+                        'notes' => 'Individual barcode transfer: ' . $barcode->barcode,
+                        'performed_by' => $this->approved_by ?? $this->created_by,
+                        'movement_date' => now(),
+                    ]);
+                }
+            }
+        } else {
+            // If no individual barcodes scanned, record batch-level movement
+            ProductMovement::recordMovement([
+                'product_batch_id' => $destinationBatch->id,
+                'product_barcode_id' => $sourceBatch->barcode_id,
+                'from_store_id' => $this->source_store_id,
+                'to_store_id' => $this->destination_store_id,
+                'product_dispatch_id' => $this->id,
+                'movement_type' => 'dispatch',
+                'quantity' => $receivedQuantity,
+                'unit_cost' => $sourceBatch->cost_price,
+                'unit_price' => $sourceBatch->sell_price,
+                'reference_number' => $this->dispatch_number,
+                'notes' => 'Product dispatch delivery (batch level)',
+                'performed_by' => $this->approved_by ?? $this->created_by,
+                'movement_date' => now(),
+            ]);
+        }
 
         // Update dispatch item to reference the new destination batch
         $item->update([

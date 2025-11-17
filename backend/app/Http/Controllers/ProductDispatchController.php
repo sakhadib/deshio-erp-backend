@@ -452,6 +452,195 @@ class ProductDispatchController extends Controller
     }
 
     /**
+     * Scan barcode for a dispatch item
+     * This must be done before marking dispatch as delivered
+     * 
+     * POST /api/dispatches/{id}/items/{itemId}/scan-barcode
+     * Body: {
+     *   "barcode": "8801234567890"
+     * }
+     */
+    public function scanBarcode(Request $request, $dispatchId, $itemId)
+    {
+        $dispatch = ProductDispatch::find($dispatchId);
+
+        if (!$dispatch) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dispatch not found'
+            ], 404);
+        }
+
+        // Can only scan barcodes when dispatch is in_transit
+        if ($dispatch->status !== 'in_transit') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Barcodes can only be scanned when dispatch is in transit'
+            ], 422);
+        }
+
+        $item = ProductDispatchItem::where('id', $itemId)
+            ->where('product_dispatch_id', $dispatchId)
+            ->first();
+
+        if (!$item) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dispatch item not found'
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'barcode' => 'required|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Find the barcode
+            $barcode = \App\Models\ProductBarcode::where('barcode', $request->barcode)->first();
+
+            if (!$barcode) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Barcode not found in system'
+                ], 404);
+            }
+
+            // Validate barcode is for the correct product
+            if ($barcode->product_id !== $item->batch->product_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Barcode does not match the product for this dispatch item'
+                ], 422);
+            }
+
+            // Validate barcode is at the source store
+            if ($barcode->store_id !== $dispatch->source_store_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Barcode is not currently at the source store'
+                ], 422);
+            }
+
+            // Check if already scanned for this dispatch item
+            $alreadyScanned = $item->scannedBarcodes()->where('product_barcode_id', $barcode->id)->exists();
+            if ($alreadyScanned) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This barcode has already been scanned for this item'
+                ], 422);
+            }
+
+            // Check if we've reached the required quantity
+            $currentScannedCount = $item->scannedBarcodes()->count();
+            if ($currentScannedCount >= $item->quantity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "All required barcodes have already been scanned ({$item->quantity} of {$item->quantity})"
+                ], 422);
+            }
+
+            // Attach barcode to dispatch item
+            $item->scannedBarcodes()->attach($barcode->id, [
+                'scanned_at' => now(),
+                'scanned_by' => auth()->id()
+            ]);
+
+            DB::commit();
+
+            // Get updated counts
+            $scannedCount = $item->scannedBarcodes()->count();
+            $remainingCount = $item->quantity - $scannedCount;
+
+            return response()->json([
+                'success' => true,
+                'message' => "Barcode scanned successfully. {$scannedCount} of {$item->quantity} items scanned.",
+                'data' => [
+                    'barcode' => $barcode->barcode,
+                    'scanned_count' => $scannedCount,
+                    'required_quantity' => $item->quantity,
+                    'remaining_count' => $remainingCount,
+                    'all_scanned' => $remainingCount === 0,
+                    'scanned_at' => now()->toISOString(),
+                    'scanned_by' => auth()->user()->name ?? 'Unknown'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Get scanned barcodes for a dispatch item
+     * 
+     * GET /api/dispatches/{id}/items/{itemId}/scanned-barcodes
+     */
+    public function getScannedBarcodes($dispatchId, $itemId)
+    {
+        $dispatch = ProductDispatch::find($dispatchId);
+
+        if (!$dispatch) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dispatch not found'
+            ], 404);
+        }
+
+        $item = ProductDispatchItem::where('id', $itemId)
+            ->where('product_dispatch_id', $dispatchId)
+            ->with(['scannedBarcodes.product', 'scannedBarcodes.store'])
+            ->first();
+
+        if (!$item) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dispatch item not found'
+            ], 404);
+        }
+
+        $scannedBarcodes = $item->scannedBarcodes->map(function($barcode) {
+            return [
+                'id' => $barcode->id,
+                'barcode' => $barcode->barcode,
+                'product' => [
+                    'id' => $barcode->product->id,
+                    'name' => $barcode->product->name,
+                ],
+                'current_store' => [
+                    'id' => $barcode->store->id,
+                    'name' => $barcode->store->name,
+                ],
+                'scanned_at' => $barcode->pivot->scanned_at,
+                'scanned_by' => $barcode->pivot->scannedByEmployee->name ?? 'Unknown',
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'dispatch_item_id' => $item->id,
+                'required_quantity' => $item->quantity,
+                'scanned_count' => $scannedBarcodes->count(),
+                'remaining_count' => $item->quantity - $scannedBarcodes->count(),
+                'scanned_barcodes' => $scannedBarcodes
+            ]
+        ]);
+    }
+
+    /**
      * Mark dispatch as delivered
      * This processes inventory movements
      * 
@@ -503,6 +692,29 @@ class ProductDispatchController extends Controller
 
         DB::beginTransaction();
         try {
+            // Validate that all dispatch items have required barcodes scanned
+            $itemsWithMissingBarcodes = [];
+            foreach ($dispatch->items as $item) {
+                $scannedCount = $item->scannedBarcodes()->count();
+                if ($scannedCount < $item->quantity) {
+                    $itemsWithMissingBarcodes[] = [
+                        'item_id' => $item->id,
+                        'product' => $item->batch->product->name,
+                        'required' => $item->quantity,
+                        'scanned' => $scannedCount,
+                        'missing' => $item->quantity - $scannedCount
+                    ];
+                }
+            }
+
+            if (!empty($itemsWithMissingBarcodes)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot deliver dispatch: Not all barcodes have been scanned',
+                    'items_with_missing_barcodes' => $itemsWithMissingBarcodes
+                ], 422);
+            }
+
             // Update item statuses if provided
             if ($request->filled('items')) {
                 foreach ($request->items as $itemData) {
@@ -663,7 +875,7 @@ class ProductDispatchController extends Controller
             $response['notes'] = $dispatch->notes;
             $response['metadata'] = $dispatch->metadata;
             $response['items'] = $dispatch->items->map(function ($item) {
-                return [
+                $itemData = [
                     'id' => $item->id,
                     'product' => [
                         'id' => $item->batch->product->id,
@@ -685,6 +897,17 @@ class ProductDispatchController extends Controller
                     'total_cost' => number_format((float)$item->total_cost, 2),
                     'total_value' => number_format((float)$item->total_value, 2),
                 ];
+
+                // Add barcode scanning status
+                $itemData['barcode_scanning'] = [
+                    'required_quantity' => $item->quantity,
+                    'scanned_count' => $item->getScannedBarcodesCount(),
+                    'remaining_count' => $item->getRemainingBarcodesCount(),
+                    'all_scanned' => $item->hasAllBarcodesScanned(),
+                    'progress_percentage' => $item->getBarcodeScanningProgress(),
+                ];
+
+                return $itemData;
             });
         }
 

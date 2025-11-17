@@ -83,7 +83,34 @@ class TransactionController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $transaction = Transaction::create($validator->validated());
+        $data = $validator->validated();
+        
+        // Auto-detect transaction type based on reference_type if needed
+        // This helps frontend developers who might not know the accounting rules
+        if ($request->has('reference_type')) {
+            $referenceType = $request->reference_type;
+            
+            // Money IN (Debit): Customer payments
+            $moneyInTypes = ['OrderPayment', 'ServiceOrderPayment', 'CustomerPayment'];
+            
+            // Money OUT (Credit): Business expenses, vendor payments, refunds
+            $moneyOutTypes = ['Expense', 'ExpensePayment', 'VendorPayment', 'Refund', 'manual'];
+            
+            // Log warning if type doesn't match reference
+            if (in_array($referenceType, $moneyInTypes) && $data['type'] === 'credit') {
+                \Log::warning("Transaction type mismatch: {$referenceType} should be 'debit' but got 'credit'");
+            }
+            if (in_array($referenceType, $moneyOutTypes) && $data['type'] === 'debit') {
+                \Log::warning("Transaction type mismatch: {$referenceType} should be 'credit' but got 'debit'");
+            }
+        }
+        
+        // Set created_by to current authenticated user
+        if (!isset($data['created_by'])) {
+            $data['created_by'] = auth()->id();
+        }
+
+        $transaction = Transaction::create($data);
 
         return response()->json([
             'success' => true,

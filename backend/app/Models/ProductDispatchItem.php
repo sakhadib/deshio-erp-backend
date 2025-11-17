@@ -76,6 +76,22 @@ class ProductDispatchItem extends Model
         return $this->belongsTo(ProductBarcode::class, 'product_barcode_id');
     }
 
+    /**
+     * Relationship to scanned barcodes for this dispatch item
+     */
+    public function scannedBarcodes()
+    {
+        return $this->belongsToMany(
+            ProductBarcode::class,
+            'product_dispatch_item_barcodes',
+            'product_dispatch_item_id',
+            'product_barcode_id'
+        )
+        ->using(ProductDispatchItemBarcode::class)
+        ->withPivot(['scanned_at', 'scanned_by'])
+        ->withTimestamps();
+    }
+
     public function product()
     {
         return $this->batch->product();
@@ -191,5 +207,40 @@ class ProductDispatchItem extends Model
     public function getFormattedTotalValueAttribute()
     {
         return $this->total_value ? number_format((float) $this->total_value, 2) : '0.00';
+    }
+
+    /**
+     * Check if all required barcodes have been scanned
+     */
+    public function hasAllBarcodesScanned(): bool
+    {
+        return $this->scannedBarcodes()->count() >= $this->quantity;
+    }
+
+    /**
+     * Get the count of scanned barcodes
+     */
+    public function getScannedBarcodesCount(): int
+    {
+        return $this->scannedBarcodes()->count();
+    }
+
+    /**
+     * Get the count of remaining barcodes to scan
+     */
+    public function getRemainingBarcodesCount(): int
+    {
+        return max(0, $this->quantity - $this->getScannedBarcodesCount());
+    }
+
+    /**
+     * Get barcode scanning progress percentage
+     */
+    public function getBarcodeScanningProgress(): float
+    {
+        if ($this->quantity == 0) {
+            return 0;
+        }
+        return round(($this->getScannedBarcodesCount() / $this->quantity) * 100, 2);
     }
 }
