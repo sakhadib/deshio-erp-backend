@@ -173,74 +173,144 @@ class Transaction extends Model
     // Static methods for creating transactions
     public static function createFromOrderPayment(OrderPayment $payment): self
     {
-        $type = $payment->status === 'completed' ? 'debit' : 'pending';
         $status = $payment->status === 'completed' ? 'completed' : 'pending';
+        $transactionDate = $payment->completed_at ?? $payment->processed_at ?? now();
+        $cashAccountId = static::getCashAccountId($payment->store_id);
+        $salesRevenueAccountId = static::getSalesRevenueAccountId();
 
-        return static::create([
-            'transaction_date' => $payment->completed_at ?? $payment->processed_at ?? now(),
+        $metadata = [
+            'payment_method' => $payment->paymentMethod->name ?? 'Unknown',
+            'order_number' => $payment->order->order_number ?? null,
+            'customer_name' => $payment->customer->name ?? null,
+        ];
+
+        // DOUBLE-ENTRY BOOKKEEPING:
+        // 1. Debit Cash Account (Asset increases - money coming in)
+        $debitTransaction = static::create([
+            'transaction_date' => $transactionDate,
             'amount' => $payment->amount,
-            'type' => 'debit', // Money coming into the business
-            'account_id' => static::getCashAccountId($payment->store_id),
+            'type' => 'Debit',
+            'account_id' => $cashAccountId,
             'reference_type' => OrderPayment::class,
             'reference_id' => $payment->id,
             'description' => "Order Payment - {$payment->payment_number}",
             'store_id' => $payment->store_id,
             'created_by' => $payment->processed_by,
-            'metadata' => [
-                'payment_method' => $payment->paymentMethod->name ?? 'Unknown',
-                'order_number' => $payment->order->order_number ?? null,
-                'customer_name' => $payment->customer->name ?? null,
-            ],
+            'metadata' => $metadata,
             'status' => $status,
         ]);
+
+        // 2. Credit Sales Revenue Account (Income increases - revenue earned)
+        static::create([
+            'transaction_date' => $transactionDate,
+            'amount' => $payment->amount,
+            'type' => 'Credit',
+            'account_id' => $salesRevenueAccountId,
+            'reference_type' => OrderPayment::class,
+            'reference_id' => $payment->id,
+            'description' => "Order Payment - {$payment->payment_number}",
+            'store_id' => $payment->store_id,
+            'created_by' => $payment->processed_by,
+            'metadata' => $metadata,
+            'status' => $status,
+        ]);
+
+        return $debitTransaction;
     }
 
     public static function createFromServiceOrderPayment(ServiceOrderPayment $payment): self
     {
-        $type = $payment->status === 'completed' ? 'debit' : 'pending';
         $status = $payment->status === 'completed' ? 'completed' : 'pending';
+        $transactionDate = $payment->completed_at ?? $payment->processed_at ?? now();
+        $cashAccountId = static::getCashAccountId($payment->store_id);
+        $serviceRevenueAccountId = static::getServiceRevenueAccountId();
 
-        return static::create([
-            'transaction_date' => $payment->completed_at ?? $payment->processed_at ?? now(),
+        $metadata = [
+            'payment_method' => $payment->paymentMethod->name ?? 'Unknown',
+            'service_order_number' => $payment->serviceOrder->order_number ?? null,
+            'customer_name' => $payment->customer->name ?? null,
+        ];
+
+        // DOUBLE-ENTRY BOOKKEEPING:
+        // 1. Debit Cash Account (Asset increases)
+        $debitTransaction = static::create([
+            'transaction_date' => $transactionDate,
             'amount' => $payment->amount,
-            'type' => 'debit', // Money coming into the business
-            'account_id' => static::getCashAccountId($payment->store_id),
+            'type' => 'Debit',
+            'account_id' => $cashAccountId,
             'reference_type' => ServiceOrderPayment::class,
             'reference_id' => $payment->id,
             'description' => "Service Order Payment - {$payment->payment_number}",
             'store_id' => $payment->store_id,
             'created_by' => $payment->processed_by,
-            'metadata' => [
-                'payment_method' => $payment->paymentMethod->name ?? 'Unknown',
-                'service_order_number' => $payment->serviceOrder->order_number ?? null,
-                'customer_name' => $payment->customer->name ?? null,
-            ],
+            'metadata' => $metadata,
             'status' => $status,
         ]);
+
+        // 2. Credit Service Revenue Account (Income increases)
+        static::create([
+            'transaction_date' => $transactionDate,
+            'amount' => $payment->amount,
+            'type' => 'Credit',
+            'account_id' => $serviceRevenueAccountId,
+            'reference_type' => ServiceOrderPayment::class,
+            'reference_id' => $payment->id,
+            'description' => "Service Order Payment - {$payment->payment_number}",
+            'store_id' => $payment->store_id,
+            'created_by' => $payment->processed_by,
+            'metadata' => $metadata,
+            'status' => $status,
+        ]);
+
+        return $debitTransaction;
     }
 
     public static function createFromRefund(Refund $refund): self
     {
         $status = $refund->status === 'completed' ? 'completed' : 'pending';
+        $transactionDate = $refund->completed_at ?? now();
+        $cashAccountId = static::getCashAccountId($refund->order->store_id ?? null);
+        $salesRevenueAccountId = static::getSalesRevenueAccountId();
 
-        return static::create([
-            'transaction_date' => $refund->completed_at ?? now(),
+        $metadata = [
+            'refund_method' => $refund->refund_method,
+            'order_number' => $refund->order->order_number ?? null,
+            'customer_name' => $refund->customer->name ?? null,
+            'refund_type' => $refund->refund_type,
+        ];
+
+        // DOUBLE-ENTRY BOOKKEEPING (Reverse of sale):
+        // 1. Credit Cash Account (Asset decreases - money going out)
+        $creditTransaction = static::create([
+            'transaction_date' => $transactionDate,
             'amount' => $refund->refund_amount,
-            'type' => 'credit', // Money going out of the business
-            'account_id' => static::getCashAccountId($refund->order->store_id ?? null),
+            'type' => 'Credit',
+            'account_id' => $cashAccountId,
             'reference_type' => Refund::class,
             'reference_id' => $refund->id,
             'description' => "Refund - {$refund->refund_number}",
             'store_id' => $refund->order->store_id ?? null,
             'created_by' => $refund->processed_by,
-            'metadata' => [
-                'refund_method' => $refund->refund_method,
-                'order_number' => $refund->order->order_number ?? null,
-                'customer_name' => $refund->customer->name ?? null,
-                'refund_type' => $refund->refund_type,
-            ],
+            'metadata' => $metadata,
             'status' => $status,
         ]);
+
+        // 2. Debit Sales Revenue Account (Revenue decreases - reverse sale)
+        static::create([
+            'transaction_date' => $transactionDate,
+            'amount' => $refund->refund_amount,
+            'type' => 'Debit',
+            'account_id' => $salesRevenueAccountId,
+            'reference_type' => Refund::class,
+            'reference_id' => $refund->id,
+            'description' => "Refund - {$refund->refund_number}",
+            'store_id' => $refund->order->store_id ?? null,
+            'created_by' => $refund->processed_by,
+            'metadata' => $metadata,
+            'status' => $status,
+        ]);
+
+        return $creditTransaction;
     }
 
     public static function createFromExpense(Expense $expense): self
@@ -316,8 +386,40 @@ class Transaction extends Model
     // Helper methods for account IDs
     private static function getCashAccountId($storeId = null): ?int
     {
-        // Return default cash account ID - this should be configured
-        return 1; // Placeholder - should be configurable
+        // Get cash account from database or return default
+        $account = Account::where('account_type', 'asset')
+            ->where('category', 'cash')
+            ->where('is_active', true)
+            ->first();
+        
+        return $account ? $account->id : 1; // Fallback to ID 1
+    }
+
+    private static function getSalesRevenueAccountId(): ?int
+    {
+        // Get sales revenue account from database
+        $account = Account::where('account_type', 'revenue')
+            ->where('category', 'sales')
+            ->where('is_active', true)
+            ->first();
+        
+        return $account ? $account->id : 2; // Fallback to ID 2
+    }
+
+    private static function getServiceRevenueAccountId(): ?int
+    {
+        // Get service revenue account from database
+        $account = Account::where('account_type', 'revenue')
+            ->where('category', 'service')
+            ->where('is_active', true)
+            ->first();
+        
+        // If no specific service revenue account, use sales revenue
+        if (!$account) {
+            return static::getSalesRevenueAccountId();
+        }
+        
+        return $account->id;
     }
 
     private static function getExpenseAccountId($categoryId): ?int

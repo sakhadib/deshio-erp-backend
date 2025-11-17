@@ -404,6 +404,7 @@ class ProductReturnController extends Controller
                             \App\Models\ProductMovement::create([
                                 'product_id' => $item['product_id'],
                                 'product_batch_id' => $item['product_batch_id'],
+                                'product_barcode_id' => $batch->barcode_id, // Add barcode_id from batch
                                 'store_id' => $return->store_id,
                                 'movement_type' => 'return',
                                 'quantity' => $item['quantity'],
