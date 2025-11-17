@@ -120,8 +120,8 @@ class ProductReturnController extends Controller
     {
         $request->validate([
             'order_id' => 'required|exists:orders,id',
-            'return_reason' => 'required|string',
-            'return_type' => 'required|in:defective,damaged,wrong_item,unwanted,other',
+            'return_reason' => 'required|in:defective_product,wrong_item,not_as_described,customer_dissatisfaction,size_issue,color_issue,quality_issue,late_delivery,changed_mind,duplicate_order,other',
+            'return_type' => 'nullable|in:customer_return,store_return,warehouse_return',
             'items' => 'required|array|min:1',
             'items.*.order_item_id' => 'required|exists:order_items,id',
             'items.*.quantity' => 'required|integer|min:1',
