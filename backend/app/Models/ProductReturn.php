@@ -162,10 +162,10 @@ class ProductReturn extends Model
         }
 
         $this->update([
-            'status' => 'processed',
+            'status' => 'processing',
             'processed_by' => $processedBy->id,
             'processed_date' => now(),
-            'status_history' => $this->addStatusToHistory('processed', $processedBy->id),
+            'status_history' => $this->addStatusToHistory('processing', $processedBy->id),
         ]);
 
         return true;
@@ -173,7 +173,7 @@ class ProductReturn extends Model
 
     public function complete(): bool
     {
-        if ($this->status !== 'processed') {
+        if ($this->status !== 'processing') {
             return false;
         }
 

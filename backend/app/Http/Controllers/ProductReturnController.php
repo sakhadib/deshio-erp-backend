@@ -447,8 +447,8 @@ class ProductReturnController extends Controller
         try {
             $return = ProductReturn::findOrFail($id);
 
-            if ($return->status !== 'processed') {
-                throw new \Exception('Can only complete processed returns');
+            if ($return->status !== 'processing') {
+                throw new \Exception('Can only complete processing returns');
             }
 
             $return->complete();
