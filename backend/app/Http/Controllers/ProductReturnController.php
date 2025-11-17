@@ -294,7 +294,7 @@ class ProductReturnController extends Controller
                 throw new \Exception('Return must pass quality check before approval');
             }
 
-            $employee = Auth::guard('employee')->user();
+            $employee = auth()->user();
             if (!$employee) {
                 throw new \Exception('Employee authentication required');
             }
@@ -347,7 +347,7 @@ class ProductReturnController extends Controller
         try {
             $return = ProductReturn::findOrFail($id);
 
-            $employee = Auth::guard('employee')->user();
+            $employee = auth()->user();
             if (!$employee) {
                 throw new \Exception('Employee authentication required');
             }
@@ -387,7 +387,7 @@ class ProductReturnController extends Controller
                 throw new \Exception('Can only process approved returns');
             }
 
-            $employee = Auth::guard('employee')->user();
+            $employee = auth()->user();
             if (!$employee) {
                 throw new \Exception('Employee authentication required');
             }
