@@ -387,10 +387,19 @@ class Transaction extends Model
     private static function getCashAccountId($storeId = null): ?int
     {
         // Get cash account from database or return default
-        $account = Account::where('account_type', 'asset')
-            ->where('category', 'cash')
+        $account = Account::where('type', 'asset')
+            ->where('sub_type', 'current_asset')
+            ->where('name', 'LIKE', '%Cash%')
             ->where('is_active', true)
             ->first();
+        
+        // If no cash account found, get any current asset account
+        if (!$account) {
+            $account = Account::where('type', 'asset')
+                ->where('sub_type', 'current_asset')
+                ->where('is_active', true)
+                ->first();
+        }
         
         return $account ? $account->id : 1; // Fallback to ID 1
     }
@@ -398,10 +407,18 @@ class Transaction extends Model
     private static function getSalesRevenueAccountId(): ?int
     {
         // Get sales revenue account from database
-        $account = Account::where('account_type', 'revenue')
-            ->where('category', 'sales')
+        $account = Account::where('type', 'income')
+            ->where('sub_type', 'sales_revenue')
             ->where('is_active', true)
             ->first();
+        
+        // If not found, get any sales revenue account by name
+        if (!$account) {
+            $account = Account::where('type', 'income')
+                ->where('name', 'LIKE', '%Sales%')
+                ->where('is_active', true)
+                ->first();
+        }
         
         return $account ? $account->id : 2; // Fallback to ID 2
     }
@@ -409,8 +426,8 @@ class Transaction extends Model
     private static function getServiceRevenueAccountId(): ?int
     {
         // Get service revenue account from database
-        $account = Account::where('account_type', 'revenue')
-            ->where('category', 'service')
+        $account = Account::where('type', 'income')
+            ->where('name', 'LIKE', '%Service%')
             ->where('is_active', true)
             ->first();
         
