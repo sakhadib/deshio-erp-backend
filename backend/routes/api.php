@@ -402,6 +402,35 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ============================================
+    // ACCOUNTING REPORTS ROUTES
+    // Textbook-style financial statements and reports
+    // T-Account, Trial Balance, Income Statement, Balance Sheet, etc.
+    // ============================================
+    
+    Route::prefix('accounting')->group(function () {
+        // Textbook-style T-Account (Debit/Credit Ledger)
+        Route::get('/t-account/{accountId}', [\App\Http\Controllers\AccountingReportController::class, 'getTAccount']);
+        
+        // Trial Balance
+        Route::get('/trial-balance', [\App\Http\Controllers\AccountingReportController::class, 'getTrialBalance']);
+        
+        // Income Statement (Profit & Loss)
+        Route::get('/income-statement', [\App\Http\Controllers\AccountingReportController::class, 'getIncomeStatement']);
+        
+        // Balance Sheet
+        Route::get('/balance-sheet', [\App\Http\Controllers\AccountingReportController::class, 'getBalanceSheet']);
+        
+        // Cash Flow Statement
+        Route::get('/cash-flow-statement', [\App\Http\Controllers\AccountingReportController::class, 'getCashFlowStatement']);
+        
+        // Cost Sheet
+        Route::get('/cost-sheet', [\App\Http\Controllers\AccountingReportController::class, 'getCostSheet']);
+        
+        // Journal Entries
+        Route::get('/journal-entries', [\App\Http\Controllers\AccountingReportController::class, 'getJournalEntries']);
+    });
+
+    // ============================================
     // ACCOUNT & TRANSACTION MANAGEMENT ROUTES
     // Chart of accounts and financial transactions
     // ============================================
