@@ -56,6 +56,93 @@ use App\Http\Controllers\CategoriesController;
 Route::post('/signup', [AuthController::class, 'signup']);
 Route::post('/login', [AuthController::class, 'login']);
 
+// ============================================
+// E-COMMERCE CUSTOMER AUTHENTICATION ROUTES
+// Customer registration, login, password reset
+// ============================================
+
+// Customer Auth Routes (Public)
+Route::prefix('customer-auth')->group(function () {
+    Route::post('/register', [\App\Http\Controllers\CustomerAuthController::class, 'register']);
+    Route::post('/login', [\App\Http\Controllers\CustomerAuthController::class, 'login']);
+    Route::post('/password/reset-request', [\App\Http\Controllers\CustomerAuthController::class, 'sendPasswordResetEmail']);
+    Route::post('/password/reset', [\App\Http\Controllers\CustomerAuthController::class, 'resetPassword']);
+    Route::post('/email/verify', [\App\Http\Controllers\CustomerAuthController::class, 'verifyEmail']);
+    Route::post('/email/resend', [\App\Http\Controllers\CustomerAuthController::class, 'resendEmailVerification']);
+});
+
+// Protected Customer Routes
+Route::middleware('auth:customer')->prefix('customer-auth')->group(function () {
+    Route::post('/logout', [\App\Http\Controllers\CustomerAuthController::class, 'logout']);
+    Route::post('/refresh', [\App\Http\Controllers\CustomerAuthController::class, 'refresh']);
+    Route::get('/me', [\App\Http\Controllers\CustomerAuthController::class, 'me']);
+    Route::post('/password/change', [\App\Http\Controllers\CustomerAuthController::class, 'changePassword']);
+});
+
+// ============================================
+// E-COMMERCE SHOPPING CART ROUTES
+// Cart management for logged-in customers
+// ============================================
+
+Route::middleware('auth:customer')->prefix('cart')->group(function () {
+    Route::get('/', [\App\Http\Controllers\CartController::class, 'index']);
+    Route::post('/add', [\App\Http\Controllers\CartController::class, 'addToCart']);
+    Route::put('/update/{cartItemId}', [\App\Http\Controllers\CartController::class, 'updateQuantity']);
+    Route::delete('/remove/{cartItemId}', [\App\Http\Controllers\CartController::class, 'removeFromCart']);
+    Route::delete('/clear', [\App\Http\Controllers\CartController::class, 'clearCart']);
+    Route::post('/save-for-later/{cartItemId}', [\App\Http\Controllers\CartController::class, 'saveForLater']);
+    Route::post('/move-to-cart/{cartItemId}', [\App\Http\Controllers\CartController::class, 'moveToCart']);
+    Route::get('/saved-items', [\App\Http\Controllers\CartController::class, 'getSavedItems']);
+    Route::get('/summary', [\App\Http\Controllers\CartController::class, 'getCartSummary']);
+    Route::post('/validate', [\App\Http\Controllers\CartController::class, 'validateCart']);
+});
+
+// ============================================
+// E-COMMERCE WISHLIST ROUTES
+// Wishlist management with multiple named lists
+// ============================================
+
+Route::middleware('auth:customer')->prefix('wishlist')->group(function () {
+    Route::get('/', [\App\Http\Controllers\WishlistController::class, 'index']);
+    Route::post('/add', [\App\Http\Controllers\WishlistController::class, 'addToWishlist']);
+    Route::delete('/remove/{wishlistItemId}', [\App\Http\Controllers\WishlistController::class, 'removeFromWishlist']);
+    Route::post('/move-to-cart/{wishlistItemId}', [\App\Http\Controllers\WishlistController::class, 'moveToCart']);
+    Route::delete('/clear', [\App\Http\Controllers\WishlistController::class, 'clearWishlist']);
+    Route::get('/stats', [\App\Http\Controllers\WishlistController::class, 'getWishlistStats']);
+    Route::post('/manage-name', [\App\Http\Controllers\WishlistController::class, 'manageWishlistName']);
+    Route::post('/move-all-to-cart', [\App\Http\Controllers\WishlistController::class, 'moveAllToCart']);
+});
+
+// ============================================
+// E-COMMERCE CATALOG ROUTES (PUBLIC)
+// Product browsing, search, categories - no auth required
+// ============================================
+
+Route::prefix('catalog')->group(function () {
+    Route::get('/products', [\App\Http\Controllers\EcommerceCatalogController::class, 'getProducts']);
+    Route::get('/products/{identifier}', [\App\Http\Controllers\EcommerceCatalogController::class, 'getProduct']);
+    Route::get('/categories', [\App\Http\Controllers\EcommerceCatalogController::class, 'getCategories']);
+    Route::get('/featured-products', [\App\Http\Controllers\EcommerceCatalogController::class, 'getFeaturedProducts']);
+    Route::get('/new-arrivals', [\App\Http\Controllers\EcommerceCatalogController::class, 'getNewArrivals']);
+    Route::get('/search', [\App\Http\Controllers\EcommerceCatalogController::class, 'searchProducts']);
+    Route::get('/price-range', [\App\Http\Controllers\EcommerceCatalogController::class, 'getPriceRange']);
+});
+
+// ============================================
+// E-COMMERCE CUSTOMER PROFILE ROUTES
+// Profile management for logged-in customers
+// ============================================
+
+Route::middleware('auth:customer')->prefix('profile')->group(function () {
+    Route::get('/', [\App\Http\Controllers\CustomerProfileController::class, 'getProfile']);
+    Route::put('/update', [\App\Http\Controllers\CustomerProfileController::class, 'updateProfile']);
+    Route::get('/orders', [\App\Http\Controllers\CustomerProfileController::class, 'getOrderHistory']);
+    Route::put('/communication-preferences', [\App\Http\Controllers\CustomerProfileController::class, 'updateCommunicationPreferences']);
+    Route::put('/shopping-preferences', [\App\Http\Controllers\CustomerProfileController::class, 'updateShoppingPreferences']);
+    Route::get('/stats', [\App\Http\Controllers\CustomerProfileController::class, 'getCustomerStats']);
+    Route::post('/deactivate', [\App\Http\Controllers\CustomerProfileController::class, 'deactivateAccount']);
+});
+
 // Public API for payment methods (no auth required for POS/Social Commerce)
 Route::get('/payment-methods', [PaymentController::class, 'getMethodsByCustomerType']);
 
@@ -1065,7 +1152,166 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/permanent-delete', [RecycleBinController::class, 'permanentDelete']);
         Route::delete('/empty', [RecycleBinController::class, 'emptyRecycleBin']);
         
-        // Auto-cleanup (for scheduled jobs)
-        Route::post('/auto-cleanup', [RecycleBinController::class, 'autoCleanup']);
+    // Auto-cleanup (for scheduled jobs)
+    Route::post('/auto-cleanup', [RecycleBinController::class, 'autoCleanup']);
+});
+
+// ============================================
+// E-COMMERCE CUSTOMER ROUTES
+// Complete e-commerce customer API system
+// ============================================
+
+// Customer authentication routes (public)
+Route::prefix('customer-auth')->group(function () {
+    Route::post('/register', [App\Http\Controllers\CustomerAuthController::class, 'register']);
+    Route::post('/login', [App\Http\Controllers\CustomerAuthController::class, 'login']);
+    Route::post('/forgot-password', [App\Http\Controllers\CustomerAuthController::class, 'forgotPassword']);
+    Route::post('/reset-password', [App\Http\Controllers\CustomerAuthController::class, 'resetPassword']);
+    Route::post('/verify-email', [App\Http\Controllers\CustomerAuthController::class, 'verifyEmail']);
+    Route::post('/resend-verification', [App\Http\Controllers\CustomerAuthController::class, 'resendVerification']);
+    
+    // Protected customer auth routes
+    Route::middleware('auth:customer')->group(function () {
+        Route::post('/logout', [App\Http\Controllers\CustomerAuthController::class, 'logout']);
+        Route::post('/refresh', [App\Http\Controllers\CustomerAuthController::class, 'refreshToken']);
+        Route::get('/profile', [App\Http\Controllers\CustomerAuthController::class, 'getProfile']);
+        Route::put('/change-password', [App\Http\Controllers\CustomerAuthController::class, 'changePassword']);
+        Route::delete('/deactivate', [App\Http\Controllers\CustomerAuthController::class, 'deactivateAccount']);
     });
+});
+
+// Shopping cart management
+Route::prefix('cart')->middleware('auth:customer')->group(function () {
+    Route::get('/', [App\Http\Controllers\CartController::class, 'getCart']);
+    Route::post('/add', [App\Http\Controllers\CartController::class, 'addToCart']);
+    Route::put('/update/{id}', [App\Http\Controllers\CartController::class, 'updateQuantity']);
+    Route::delete('/remove/{id}', [App\Http\Controllers\CartController::class, 'removeItem']);
+    Route::delete('/clear', [App\Http\Controllers\CartController::class, 'clearCart']);
+    Route::post('/save-for-later/{id}', [App\Http\Controllers\CartController::class, 'saveForLater']);
+    Route::post('/move-to-cart/{id}', [App\Http\Controllers\CartController::class, 'moveToCart']);
+    Route::get('/saved-items', [App\Http\Controllers\CartController::class, 'getSavedItems']);
+    Route::post('/validate', [App\Http\Controllers\CartController::class, 'validateCart']);
+});
+
+// Wishlist management
+Route::prefix('wishlist')->middleware('auth:customer')->group(function () {
+    Route::get('/', [App\Http\Controllers\WishlistController::class, 'getWishlists']);
+    Route::get('/{wishlistId}', [App\Http\Controllers\WishlistController::class, 'getWishlist']);
+    Route::post('/create', [App\Http\Controllers\WishlistController::class, 'createWishlist']);
+    Route::post('/add', [App\Http\Controllers\WishlistController::class, 'addToWishlist']);
+    Route::delete('/remove/{id}', [App\Http\Controllers\WishlistController::class, 'removeFromWishlist']);
+    Route::post('/move-to-cart/{id}', [App\Http\Controllers\WishlistController::class, 'moveToCart']);
+    Route::post('/move-all-to-cart/{wishlistId}', [App\Http\Controllers\WishlistController::class, 'moveAllToCart']);
+    Route::put('/rename/{wishlistId}', [App\Http\Controllers\WishlistController::class, 'renameWishlist']);
+    Route::delete('/{wishlistId}', [App\Http\Controllers\WishlistController::class, 'deleteWishlist']);
+});
+
+// Customer profile and preferences
+Route::prefix('profile')->middleware('auth:customer')->group(function () {
+    Route::get('/', [App\Http\Controllers\CustomerProfileController::class, 'getProfile']);
+    Route::put('/', [App\Http\Controllers\CustomerProfileController::class, 'updateProfile']);
+    Route::get('/orders', [App\Http\Controllers\CustomerProfileController::class, 'getOrderHistory']);
+    Route::get('/statistics', [App\Http\Controllers\CustomerProfileController::class, 'getStatistics']);
+    Route::put('/preferences', [App\Http\Controllers\CustomerProfileController::class, 'updatePreferences']);
+    Route::get('/preferences', [App\Http\Controllers\CustomerProfileController::class, 'getPreferences']);
+    Route::post('/deactivate', [App\Http\Controllers\CustomerProfileController::class, 'deactivateAccount']);
+});
+
+// Public product catalog for e-commerce
+Route::prefix('catalog')->group(function () {
+    Route::get('/products', [App\Http\Controllers\EcommerceCatalogController::class, 'getProducts']);
+    Route::get('/products/{id}', [App\Http\Controllers\EcommerceCatalogController::class, 'getProduct']);
+    Route::get('/search', [App\Http\Controllers\EcommerceCatalogController::class, 'searchProducts']);
+    Route::get('/categories', [App\Http\Controllers\EcommerceCatalogController::class, 'getCategories']);
+    Route::get('/categories/{id}/products', [App\Http\Controllers\EcommerceCatalogController::class, 'getCategoryProducts']);
+    Route::get('/featured', [App\Http\Controllers\EcommerceCatalogController::class, 'getFeaturedProducts']);
+    Route::get('/deals', [App\Http\Controllers\EcommerceCatalogController::class, 'getDeals']);
+    Route::get('/recommendations', [App\Http\Controllers\EcommerceCatalogController::class, 'getRecommendations']);
+    Route::post('/compare', [App\Http\Controllers\EcommerceCatalogController::class, 'compareProducts']);
+});
+
+// Customer address management
+Route::prefix('addresses')->middleware('auth:customer')->group(function () {
+    Route::get('/', [App\Http\Controllers\CustomerAddressController::class, 'index']);
+    Route::get('/{id}', [App\Http\Controllers\CustomerAddressController::class, 'show']);
+    Route::post('/', [App\Http\Controllers\CustomerAddressController::class, 'store']);
+    Route::put('/{id}', [App\Http\Controllers\CustomerAddressController::class, 'update']);
+    Route::delete('/{id}', [App\Http\Controllers\CustomerAddressController::class, 'destroy']);
+    Route::put('/{id}/default-shipping', [App\Http\Controllers\CustomerAddressController::class, 'setDefaultShipping']);
+    Route::put('/{id}/default-billing', [App\Http\Controllers\CustomerAddressController::class, 'setDefaultBilling']);
+    Route::post('/validate-delivery', [App\Http\Controllers\CustomerAddressController::class, 'validateDeliveryArea']);
+    Route::get('/suggestions', [App\Http\Controllers\CustomerAddressController::class, 'getSuggestions']);
+});
+
+// E-commerce order management
+Route::prefix('orders')->middleware('auth:customer')->group(function () {
+    Route::get('/', [App\Http\Controllers\EcommerceOrderController::class, 'index']);
+    Route::get('/{orderNumber}', [App\Http\Controllers\EcommerceOrderController::class, 'show']);
+    Route::post('/create-from-cart', [App\Http\Controllers\EcommerceOrderController::class, 'createFromCart']);
+    Route::post('/{orderNumber}/cancel', [App\Http\Controllers\EcommerceOrderController::class, 'cancel']);
+    Route::get('/{orderNumber}/track', [App\Http\Controllers\EcommerceOrderController::class, 'track']);
+    Route::get('/statistics', [App\Http\Controllers\EcommerceOrderController::class, 'statistics']);
+});
+
+// E-commerce payment processing
+Route::prefix('payments')->middleware('auth:customer')->group(function () {
+    Route::get('/methods', [App\Http\Controllers\EcommercePaymentController::class, 'getPaymentMethods']);
+    Route::post('/process', [App\Http\Controllers\EcommercePaymentController::class, 'processPayment']);
+    Route::post('/verify', [App\Http\Controllers\EcommercePaymentController::class, 'verifyPayment']);
+    Route::get('/history', [App\Http\Controllers\EcommercePaymentController::class, 'paymentHistory']);
+    Route::post('/request-refund', [App\Http\Controllers\EcommercePaymentController::class, 'requestRefund']);
+});
+
+// Order tracking and notifications
+Route::prefix('tracking')->middleware('auth:customer')->group(function () {
+    Route::get('/orders/{orderNumber}', [App\Http\Controllers\OrderTrackingController::class, 'trackOrder']);
+    Route::get('/orders', [App\Http\Controllers\OrderTrackingController::class, 'getAllOrdersTracking']);
+    Route::put('/preferences', [App\Http\Controllers\OrderTrackingController::class, 'updateNotificationPreferences']);
+    Route::get('/notifications', [App\Http\Controllers\OrderTrackingController::class, 'getNotificationHistory']);
+    Route::post('/notifications/read', [App\Http\Controllers\OrderTrackingController::class, 'markNotificationsAsRead']);
+    Route::post('/subscribe', [App\Http\Controllers\OrderTrackingController::class, 'subscribeToUpdates']);
+    Route::get('/delivery/{orderNumber}', [App\Http\Controllers\OrderTrackingController::class, 'getDeliveryLocation']);
+});
+
+// Customer support system
+Route::prefix('support')->middleware('auth:customer')->group(function () {
+    Route::get('/tickets', [App\Http\Controllers\CustomerSupportController::class, 'getTickets']);
+    Route::get('/tickets/{ticketId}', [App\Http\Controllers\CustomerSupportController::class, 'getTicket']);
+    Route::post('/tickets', [App\Http\Controllers\CustomerSupportController::class, 'createTicket']);
+    Route::post('/tickets/{ticketId}/messages', [App\Http\Controllers\CustomerSupportController::class, 'addMessage']);
+    Route::post('/tickets/{ticketId}/close', [App\Http\Controllers\CustomerSupportController::class, 'closeTicket']);
+    Route::post('/tickets/{ticketId}/rate', [App\Http\Controllers\CustomerSupportController::class, 'rateSupport']);
+    Route::get('/faq', [App\Http\Controllers\CustomerSupportController::class, 'getFAQ']);
+    Route::get('/statistics', [App\Http\Controllers\CustomerSupportController::class, 'getSupportStats']);
+    Route::post('/live-chat', [App\Http\Controllers\CustomerSupportController::class, 'initiateLiveChat']);
+});
+
+// Loyalty program and store credits
+Route::prefix('loyalty')->middleware('auth:customer')->group(function () {
+    Route::get('/', [App\Http\Controllers\LoyaltyProgramController::class, 'getLoyaltyDetails']);
+    Route::get('/points/history', [App\Http\Controllers\LoyaltyProgramController::class, 'getPointsHistory']);
+    Route::get('/rewards', [App\Http\Controllers\LoyaltyProgramController::class, 'getAvailableRewards']);
+    Route::post('/rewards/redeem', [App\Http\Controllers\LoyaltyProgramController::class, 'redeemReward']);
+    Route::get('/store-credits', [App\Http\Controllers\LoyaltyProgramController::class, 'getStoreCredits']);
+    Route::post('/store-credits/apply', [App\Http\Controllers\LoyaltyProgramController::class, 'applyStoreCredit']);
+    Route::get('/referral', [App\Http\Controllers\LoyaltyProgramController::class, 'getReferralProgram']);
+});
+
+// Product reviews and ratings
+Route::prefix('reviews')->group(function () {
+    // Public review routes
+    Route::get('/products/{productId}', [App\Http\Controllers\ProductReviewController::class, 'getProductReviews']);
+    
+    // Customer review routes (protected)
+    Route::middleware('auth:customer')->group(function () {
+        Route::get('/my-reviews', [App\Http\Controllers\ProductReviewController::class, 'getCustomerReviews']);
+        Route::get('/reviewable-products', [App\Http\Controllers\ProductReviewController::class, 'getReviewableProducts']);
+        Route::post('/', [App\Http\Controllers\ProductReviewController::class, 'createReview']);
+        Route::put('/{reviewId}', [App\Http\Controllers\ProductReviewController::class, 'updateReview']);
+        Route::delete('/{reviewId}', [App\Http\Controllers\ProductReviewController::class, 'deleteReview']);
+        Route::post('/{reviewId}/helpful', [App\Http\Controllers\ProductReviewController::class, 'markHelpful']);
+        Route::post('/{reviewId}/report', [App\Http\Controllers\ProductReviewController::class, 'reportReview']);
+    });
+});
+
 });
