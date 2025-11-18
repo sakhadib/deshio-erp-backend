@@ -405,10 +405,21 @@ class ProductDispatch extends Model
         // Transfer individual barcodes if they are tracked
         if ($item->scannedBarcodes && $item->scannedBarcodes->count() > 0) {
             foreach ($item->scannedBarcodes as $scannedBarcode) {
-                // Update barcode location to destination store
+                // Update barcode location to destination store and new batch
                 $barcode = ProductBarcode::find($scannedBarcode->product_barcode_id);
                 if ($barcode) {
-                    $barcode->update(['store_id' => $this->destination_store_id]);
+                    $barcode->update([
+                        'batch_id' => $destinationBatch->id,          // Update to new destination batch
+                        'current_store_id' => $this->destination_store_id,  // Update current location
+                        'current_status' => 'in_warehouse',          // Set appropriate status
+                        'location_updated_at' => now(),              // Track when updated
+                        'location_metadata' => [                     // Add metadata about the transfer
+                            'transferred_via' => 'dispatch',
+                            'dispatch_number' => $this->dispatch_number,
+                            'source_store_id' => $this->source_store_id,
+                            'transfer_date' => now()->toISOString(),
+                        ]
+                    ]);
                     
                     // Record individual barcode movement
                     ProductMovement::recordMovement([

@@ -553,6 +553,18 @@ class ProductDispatchController extends Controller
                 'scanned_at' => now(),
                 'scanned_by' => auth()->id()
             ]);
+            
+            // Update barcode status to in_transit when scanned for dispatch
+            $barcode->update([
+                'current_status' => 'in_transit',
+                'location_updated_at' => now(),
+                'location_metadata' => [
+                    'dispatch_number' => $dispatch->dispatch_number,
+                    'destination_store_id' => $dispatch->destination_store_id,
+                    'scanned_at' => now()->toISOString(),
+                    'scanned_by' => auth()->id(),
+                ]
+            ]);
 
             DB::commit();
 

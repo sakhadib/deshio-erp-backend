@@ -770,8 +770,18 @@ class OrderController extends Controller
                         throw new \Exception("Barcode {$barcode->barcode} for {$item->product_name} is no longer active.");
                     }
 
-                    // Mark barcode as sold (inactive)
-                    $barcode->update(['is_active' => false]);
+                    // Mark barcode as sold and update location tracking
+                    $barcode->update([
+                        'is_active' => false,
+                        'current_status' => 'sold',
+                        'location_updated_at' => now(),
+                        'location_metadata' => [
+                            'sold_via' => 'order',
+                            'order_number' => $order->order_number,
+                            'sale_date' => now()->toISOString(),
+                            'sold_by' => auth()->id(),
+                        ]
+                    ]);
 
                     // Log barcode sale
                     $note = sprintf(
