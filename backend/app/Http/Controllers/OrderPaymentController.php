@@ -66,6 +66,7 @@ class OrderPaymentController extends Controller
             'notes' => 'nullable|string',
             'payment_data' => 'nullable|array',
             'auto_complete' => 'nullable|boolean',
+            'store_credit_code' => 'nullable|string|max:50', // For store credit payments
             
             // Cash denomination tracking (optional)
             'cash_received' => 'nullable|array',
@@ -91,6 +92,16 @@ class OrderPaymentController extends Controller
             $order = Order::findOrFail($orderId);
             $paymentMethod = PaymentMethod::findOrFail($request->payment_method_id);
             $employee = auth()->user();
+            
+            // Validate store credit if payment method is store credit
+            if ($paymentMethod->code === 'store_credit' && $request->has('store_credit_code')) {
+                $this->validateStoreCreditCode($request->store_credit_code, $request->amount);
+            }
+            
+            // Validate store credit if payment method is store credit
+            if ($paymentMethod->code === 'store_credit' && $request->has('store_credit_code')) {
+                $this->validateStoreCreditCode($request->store_credit_code, $request->amount);
+            }
 
             // Create the payment
             $payment = OrderPayment::createPayment(
@@ -672,5 +683,28 @@ class OrderPaymentController extends Controller
                 'total_denominations' => count($change),
             ],
         ]);
+    }
+    
+    /**
+     * Validate store credit code and expiration
+     */
+    private function validateStoreCreditCode(string $storeCreditCode, float $amount): void
+    {
+        $refund = \App\Models\Refund::where('store_credit_code', $storeCreditCode)
+            ->where('refund_method', 'store_credit')
+            ->where('status', 'completed')
+            ->first();
+            
+        if (!$refund) {
+            throw new \Exception('Invalid store credit code');
+        }
+        
+        if ($refund->isExpiredStoreCredit()) {
+            throw new \Exception('Store credit has expired');
+        }
+        
+        if ($amount > $refund->refund_amount) {
+            throw new \Exception("Store credit amount ($refund->refund_amount) is less than requested amount ($amount)");
+        }
     }
 }

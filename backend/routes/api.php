@@ -919,6 +919,7 @@ Route::middleware('auth:api')->group(function () {
             Route::patch('/', [ProductReturnController::class, 'update']);
             Route::post('/approve', [ProductReturnController::class, 'approve']);
             Route::post('/reject', [ProductReturnController::class, 'reject']);
+            Route::post('/quality-check', [ProductReturnController::class, 'qualityCheck']);
             Route::post('/process', [ProductReturnController::class, 'process']);
             Route::post('/complete', [ProductReturnController::class, 'complete']);
         });

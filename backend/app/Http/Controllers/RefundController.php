@@ -109,11 +109,12 @@ class RefundController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        // Initial validation
         $request->validate([
             'return_id' => 'required|exists:product_returns,id',
             'refund_type' => 'required|in:full,percentage,partial_amount',
             'refund_percentage' => 'required_if:refund_type,percentage|numeric|min:0|max:100',
-            'refund_amount' => 'required_if:refund_type,partial_amount|numeric|min:0',
+            'refund_amount' => 'required_if:refund_type,partial_amount|numeric|min:0.01',
             'refund_method' => 'required|in:cash,bank_transfer,card_refund,store_credit,gift_card,digital_wallet,check,other',
             'payment_reference' => 'nullable|string',
             'refund_method_details' => 'nullable|array',
@@ -121,13 +122,30 @@ class RefundController extends Controller
             'internal_notes' => 'nullable|string',
         ]);
 
+        // Additional validation for partial amount based on available amount
+        if ($request->refund_type === 'partial_amount') {
+            $return = ProductReturn::findOrFail($request->return_id);
+            $alreadyRefunded = $return->getTotalRefundedAmount();
+            $remainingAmount = $return->total_refund_amount - $alreadyRefunded;
+            
+            if ($request->refund_amount > $remainingAmount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Refund amount ({$request->refund_amount}) exceeds remaining amount ({$remainingAmount})",
+                    'errors' => [
+                        'refund_amount' => ["The refund amount may not be greater than {$remainingAmount}."]
+                    ]
+                ], 422);
+            }
+        }
+
         DB::beginTransaction();
         try {
             $return = ProductReturn::findOrFail($request->return_id);
 
-            // Check if return is completed
-            if ($return->status !== 'completed') {
-                throw new \Exception('Return must be completed before creating refund');
+            // Check if return is ready for refund (processing or completed)
+            if (!in_array($return->status, ['processing', 'completed'])) {
+                throw new \Exception('Return must be processing or completed before creating refund');
             }
 
             // Check if already fully refunded
@@ -209,7 +227,7 @@ class RefundController extends Controller
                 throw new \Exception('Can only process pending refunds');
             }
 
-            $employee = Auth::guard('employee')->user();
+            $employee = auth()->user();
             if (!$employee) {
                 throw new \Exception('Employee authentication required');
             }
@@ -264,18 +282,45 @@ class RefundController extends Controller
             }
             $refund->save();
 
-            // Create transaction record
+            // Create double-entry transaction record for refund
+            // Credit Cash (money going out)
             Transaction::create([
-                'transaction_number' => $transactionRef,
-                'transaction_type' => 'refund',
+                'transaction_number' => $transactionRef . '-CASH',
+                'type' => 'credit',
+                'account_id' => \App\Models\Transaction::getCashAccountId($refund->order->store_id ?? null),
                 'reference_type' => 'refund',
                 'reference_id' => $refund->id,
-                'customer_id' => $refund->customer_id,
                 'amount' => $refund->refund_amount,
-                'payment_method' => $refund->refund_method,
+                'description' => "Cash refund for return: {$refund->returnRequest->return_number}",
+                'store_id' => $refund->order->store_id ?? null,
+                'created_by' => auth()->id(),
                 'status' => 'completed',
-                'transaction_date' => now(),
-                'notes' => "Refund for return: {$refund->returnRequest->return_number}",
+                'transaction_date' => now()->toDateString(),
+                'metadata' => [
+                    'refund_method' => $refund->refund_method,
+                    'refund_id' => $refund->id,
+                    'return_id' => $refund->return_id
+                ]
+            ]);
+
+            // Debit Sales Revenue (revenue being reversed)
+            Transaction::create([
+                'transaction_number' => $transactionRef . '-REV',
+                'type' => 'debit',
+                'account_id' => \App\Models\Transaction::getSalesRevenueAccountId(),
+                'reference_type' => 'refund',
+                'reference_id' => $refund->id,
+                'amount' => $refund->refund_amount,
+                'description' => "Revenue reversal for return: {$refund->returnRequest->return_number}",
+                'store_id' => $refund->order->store_id ?? null,
+                'created_by' => auth()->id(),
+                'status' => 'completed',
+                'transaction_date' => now()->toDateString(),
+                'metadata' => [
+                    'refund_method' => $refund->refund_method,
+                    'refund_id' => $refund->id,
+                    'return_id' => $refund->return_id
+                ]
             ]);
 
             // Update return status if fully refunded
@@ -411,9 +456,33 @@ class RefundController extends Controller
      */
     private function generateRefundNumber(): string
     {
-        $date = now()->format('Ymd');
-        $count = Refund::whereDate('created_at', now())->count() + 1;
-        return 'REF-' . $date . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
+        return DB::transaction(function () {
+            $date = now()->format('Ymd');
+            $attempts = 0;
+            $maxAttempts = 10;
+            
+            do {
+                // Get count with lock to prevent race condition
+                $count = DB::table('refunds')
+                    ->whereDate('created_at', now())
+                    ->lockForUpdate()
+                    ->count() + 1;
+                    
+                $refundNumber = 'REF-' . $date . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
+                
+                // Check if this number already exists
+                $exists = Refund::where('refund_number', $refundNumber)->exists();
+                
+                if (!$exists) {
+                    return $refundNumber;
+                }
+                
+                $attempts++;
+            } while ($attempts < $maxAttempts);
+            
+            // Fallback to UUID if all attempts fail
+            return 'REF-' . $date . '-' . strtoupper(substr(uniqid(), -8));
+        });
     }
 
     /**
@@ -422,5 +491,42 @@ class RefundController extends Controller
     private function generateTransactionReference(Refund $refund): string
     {
         return 'TXN-REF-' . $refund->id . '-' . time();
+    }
+    
+    /**
+     * Get expired store credits
+     */
+    public function getExpiredStoreCredits(): JsonResponse
+    {
+        $expiredCredits = Refund::where('refund_method', 'store_credit')
+            ->where('status', 'completed')
+            ->whereNotNull('store_credit_expires_at')
+            ->where('store_credit_expires_at', '<', now())
+            ->with(['returnRequest', 'customer'])
+            ->paginate(20);
+            
+        return response()->json([
+            'success' => true,
+            'message' => 'Expired store credits retrieved',
+            'data' => $expiredCredits,
+        ]);
+    }
+    
+    /**
+     * Mark expired store credits as expired (scheduled job helper)
+     */
+    public function markExpiredStoreCredits(): JsonResponse
+    {
+        $count = Refund::where('refund_method', 'store_credit')
+            ->where('status', 'completed')
+            ->whereNotNull('store_credit_expires_at')
+            ->where('store_credit_expires_at', '<', now())
+            ->update(['status' => 'expired']);
+            
+        return response()->json([
+            'success' => true,
+            'message' => "Marked {$count} store credits as expired",
+            'expired_count' => $count,
+        ]);
     }
 }

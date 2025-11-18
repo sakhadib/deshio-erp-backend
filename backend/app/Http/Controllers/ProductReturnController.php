@@ -134,6 +134,15 @@ class ProductReturnController extends Controller
         try {
             $order = Order::with('items')->findOrFail($request->order_id);
 
+            // Check for existing active returns for this order
+            $existingReturn = ProductReturn::where('order_id', $order->id)
+                ->whereNotIn('status', ['rejected', 'cancelled'])
+                ->first();
+            
+            if ($existingReturn) {
+                throw new \Exception("A return request (#{$existingReturn->return_number}) already exists for this order. Cannot create duplicate returns.");
+            }
+
             // Validate return items
             $returnItems = [];
             $totalReturnValue = 0;
@@ -392,8 +401,17 @@ class ProductReturnController extends Controller
                 throw new \Exception('Employee authentication required');
             }
 
-            // Restore inventory if requested
+            // Restore inventory only if quality check has passed and it's requested
             if ($request->get('restore_inventory', true)) {
+                // Check if quality check is required and has been performed
+                if ($return->quality_check_passed === null) {
+                    throw new \Exception('Quality check must be performed before processing return with inventory restoration');
+                }
+                
+                if ($return->quality_check_passed === false) {
+                    throw new \Exception('Cannot restore inventory - return failed quality check');
+                }
+                
                 foreach ($return->return_items as $item) {
                     if (isset($item['product_batch_id'])) {
                         $batch = ProductBatch::find($item['product_batch_id']);
@@ -412,7 +430,7 @@ class ProductReturnController extends Controller
                                 'total_cost' => $item['total_price'],
                                 'reference_type' => 'return',
                                 'reference_id' => $return->id,
-                                'notes' => "Product return: {$return->return_number}",
+                                'notes' => "Product return: {$return->return_number} (Quality approved)",
                                 'created_by' => $employee->id,
                             ]);
                         }
@@ -524,9 +542,33 @@ class ProductReturnController extends Controller
      */
     private function generateReturnNumber(): string
     {
-        $date = now()->format('Ymd');
-        $count = ProductReturn::whereDate('created_at', now())->count() + 1;
-        return 'RET-' . $date . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
+        return DB::transaction(function () {
+            $date = now()->format('Ymd');
+            $attempts = 0;
+            $maxAttempts = 10;
+            
+            do {
+                // Get count with lock to prevent race condition
+                $count = DB::table('product_returns')
+                    ->whereDate('created_at', now())
+                    ->lockForUpdate()
+                    ->count() + 1;
+                    
+                $returnNumber = 'RET-' . $date . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
+                
+                // Check if this number already exists
+                $exists = ProductReturn::where('return_number', $returnNumber)->exists();
+                
+                if (!$exists) {
+                    return $returnNumber;
+                }
+                
+                $attempts++;
+            } while ($attempts < $maxAttempts);
+            
+            // Fallback to UUID if all attempts fail
+            return 'RET-' . $date . '-' . strtoupper(substr(uniqid(), -8));
+        });
     }
 
     /**
@@ -548,5 +590,88 @@ class ProductReturnController extends Controller
         }
 
         return $totalReturned;
+    }
+
+    /**
+     * Perform quality check on returned items
+     */
+    public function qualityCheck(Request $request, $id): JsonResponse
+    {
+        $request->validate([
+            'quality_check_passed' => 'required|boolean',
+            'quality_check_notes' => 'nullable|string|max:1000',
+            'failed_items' => 'nullable|array',
+            'failed_items.*.product_id' => 'required_with:failed_items|integer',
+            'failed_items.*.reason' => 'required_with:failed_items|string',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $return = ProductReturn::findOrFail($id);
+
+            if ($return->status !== 'approved') {
+                throw new \Exception('Quality check can only be performed on approved returns');
+            }
+
+            $employee = auth()->user();
+            if (!$employee) {
+                throw new \Exception('Employee authentication required');
+            }
+
+            // Update quality check fields
+            $return->quality_check_passed = $request->quality_check_passed;
+            $return->quality_check_notes = $request->quality_check_notes;
+            $return->quality_checked_by = $employee->id;
+            $return->quality_checked_at = now();
+
+            // If quality check failed, update return status
+            if (!$request->quality_check_passed) {
+                $return->status = 'rejected';
+                $return->rejection_reason = 'Failed quality check';
+                $return->rejected_by = $employee->id;
+                $return->rejected_at = now();
+                
+                // Store failed items details if provided
+                if ($request->has('failed_items')) {
+                    $statusHistory = $return->status_history ?? [];
+                    $statusHistory[] = [
+                        'status' => 'rejected',
+                        'timestamp' => now()->toISOString(),
+                        'employee_id' => $employee->id,
+                        'notes' => 'Failed quality check',
+                        'failed_items' => $request->failed_items,
+                    ];
+                    $return->status_history = $statusHistory;
+                }
+            } else {
+                // Quality check passed, ready for processing
+                $statusHistory = $return->status_history ?? [];
+                $statusHistory[] = [
+                    'status' => 'quality_approved',
+                    'timestamp' => now()->toISOString(),
+                    'employee_id' => $employee->id,
+                    'notes' => $request->quality_check_notes ?? 'Quality check passed',
+                ];
+                $return->status_history = $statusHistory;
+            }
+
+            $return->save();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => $request->quality_check_passed 
+                    ? 'Quality check passed successfully' 
+                    : 'Quality check failed - return rejected',
+                'data' => $return->load(['order', 'customer', 'store', 'approvedBy', 'processedBy']),
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to perform quality check: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

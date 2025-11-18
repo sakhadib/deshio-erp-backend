@@ -300,4 +300,48 @@ class ProductReturn extends Model
             default => 'Unknown',
         };
     }
+    
+    /**
+     * Mutator for return_items - automatically recalculate totals when items are updated
+     */
+    public function setReturnItemsAttribute($value): void
+    {
+        $this->attributes['return_items'] = json_encode($value);
+        
+        // Recalculate and update total values
+        if ($value) {
+            $totalValue = 0.0;
+            $totalRefundableAmount = 0.0;
+            
+            foreach ($value as $item) {
+                $totalValue += (float) ($item['total_price'] ?? 0);
+                $totalRefundableAmount += (float) ($item['refundable_amount'] ?? $item['total_price'] ?? 0);
+            }
+            
+            $this->attributes['total_return_value'] = $totalValue;
+            $this->attributes['total_refund_amount'] = $totalRefundableAmount;
+        }
+    }
+    
+    /**
+     * Override save method to recalculate totals if return_items was modified
+     */
+    public function save(array $options = []): bool
+    {
+        // If return_items was changed, ensure totals are recalculated
+        if ($this->isDirty('return_items') && $this->return_items) {
+            $totalValue = 0.0;
+            $totalRefundableAmount = 0.0;
+            
+            foreach ($this->return_items as $item) {
+                $totalValue += (float) ($item['total_price'] ?? 0);
+                $totalRefundableAmount += (float) ($item['refundable_amount'] ?? $item['total_price'] ?? 0);
+            }
+            
+            $this->attributes['total_return_value'] = $totalValue;
+            $this->attributes['total_refund_amount'] = $totalRefundableAmount;
+        }
+        
+        return parent::save($options);
+    }
 }
