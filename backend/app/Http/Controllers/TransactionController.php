@@ -109,6 +109,12 @@ class TransactionController extends Controller
         if (!isset($data['created_by'])) {
             $data['created_by'] = auth()->id();
         }
+        
+        // Set store_id to current authenticated user's store if not provided
+        if (!isset($data['store_id'])) {
+            $employee = auth()->user();
+            $data['store_id'] = $employee->store_id ?? null;
+        }
 
         $transaction = Transaction::create($data);
 

@@ -688,15 +688,23 @@ class OrderPaymentController extends Controller
     /**
      * Validate store credit code and expiration
      */
-    private function validateStoreCreditCode(string $storeCreditCode, float $amount): void
+    private function validateStoreCreditCode(string $storeCreditCode, float $amount, int $storeId = null): void
     {
-        $refund = \App\Models\Refund::where('store_credit_code', $storeCreditCode)
+        $query = \App\Models\Refund::where('store_credit_code', $storeCreditCode)
             ->where('refund_method', 'store_credit')
-            ->where('status', 'completed')
-            ->first();
+            ->where('status', 'completed');
+            
+        // If store_id provided, validate store credit is from same store
+        if ($storeId) {
+            $query->whereHas('order', function($q) use ($storeId) {
+                $q->where('store_id', $storeId);
+            });
+        }
+        
+        $refund = $query->first();
             
         if (!$refund) {
-            throw new \Exception('Invalid store credit code');
+            throw new \Exception('Invalid store credit code or not available for this store');
         }
         
         if ($refund->isExpiredStoreCredit()) {
