@@ -35,7 +35,7 @@ class EcommerceOrderController extends Controller
             $dateTo = $request->query('date_to');
 
             $query = Order::where('customer_id', $customerId)
-                ->with(['orderItems.product', 'customer'])
+                ->with(['items.product', 'customer'])
                 ->orderBy('created_at', 'desc');
 
             // Apply filters
@@ -46,7 +46,7 @@ class EcommerceOrderController extends Controller
             if ($search) {
                 $query->where(function($q) use ($search) {
                     $q->where('order_number', 'like', "%{$search}%")
-                      ->orWhereHas('orderItems.product', function($pq) use ($search) {
+                      ->orWhereHas('items.product', function($pq) use ($search) {
                           $pq->where('name', 'like', "%{$search}%");
                       });
                 });
@@ -63,17 +63,16 @@ class EcommerceOrderController extends Controller
             $orders = $query->paginate($perPage);
 
             // Add order summary for each order
-            $orders->transform(function($order) {
+            foreach ($orders as $order) {
                 $order->summary = [
-                    'total_items' => $order->orderItems->sum('quantity'),
+                    'total_items' => $order->items->sum('quantity'),
                     'total_amount' => $order->total_amount,
                     'status_label' => ucfirst(str_replace('_', ' ', $order->status)),
                     'days_since_order' => $order->created_at->diffInDays(now()),
                     'can_cancel' => $this->canCancelOrder($order),
                     'can_return' => $this->canReturnOrder($order),
                 ];
-                return $order;
-            });
+            }
 
             return response()->json([
                 'success' => true,
@@ -115,7 +114,7 @@ class EcommerceOrderController extends Controller
             $order = Order::where('customer_id', $customerId)
                 ->where('order_number', $orderNumber)
                 ->with([
-                    'orderItems.product.images',
+                    'items.product.images',
                     'customer',
                     'store',
                     'orderPayments'
@@ -124,10 +123,10 @@ class EcommerceOrderController extends Controller
 
             // Add calculated fields
             $order->summary = [
-                'subtotal' => $order->orderItems->sum(function($item) {
-                    return $item->price * $item->quantity;
+                'subtotal' => $order->items->sum(function($item) {
+                    return $item->unit_price * $item->quantity;
                 }),
-                'total_items' => $order->orderItems->sum('quantity'),
+                'total_items' => $order->items->sum('quantity'),
                 'total_amount' => $order->total_amount,
                 'status_label' => ucfirst(str_replace('_', ' ', $order->status)),
                 'can_cancel' => $this->canCancelOrder($order),
@@ -135,9 +134,9 @@ class EcommerceOrderController extends Controller
                 'tracking_available' => !empty($order->tracking_number),
             ];
 
-            // Add delivery address
-            $order->delivery_address = $order->shipping_address ? json_decode($order->shipping_address) : null;
-            $order->billing_address = $order->billing_address ? json_decode($order->billing_address) : null;
+            // Add delivery address (already cast to array in model)
+            $order->delivery_address = $order->shipping_address ?? null;
+            $order->billing_address = $order->billing_address ?? null;
 
             return response()->json([
                 'success' => true,
@@ -262,7 +261,7 @@ class EcommerceOrderController extends Controller
                 DB::commit();
 
                 // Load relationships for response
-                $order->load(['orderItems.product', 'customer']);
+                $order->load(['items.product', 'customer']);
 
                 return response()->json([
                     'success' => true,
@@ -302,7 +301,7 @@ class EcommerceOrderController extends Controller
             
             $order = Order::where('customer_id', $customerId)
                 ->where('order_number', $orderNumber)
-                ->with('orderItems.product')
+                ->with('items.product')
                 ->firstOrFail();
 
             if (!$this->canCancelOrder($order)) {
@@ -323,7 +322,7 @@ class EcommerceOrderController extends Controller
                 ]);
 
                 // Restore product stock
-                foreach ($order->orderItems as $item) {
+                foreach ($order->items as $item) {
                     $item->product->increment('stock_quantity', $item->quantity);
                 }
 
@@ -411,7 +410,7 @@ class EcommerceOrderController extends Controller
 
             // Recent orders
             $recentOrders = Order::where('customer_id', $customerId)
-                ->with('orderItems.product')
+                ->with('items.product')
                 ->latest()
                 ->take(5)
                 ->get();
@@ -488,7 +487,8 @@ class EcommerceOrderController extends Controller
             return $order->scheduled_delivery_date;
         }
 
-        $shippingAddress = json_decode($order->shipping_address, true);
+        // shipping_address is cast to array in the Order model
+        $shippingAddress = $order->shipping_address ?? [];
         $city = strtolower($shippingAddress['city'] ?? '');
         
         $days = str_contains($city, 'dhaka') ? 2 : 4;
