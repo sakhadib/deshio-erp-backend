@@ -224,8 +224,32 @@ class ProductDispatch extends Model
 
         $this->update(['status' => 'in_transit']);
 
-        // Update item statuses
-        $this->items()->update(['status' => 'dispatched']);
+        // Update item statuses and barcode statuses
+        foreach ($this->items as $item) {
+            $item->update(['status' => 'dispatched']);
+            
+            // If barcodes were scanned, they are already marked as in_transit
+            // If not scanned, mark all barcodes of the source batch as in_transit
+            $item->load('scannedBarcodes');
+            if ($item->scannedBarcodes->count() === 0) {
+                // No individual barcode scanning done, so update batch barcodes
+                ProductBarcode::where('batch_id', $item->product_batch_id)
+                    ->where('current_store_id', $this->source_store_id)
+                    ->where('current_status', 'available')
+                    ->limit($item->quantity)
+                    ->update([
+                        'current_status' => 'in_transit',
+                        'location_updated_at' => now(),
+                        'location_metadata' => [
+                            'dispatch_number' => $this->dispatch_number,
+                            'destination_store_id' => $this->destination_store_id,
+                            'source_store_id' => $this->source_store_id,
+                            'dispatched_at' => now()->toISOString(),
+                            'quantity_transferred' => $item->quantity,
+                        ]
+                    ]);
+            }
+        }
 
         return $this;
     }
@@ -402,22 +426,28 @@ class ProductDispatch extends Model
             'is_active' => true,
         ]);
 
-        // Transfer individual barcodes if they are tracked
+        // Load scanned barcodes relationship and transfer individual barcodes if they are tracked
+        $item->load('scannedBarcodes');
         if ($item->scannedBarcodes && $item->scannedBarcodes->count() > 0) {
             foreach ($item->scannedBarcodes as $scannedBarcode) {
-                // Update barcode location to destination store and new batch
-                $barcode = ProductBarcode::find($scannedBarcode->product_barcode_id);
+                // Get the actual barcode record, not the pivot
+                $barcode = $scannedBarcode;
+                
                 if ($barcode) {
+                    // Update barcode location to destination store and new batch
                     $barcode->update([
-                        'batch_id' => $destinationBatch->id,          // Update to new destination batch
-                        'current_store_id' => $this->destination_store_id,  // Update current location
-                        'current_status' => 'in_warehouse',          // Set appropriate status
-                        'location_updated_at' => now(),              // Track when updated
-                        'location_metadata' => [                     // Add metadata about the transfer
+                        'batch_id' => $destinationBatch->id,           // ✅ Update to new destination batch
+                        'current_store_id' => $this->destination_store_id,  // ✅ Update current location
+                        'current_status' => 'available',              // ✅ Set status to available (not in_transit anymore)
+                        'location_updated_at' => now(),               // ✅ Track when updated
+                        'location_metadata' => [                      // ✅ Add metadata about the transfer
                             'transferred_via' => 'dispatch',
                             'dispatch_number' => $this->dispatch_number,
                             'source_store_id' => $this->source_store_id,
+                            'source_batch_id' => $sourceBatch->id,
+                            'destination_batch_id' => $destinationBatch->id,
                             'transfer_date' => now()->toISOString(),
+                            'delivered_at' => now()->toISOString(),
                         ]
                     ]);
                     
@@ -433,14 +463,56 @@ class ProductDispatch extends Model
                         'unit_cost' => $sourceBatch->cost_price,
                         'unit_price' => $sourceBatch->sell_price,
                         'reference_number' => $this->dispatch_number,
-                        'notes' => 'Individual barcode transfer: ' . $barcode->barcode,
+                        'notes' => 'Individual barcode transfer delivered: ' . $barcode->barcode,
                         'performed_by' => $this->approved_by ?? $this->created_by,
                         'movement_date' => now(),
                     ]);
                 }
             }
         } else {
-            // If no individual barcodes scanned, record batch-level movement
+            // If no individual barcodes scanned, update all barcodes of the source batch that are at the source store
+            $barcodesToUpdate = ProductBarcode::where('batch_id', $sourceBatch->id)
+                ->where('current_store_id', $this->source_store_id)
+                ->where('current_status', 'in_transit')
+                ->limit($item->quantity)
+                ->get();
+
+            foreach ($barcodesToUpdate as $barcode) {
+                $barcode->update([
+                    'batch_id' => $destinationBatch->id,           // ✅ Update to new destination batch
+                    'current_store_id' => $this->destination_store_id,  // ✅ Update current location
+                    'current_status' => 'available',              // ✅ Set status to available (not in_transit anymore)
+                    'location_updated_at' => now(),               // ✅ Track when updated
+                    'location_metadata' => [                      // ✅ Add metadata about the transfer
+                        'transferred_via' => 'dispatch',
+                        'dispatch_number' => $this->dispatch_number,
+                        'source_store_id' => $this->source_store_id,
+                        'source_batch_id' => $sourceBatch->id,
+                        'destination_batch_id' => $destinationBatch->id,
+                        'transfer_date' => now()->toISOString(),
+                        'delivered_at' => now()->toISOString(),
+                    ]
+                ]);
+                
+                // Record individual barcode movement
+                ProductMovement::recordMovement([
+                    'product_batch_id' => $destinationBatch->id,
+                    'product_barcode_id' => $barcode->id,
+                    'from_store_id' => $this->source_store_id,
+                    'to_store_id' => $this->destination_store_id,
+                    'product_dispatch_id' => $this->id,
+                    'movement_type' => 'transfer',
+                    'quantity' => 1,
+                    'unit_cost' => $sourceBatch->cost_price,
+                    'unit_price' => $sourceBatch->sell_price,
+                    'reference_number' => $this->dispatch_number,
+                    'notes' => 'Batch barcode transfer delivered: ' . $barcode->barcode,
+                    'performed_by' => $this->approved_by ?? $this->created_by,
+                    'movement_date' => now(),
+                ]);
+            }
+            
+            // Record batch-level movement
             ProductMovement::recordMovement([
                 'product_batch_id' => $destinationBatch->id,
                 'product_barcode_id' => $sourceBatch->barcode_id,
@@ -452,7 +524,7 @@ class ProductDispatch extends Model
                 'unit_cost' => $sourceBatch->cost_price,
                 'unit_price' => $sourceBatch->sell_price,
                 'reference_number' => $this->dispatch_number,
-                'notes' => 'Product dispatch delivery (batch level)',
+                'notes' => 'Product dispatch delivery completed (batch level)',
                 'performed_by' => $this->approved_by ?? $this->created_by,
                 'movement_date' => now(),
             ]);

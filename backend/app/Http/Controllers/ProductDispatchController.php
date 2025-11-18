@@ -744,11 +744,35 @@ class ProductDispatchController extends Controller
             // Mark as delivered and process inventory movements
             $dispatch->deliver();
 
+            // Additional safety check: Fix any barcodes that might still be stuck in transit
+            $stuckBarcodes = \App\Models\ProductBarcode::where('current_status', 'in_transit')
+                ->whereHas('batch', function($query) use ($dispatch) {
+                    $batchIds = $dispatch->items->pluck('product_batch_id')->toArray();
+                    $query->whereIn('id', $batchIds);
+                })
+                ->get();
+
+            foreach ($stuckBarcodes as $barcode) {
+                $metadata = $barcode->location_metadata ?? [];
+                if (isset($metadata['dispatch_number']) && $metadata['dispatch_number'] === $dispatch->dispatch_number) {
+                    // This barcode was part of this dispatch, fix its status
+                    $barcode->update([
+                        'current_status' => 'available',
+                        'current_store_id' => $dispatch->destination_store_id,
+                        'location_updated_at' => now(),
+                        'location_metadata' => array_merge($metadata, [
+                            'auto_fixed_at' => now()->toISOString(),
+                            'fix_reason' => 'post_delivery_cleanup'
+                        ])
+                    ]);
+                }
+            }
+
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Dispatch delivered successfully. Inventory movements have been processed.',
+                'message' => 'Dispatch delivered successfully. Inventory movements have been processed and barcode statuses updated.',
                 'data' => $this->formatDispatchResponse($dispatch->fresh([
                     'sourceStore',
                     'destinationStore',
