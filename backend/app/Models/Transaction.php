@@ -384,7 +384,7 @@ class Transaction extends Model
     }
 
     // Helper methods for account IDs
-    private static function getCashAccountId($storeId = null): ?int
+    public static function getCashAccountId($storeId = null): ?int
     {
         // Get cash account from database or return default
         $account = Account::where('type', 'asset')
@@ -404,7 +404,7 @@ class Transaction extends Model
         return $account ? $account->id : 1; // Fallback to ID 1
     }
 
-    private static function getSalesRevenueAccountId(): ?int
+    public static function getSalesRevenueAccountId(): ?int
     {
         // Get sales revenue account from database
         $account = Account::where('type', 'income')
@@ -423,7 +423,7 @@ class Transaction extends Model
         return $account ? $account->id : 2; // Fallback to ID 2
     }
 
-    private static function getServiceRevenueAccountId(): ?int
+    public static function getServiceRevenueAccountId(): ?int
     {
         // Get service revenue account from database
         $account = Account::where('type', 'income')
