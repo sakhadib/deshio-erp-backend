@@ -195,7 +195,7 @@ class OrderController extends Controller
         $validator = Validator::make($request->all(), [
             'order_type' => 'required|in:counter,social_commerce,ecommerce',
             'customer_id' => 'nullable|exists:customers,id',
-            'customer' => 'required_without:customer_id|array',
+            'customer' => 'nullable|array',  // Made optional - will use walk-in customer if not provided
             'customer.name' => 'required_with:customer|string',
             'customer.phone' => 'required_with:customer|string',
             'customer.email' => 'nullable|email',
@@ -236,23 +236,63 @@ class OrderController extends Controller
             // Get or create customer
             if ($request->filled('customer_id')) {
                 $customer = Customer::findOrFail($request->customer_id);
-            } else {
+            } elseif ($request->filled('customer')) {
                 // Create customer on-the-fly based on order type
                 $customerData = $request->customer;
                 $customerData['created_by'] = Auth::id();
                 
                 // Check if customer exists by phone
-                $existing = Customer::findByPhone($customerData['phone']);
+                $existing = Customer::where('phone', $customerData['phone'])->first();
                 if ($existing) {
                     $customer = $existing;
                 } else {
                     if ($request->order_type === 'counter') {
-                        $customer = Customer::createCounterCustomer($customerData);
+                        $customer = Customer::create([
+                            'name' => $customerData['name'],
+                            'phone' => $customerData['phone'],
+                            'email' => $customerData['email'] ?? null,
+                            'address' => $customerData['address'] ?? null,
+                            'customer_type' => 'counter',
+                            'status' => 'active',
+                            'created_by' => Auth::id(),
+                        ]);
                     } elseif ($request->order_type === 'social_commerce') {
-                        $customer = Customer::createSocialCommerceCustomer($customerData);
+                        $customer = Customer::create([
+                            'name' => $customerData['name'],
+                            'phone' => $customerData['phone'],
+                            'email' => $customerData['email'] ?? null,
+                            'address' => $customerData['address'] ?? null,
+                            'customer_type' => 'social_commerce',
+                            'status' => 'active',
+                            'created_by' => Auth::id(),
+                        ]);
                     } else {
-                        $customer = Customer::createEcommerceCustomer($customerData);
+                        $customer = Customer::create([
+                            'name' => $customerData['name'],
+                            'phone' => $customerData['phone'],
+                            'email' => $customerData['email'] ?? null,
+                            'address' => $customerData['address'] ?? null,
+                            'customer_type' => 'ecommerce',
+                            'status' => 'active',
+                            'created_by' => Auth::id(),
+                        ]);
                     }
+                }
+            } else {
+                // No customer provided - use or create walk-in customer for counter orders
+                if ($request->order_type === 'counter') {
+                    $customer = Customer::firstOrCreate(
+                        ['phone' => 'WALK-IN'],
+                        [
+                            'name' => 'Walk-in Customer',
+                            'customer_type' => 'counter',
+                            'status' => 'active',
+                            'created_by' => Auth::id(),
+                        ]
+                    );
+                } else {
+                    // For non-counter orders, customer is required
+                    throw new \Exception('Customer information is required for ' . $request->order_type . ' orders');
                 }
             }
 
