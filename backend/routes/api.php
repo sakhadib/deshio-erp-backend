@@ -1243,8 +1243,8 @@ Route::prefix('addresses')->middleware('auth:customer')->group(function () {
     Route::get('/suggestions', [App\Http\Controllers\CustomerAddressController::class, 'getSuggestions']);
 });
 
-// E-commerce order management
-Route::prefix('orders')->middleware('auth:customer')->group(function () {
+// E-commerce order management (Customer-facing)
+Route::prefix('customer/orders')->middleware('auth:customer')->group(function () {
     Route::get('/', [App\Http\Controllers\EcommerceOrderController::class, 'index']);
     Route::get('/{orderNumber}', [App\Http\Controllers\EcommerceOrderController::class, 'show']);
     Route::post('/create-from-cart', [App\Http\Controllers\EcommerceOrderController::class, 'createFromCart']);
