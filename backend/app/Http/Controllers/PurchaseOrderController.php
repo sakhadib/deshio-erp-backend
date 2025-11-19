@@ -20,7 +20,7 @@ class PurchaseOrderController extends Controller
         $validated = $request->validate([
             'vendor_id' => 'required|exists:vendors,id',
             'store_id' => 'required|exists:stores,id',
-            'expected_delivery_date' => 'nullable|date|after:today',
+            'expected_delivery_date' => 'nullable|date|after_or_equal:today',
             'tax_amount' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
             'shipping_cost' => 'nullable|numeric|min:0',
