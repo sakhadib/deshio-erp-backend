@@ -120,6 +120,7 @@ class ProductReturnController extends Controller
     {
         $request->validate([
             'order_id' => 'required|exists:orders,id',
+            'received_at_store_id' => 'nullable|exists:stores,id',
             'return_reason' => 'required|in:defective_product,wrong_item,not_as_described,customer_dissatisfaction,size_issue,color_issue,quality_issue,late_delivery,changed_mind,duplicate_order,other',
             'return_type' => 'nullable|in:customer_return,store_return,warehouse_return',
             'items' => 'required|array|min:1',
@@ -184,6 +185,7 @@ class ProductReturnController extends Controller
                 'order_id' => $order->id,
                 'customer_id' => $order->customer_id,
                 'store_id' => $order->store_id,
+                'received_at_store_id' => $request->received_at_store_id ?? $order->store_id,
                 'return_reason' => $request->return_reason,
                 'return_type' => $request->return_type,
                 'status' => 'pending',
@@ -412,28 +414,85 @@ class ProductReturnController extends Controller
                     throw new \Exception('Cannot restore inventory - return failed quality check');
                 }
                 
+                // Determine the store where the return was received
+                $returnStore = $return->received_at_store_id ?? $return->store_id;
+                
                 foreach ($return->return_items as $item) {
                     if (isset($item['product_batch_id'])) {
-                        $batch = ProductBatch::find($item['product_batch_id']);
-                        if ($batch) {
-                            $batch->increment('quantity', $item['quantity']);
-                            
-                            // Log inventory movement
-                            \App\Models\ProductMovement::create([
-                                'product_id' => $item['product_id'],
-                                'product_batch_id' => $item['product_batch_id'],
-                                'product_barcode_id' => $batch->barcode_id, // Add barcode_id from batch
-                                'store_id' => auth()->user()->store_id,
-                                'movement_type' => 'return',
-                                'quantity' => $item['quantity'],
-                                'unit_cost' => $item['unit_price'],
-                                'total_cost' => $item['total_price'],
-                                'reference_type' => 'return',
-                                'reference_id' => $return->id,
-                                'notes' => "Product return: {$return->return_number} (Quality approved)",
-                                'created_by' => $employee->id,
-                            ]);
+                        $originalBatch = \App\Models\ProductBatch::find($item['product_batch_id']);
+                        if (!$originalBatch) {
+                            continue;
                         }
+
+                        // Check if we're returning to the same store as original purchase
+                        if ($originalBatch->store_id == $returnStore) {
+                            // Same store - simple increment
+                            $originalBatch->increment('quantity', $item['quantity']);
+                            $targetBatch = $originalBatch;
+                            $isNewBatch = false;
+                        } else {
+                            // Different store - find or create batch at return store
+                            $targetBatch = \App\Models\ProductBatch::firstOrCreate([
+                                'product_id' => $item['product_id'],
+                                'store_id' => $returnStore,
+                                'batch_number' => $originalBatch->batch_number,
+                            ], [
+                                'quantity' => 0,
+                                'cost_price' => $originalBatch->cost_price,
+                                'sell_price' => $originalBatch->sell_price,
+                                'manufactured_date' => $originalBatch->manufactured_date,
+                                'expiry_date' => $originalBatch->expiry_date,
+                                'availability' => true,
+                                'is_active' => true,
+                                'notes' => "Cross-store return batch created from original batch: {$originalBatch->batch_number}",
+                            ]);
+                            $isNewBatch = $targetBatch->wasRecentlyCreated;
+                            $targetBatch->increment('quantity', $item['quantity']);
+                        }
+                        
+                        // Update barcodes to reflect new location
+                        $barcodes = \App\Models\ProductBarcode::where('product_id', $item['product_id'])
+                            ->where('batch_id', $item['product_batch_id'])
+                            ->where('current_status', 'with_customer')
+                            ->limit($item['quantity'])
+                            ->get();
+                            
+                        foreach ($barcodes as $barcode) {
+                            $barcode->updateLocation(
+                                $returnStore,
+                                'in_return',
+                                [
+                                    'return_id' => $return->id,
+                                    'return_reason' => $return->return_reason,
+                                    'cross_store_return' => $originalBatch->store_id !== $returnStore,
+                                    'original_store_id' => $originalBatch->store_id,
+                                ]
+                            );
+                            
+                            // Update batch_id to new batch if cross-store
+                            if ($originalBatch->store_id !== $returnStore) {
+                                $barcode->update(['batch_id' => $targetBatch->id]);
+                            }
+                        }
+                            
+                        // Log inventory movement
+                        \App\Models\ProductMovement::create([
+                            'product_id' => $item['product_id'],
+                            'product_batch_id' => $targetBatch->id,
+                            'product_barcode_id' => $targetBatch->barcode_id ?? null,
+                            'from_store_id' => $originalBatch->store_id !== $returnStore ? $originalBatch->store_id : null,
+                            'to_store_id' => $returnStore,
+                            'movement_type' => $originalBatch->store_id !== $returnStore ? 'cross_store_return' : 'return',
+                            'quantity' => $item['quantity'],
+                            'unit_cost' => $item['unit_price'],
+                            'total_cost' => $item['total_price'],
+                            'reference_type' => 'return',
+                            'reference_id' => $return->id,
+                            'notes' => $originalBatch->store_id !== $returnStore 
+                                ? "Cross-store return: {$return->return_number} - From Store ID {$originalBatch->store_id} to Store ID {$returnStore}" . ($isNewBatch ? ' (New batch created)' : '')
+                                : "Product return: {$return->return_number} (Quality approved)",
+                            'performed_by' => $employee->id,
+                        ]);
                     }
                 }
             }
@@ -458,6 +517,7 @@ class ProductReturnController extends Controller
 
     /**
      * Complete a return (final step before refund)
+     * Automatically marks products as defective if return reason is defective
      */
     public function complete($id): JsonResponse
     {
@@ -469,14 +529,86 @@ class ProductReturnController extends Controller
                 throw new \Exception('Can only complete processing returns');
             }
 
+            $employee = auth()->user();
+            if (!$employee) {
+                throw new \Exception('Employee authentication required');
+            }
+
+            // Check if return reason is defective-related
+            $defectiveReasons = [
+                'defective_product',
+                'quality_issue',
+                'not_as_described',
+                'wrong_item'
+            ];
+
+            $autoMarkDefective = in_array($return->return_reason, $defectiveReasons);
+            $markedAsDefective = [];
+            $failedToMark = [];
+
+            // Auto-mark products as defective if reason matches
+            if ($autoMarkDefective && $return->return_items) {
+                foreach ($return->return_items as $item) {
+                    if (isset($item['product_batch_id'])) {
+                        try {
+                            // Find barcodes associated with this batch in the store
+                            $barcodes = \App\Models\ProductBarcode::where('product_id', $item['product_id'])
+                                ->where('batch_id', $item['product_batch_id'])
+                                ->where('current_store_id', $return->store_id)
+                                ->where('current_status', '!=', 'defective')
+                                ->where('is_active', true)
+                                ->limit($item['quantity'])
+                                ->get();
+
+                            foreach ($barcodes as $barcode) {
+                                // Map return reason to defect type
+                                $defectType = $this->mapReturnReasonToDefectType($return->return_reason);
+                                
+                                // Mark as defective
+                                $defectiveProduct = $barcode->markAsDefective([
+                                    'store_id' => $return->store_id,
+                                    'product_batch_id' => $item['product_batch_id'],
+                                    'defect_type' => $defectType,
+                                    'defect_description' => "Auto-marked from return #{$return->return_number}: {$return->return_reason}" . 
+                                        ($return->customer_notes ? " - {$return->customer_notes}" : ""),
+                                    'severity' => 'moderate', // Default severity
+                                    'original_price' => $item['unit_price'],
+                                    'identified_by' => $employee->id,
+                                    'internal_notes' => "Automatically marked as defective from product return process",
+                                    'source_return_id' => $return->id,
+                                ]);
+
+                                $markedAsDefective[] = [
+                                    'barcode' => $barcode->barcode,
+                                    'product_name' => $item['product_name'],
+                                    'defective_product_id' => $defectiveProduct->id
+                                ];
+                            }
+                        } catch (\Exception $e) {
+                            $failedToMark[] = [
+                                'product_name' => $item['product_name'],
+                                'error' => $e->getMessage()
+                            ];
+                        }
+                    }
+                }
+            }
+
             $return->complete();
 
             DB::commit();
 
+            $message = 'Return completed successfully. Ready for refund.';
+            if (!empty($markedAsDefective)) {
+                $message .= ' ' . count($markedAsDefective) . ' product(s) automatically marked as defective.';
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Return completed successfully. Ready for refund.',
+                'message' => $message,
                 'data' => $return->load(['order', 'customer', 'store']),
+                'marked_as_defective' => $markedAsDefective,
+                'failed_to_mark' => $failedToMark,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -485,6 +617,21 @@ class ProductReturnController extends Controller
                 'message' => 'Failed to complete return: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Helper: Map return reason to defect type
+     */
+    private function mapReturnReasonToDefectType(string $returnReason): string
+    {
+        $mapping = [
+            'defective_product' => 'malfunction',
+            'quality_issue' => 'physical_damage',
+            'not_as_described' => 'other',
+            'wrong_item' => 'other',
+        ];
+
+        return $mapping[$returnReason] ?? 'other';
     }
 
     /**

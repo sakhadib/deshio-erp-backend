@@ -39,6 +39,7 @@ class DefectiveProduct extends Model
         'returned_to_vendor_at',
         'vendor_notes',
         'internal_notes',
+        'source_return_id',
         'metadata',
     ];
 
@@ -120,6 +121,11 @@ class DefectiveProduct extends Model
     public function vendor(): BelongsTo
     {
         return $this->belongsTo(Vendor::class);
+    }
+
+    public function sourceReturn(): BelongsTo
+    {
+        return $this->belongsTo(ProductReturn::class, 'source_return_id');
     }
 
     // Scopes

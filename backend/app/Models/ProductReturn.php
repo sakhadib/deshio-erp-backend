@@ -20,6 +20,7 @@ class ProductReturn extends Model
         'order_id',
         'customer_id',
         'store_id',
+        'received_at_store_id',
         'return_reason',
         'return_type',
         'status',
@@ -73,6 +74,11 @@ class ProductReturn extends Model
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function receivedAtStore(): BelongsTo
+    {
+        return $this->belongsTo(Store::class, 'received_at_store_id');
     }
 
     public function refunds(): HasMany

@@ -636,6 +636,7 @@ class ProductBarcode extends Model
             'original_price' => $defectData['original_price'],
             'identified_by' => $defectData['identified_by'] ?? null,
             'internal_notes' => $defectData['internal_notes'] ?? null,
+            'source_return_id' => $defectData['source_return_id'] ?? null,
         ]);
 
         // Remove from regular inventory if batch is provided
