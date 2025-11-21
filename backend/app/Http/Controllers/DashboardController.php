@@ -48,8 +48,13 @@ class DashboardController extends Controller
                 ->with('batch')
                 ->get();
 
+            // Prefer stored COGS if available; otherwise fallback to batch cost_price
             $cogs = $orderItems->sum(function ($item) {
-                return ($item->batch ? $item->batch->cost_price : 0) * $item->quantity;
+                if (!is_null($item->cogs)) {
+                    return (float) $item->cogs;
+                }
+
+                return ($item->batch ? ($item->batch->cost_price ?? 0) : 0) * $item->quantity;
             });
 
             $grossMargin = $totalSales - $cogs;

@@ -21,6 +21,7 @@ class OrderItem extends Model
         'unit_price',
         'discount_amount',
         'tax_amount',
+            'cogs',
         'total_amount',
         'product_options',
         'notes',
@@ -31,6 +32,7 @@ class OrderItem extends Model
         'unit_price' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
+            'cogs' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'product_options' => 'array',
     ];

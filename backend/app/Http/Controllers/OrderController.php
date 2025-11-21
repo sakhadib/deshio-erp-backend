@@ -390,6 +390,7 @@ class OrderController extends Controller
                     'unit_price' => $unitPrice,
                     'discount_amount' => $discount,
                     'tax_amount' => $tax,
+                    'cogs' => round(($batch->cost_price ?? 0) * $quantity, 2),
                     'total_amount' => $itemTotal,
                 ]);
 
@@ -564,6 +565,7 @@ class OrderController extends Controller
                     'unit_price' => $unitPrice,
                     'discount_amount' => $request->discount_amount ?? 0,
                     'tax_amount' => $request->tax_amount ?? 0,
+                    'cogs' => round(($batch->cost_price ?? 0) * 1, 2),
                 ]);
 
                 // Calculate total for this item
@@ -840,6 +842,10 @@ class OrderController extends Controller
                     );
                 }
 
+                // Ensure COGS is stored/updated at the time of completion
+                $calculatedCogs = ($batch ? ($batch->cost_price ?? 0) * $item->quantity : 0);
+                $item->update(['cogs' => round($calculatedCogs, 2)]);
+
                 // Reduce batch quantity
                 $batch->removeStock($item->quantity);
                 
@@ -1090,8 +1096,17 @@ class OrderController extends Controller
                     'discount_amount' => number_format((float)$item->discount_amount, 2),
                     'tax_amount' => number_format((float)$item->tax_amount, 2),
                     'total_amount' => number_format((float)$item->total_amount, 2),
+                    'cogs' => number_format((float)($item->cogs ?? (($item->batch?->cost_price ?? 0) * $item->quantity)), 2),
                 ];
             });
+
+            // Add order-level COGS and gross margin
+            $totalCogs = $order->items->sum(function ($i) {
+                return $i->cogs ?? (($i->batch?->cost_price ?? 0) * $i->quantity);
+            });
+
+            $response['total_cogs'] = number_format((float)$totalCogs, 2);
+            $response['gross_margin'] = number_format((float)($order->total_amount - $totalCogs), 2);
 
             $response['payments'] = $order->payments->map(function ($payment) {
                 $paymentData = [
