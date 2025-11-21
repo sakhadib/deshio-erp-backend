@@ -32,6 +32,7 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\CollectionController;
 use App\Http\Controllers\PriceController;
+use App\Http\Controllers\DashboardController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -458,6 +459,32 @@ Route::middleware('auth:api')->group(function () {
             Route::put('/', [PermissionController::class, 'update']);
             Route::delete('/', [PermissionController::class, 'destroy']);
         });
+    });
+
+    // ============================================
+    // DASHBOARD & ANALYTICS ROUTES
+    // Today's metrics, sales trends, operations overview
+    // ============================================
+    
+    Route::prefix('dashboard')->group(function () {
+        // Today's key metrics
+        Route::get('/today-metrics', [DashboardController::class, 'todayMetrics']);
+        
+        // Sales analytics
+        Route::get('/last-30-days-sales', [DashboardController::class, 'last30DaysSales']);
+        Route::get('/sales-by-channel', [DashboardController::class, 'salesByChannel']);
+        Route::get('/top-stores', [DashboardController::class, 'topStoresBySales']);
+        
+        // Product performance
+        Route::get('/today-top-products', [DashboardController::class, 'todayTopProducts']);
+        Route::get('/slow-moving-products', [DashboardController::class, 'slowMovingProducts']);
+        
+        // Inventory insights
+        Route::get('/low-stock-products', [DashboardController::class, 'lowStockProducts']);
+        Route::get('/inventory-age-by-value', [DashboardController::class, 'inventoryAgeByValue']);
+        
+        // Operations overview
+        Route::get('/operations-today', [DashboardController::class, 'operationsToday']);
     });
 
     // ============================================
