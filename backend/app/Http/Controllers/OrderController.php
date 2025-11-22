@@ -307,6 +307,14 @@ class OrderController extends Controller
                 $salesman = Employee::find($salesmanId);
             }
 
+            // Determine fulfillment status based on order type
+            // Counter orders: immediate fulfillment (barcode scanned at POS)
+            // Social/Ecommerce: deferred fulfillment (warehouse scans barcodes later)
+            $fulfillmentStatus = null;
+            if (in_array($request->order_type, ['social_commerce', 'ecommerce'])) {
+                $fulfillmentStatus = 'pending_fulfillment';
+            }
+
             // Create order
             $order = Order::create([
                 'customer_id' => $customer->id,
@@ -314,6 +322,7 @@ class OrderController extends Controller
                 'order_type' => $request->order_type,
                 'status' => 'pending',
                 'payment_status' => 'pending',
+                'fulfillment_status' => $fulfillmentStatus,
                 'discount_amount' => $request->discount_amount ?? 0,
                 'shipping_amount' => $request->shipping_amount ?? 0,
                 'notes' => $request->notes,
@@ -769,6 +778,8 @@ class OrderController extends Controller
      * For non-barcode items: just reduces batch quantity
      * This is called after payment is complete or for credit sales
      * 
+     * NEW: Validates fulfillment requirement for social/ecommerce orders
+     * 
      * PATCH /api/orders/{id}/complete
      */
     public function complete($id)
@@ -786,6 +797,15 @@ class OrderController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Only pending orders can be completed'
+            ], 422);
+        }
+
+        // Validate fulfillment requirement for social commerce and ecommerce
+        if ($order->needsFulfillment() && !$order->isFulfilled()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order must be fulfilled before completion. Please scan barcodes at warehouse first.',
+                'hint' => 'Call POST /api/orders/' . $order->id . '/fulfill with barcode scans'
             ], 422);
         }
 
@@ -1152,5 +1172,208 @@ class OrderController extends Controller
         }
 
         return $response;
+    }
+
+    /**
+     * Fulfill order by scanning barcodes (for social commerce/ecommerce)
+     * 
+     * This is the NEW step requested by client:
+     * - Social commerce employee creates order WITHOUT barcodes (works from home)
+     * - At end of day, warehouse staff scans barcodes to fulfill the order
+     * - This assigns specific physical units (barcodes) to order items
+     * - After fulfillment, order can be shipped via Pathao
+     * 
+     * POST /api/orders/{id}/fulfill
+     * Body: {
+     *   "fulfillments": [
+     *     {
+     *       "order_item_id": 123,
+     *       "barcodes": ["BARCODE-001", "BARCODE-002"]  // Scan actual units
+     *     },
+     *     {
+     *       "order_item_id": 124,
+     *       "barcodes": ["BARCODE-003"]
+     *     }
+     *   ]
+     * }
+     */
+    public function fulfill(Request $request, $id)
+    {
+        $order = Order::with(['items.batch', 'items.product'])->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found'
+            ], 404);
+        }
+
+        // Only social commerce and ecommerce orders need fulfillment
+        if (!$order->needsFulfillment()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This order type does not require fulfillment. Counter orders are fulfilled immediately.'
+            ], 422);
+        }
+
+        if (!$order->canBeFulfilled()) {
+            return response()->json([
+                'success' => false,
+                'message' => "Order cannot be fulfilled. Current status: {$order->status}, Fulfillment status: {$order->fulfillment_status}"
+            ], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'fulfillments' => 'required|array|min:1',
+            'fulfillments.*.order_item_id' => 'required|exists:order_items,id',
+            'fulfillments.*.barcodes' => 'required|array|min:1',
+            'fulfillments.*.barcodes.*' => 'required|string|exists:product_barcodes,barcode',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $fulfilledItems = [];
+            $employee = Employee::find(Auth::id());
+
+            foreach ($request->fulfillments as $fulfillment) {
+                $orderItem = OrderItem::where('order_id', $order->id)
+                    ->find($fulfillment['order_item_id']);
+
+                if (!$orderItem) {
+                    throw new \Exception("Order item {$fulfillment['order_item_id']} not found in this order");
+                }
+
+                $barcodes = $fulfillment['barcodes'];
+                
+                // Validate quantity matches
+                if (count($barcodes) !== $orderItem->quantity) {
+                    throw new \Exception("Item '{$orderItem->product_name}' requires {$orderItem->quantity} barcode(s), but " . count($barcodes) . " provided");
+                }
+
+                // Validate all barcodes
+                $barcodeModels = [];
+                foreach ($barcodes as $barcodeValue) {
+                    $barcode = \App\Models\ProductBarcode::where('barcode', $barcodeValue)
+                        ->where('product_id', $orderItem->product_id)
+                        ->where('batch_id', $orderItem->product_batch_id)
+                        ->first();
+
+                    if (!$barcode) {
+                        throw new \Exception("Barcode {$barcodeValue} not found for product {$orderItem->product_name} in specified batch");
+                    }
+
+                    if (!$barcode->is_active) {
+                        throw new \Exception("Barcode {$barcodeValue} is not active (already sold or deactivated)");
+                    }
+
+                    if ($barcode->is_defective) {
+                        throw new \Exception("Barcode {$barcodeValue} is marked as defective");
+                    }
+
+                    // Verify barcode belongs to correct store
+                    if ($barcode->batch && $barcode->batch->store_id != $order->store_id) {
+                        throw new \Exception("Barcode {$barcodeValue} belongs to a different store");
+                    }
+
+                    $barcodeModels[] = $barcode;
+                }
+
+                // For single quantity items, assign the barcode directly
+                if ($orderItem->quantity == 1) {
+                    $orderItem->update([
+                        'product_barcode_id' => $barcodeModels[0]->id
+                    ]);
+                    
+                    $fulfilledItems[] = [
+                        'item_id' => $orderItem->id,
+                        'product_name' => $orderItem->product_name,
+                        'barcodes' => [$barcodeModels[0]->barcode]
+                    ];
+                } else {
+                    // For multiple quantity items, we need to split into individual items
+                    // This maintains proper barcode tracking
+                    $originalQuantity = $orderItem->quantity;
+                    $unitPrice = $orderItem->unit_price;
+                    $discountPerUnit = $orderItem->discount_amount / $originalQuantity;
+                    $taxPerUnit = $orderItem->tax_amount / $originalQuantity;
+                    $cogsPerUnit = ($orderItem->cogs ?? 0) / $originalQuantity;
+
+                    // Update first item with first barcode
+                    $orderItem->update([
+                        'quantity' => 1,
+                        'product_barcode_id' => $barcodeModels[0]->id,
+                        'discount_amount' => round($discountPerUnit, 2),
+                        'tax_amount' => round($taxPerUnit, 2),
+                        'cogs' => round($cogsPerUnit, 2),
+                        'total_amount' => round($unitPrice - $discountPerUnit + $taxPerUnit, 2),
+                    ]);
+
+                    $fulfilledBarcodes = [$barcodeModels[0]->barcode];
+
+                    // Create new items for remaining barcodes
+                    for ($i = 1; $i < count($barcodeModels); $i++) {
+                        OrderItem::create([
+                            'order_id' => $order->id,
+                            'product_id' => $orderItem->product_id,
+                            'product_batch_id' => $orderItem->product_batch_id,
+                            'product_barcode_id' => $barcodeModels[$i]->id,
+                            'product_name' => $orderItem->product_name,
+                            'product_sku' => $orderItem->product_sku,
+                            'quantity' => 1,
+                            'unit_price' => $unitPrice,
+                            'discount_amount' => round($discountPerUnit, 2),
+                            'tax_amount' => round($taxPerUnit, 2),
+                            'cogs' => round($cogsPerUnit, 2),
+                            'total_amount' => round($unitPrice - $discountPerUnit + $taxPerUnit, 2),
+                        ]);
+
+                        $fulfilledBarcodes[] = $barcodeModels[$i]->barcode;
+                    }
+
+                    $fulfilledItems[] = [
+                        'item_id' => $orderItem->id,
+                        'product_name' => $orderItem->product_name,
+                        'original_quantity' => $originalQuantity,
+                        'barcodes' => $fulfilledBarcodes
+                    ];
+                }
+            }
+
+            // Mark order as fulfilled
+            $order->fulfill($employee);
+
+            // Recalculate totals (in case of splitting)
+            $order->calculateTotals();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order fulfilled successfully. Ready for shipment.',
+                'data' => [
+                    'order_number' => $order->order_number,
+                    'fulfillment_status' => $order->fulfillment_status,
+                    'fulfilled_at' => $order->fulfilled_at->format('Y-m-d H:i:s'),
+                    'fulfilled_by' => $order->fulfilledBy->name,
+                    'fulfilled_items' => $fulfilledItems,
+                    'next_step' => 'Create shipment for delivery',
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Fulfillment failed: ' . $e->getMessage()
+            ], 422);
+        }
     }
 }

@@ -18,6 +18,7 @@ class Order extends Model
         'store_id',
         'order_type',
         'status',
+        'fulfillment_status',
         'payment_status',
         'payment_method',
         'subtotal',
@@ -39,9 +40,11 @@ class Order extends Model
         'billing_address',
         'order_date',
         'confirmed_at',
+        'fulfilled_at',
         'shipped_at',
         'delivered_at',
         'cancelled_at',
+        'fulfilled_by',
         'created_by',
         'processed_by',
         'shipped_by',
@@ -64,6 +67,7 @@ class Order extends Model
         'minimum_payment_amount' => 'decimal:2',
         'order_date' => 'datetime',
         'confirmed_at' => 'datetime',
+        'fulfilled_at' => 'datetime',
         'shipped_at' => 'datetime',
         'delivered_at' => 'datetime',
         'cancelled_at' => 'datetime',
@@ -412,6 +416,11 @@ class Order extends Model
         return $this->belongsTo(Employee::class, 'shipped_by');
     }
 
+    public function fulfilledBy(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'fulfilled_by');
+    }
+
     // Scopes
     public function scopePending($query)
     {
@@ -515,6 +524,21 @@ class Order extends Model
         return $this->status === 'cancelled';
     }
 
+    public function isPendingFulfillment(): bool
+    {
+        return $this->fulfillment_status === 'pending_fulfillment';
+    }
+
+    public function isFulfilled(): bool
+    {
+        return $this->fulfillment_status === 'fulfilled';
+    }
+
+    public function needsFulfillment(): bool
+    {
+        return in_array($this->order_type, ['social_commerce', 'ecommerce']);
+    }
+
     public function isPaid(): bool
     {
         return $this->payment_status === 'paid';
@@ -591,6 +615,23 @@ class Order extends Model
 
         // Update customer purchase history
         $this->customer->recordPurchase($this->total_amount, $this->id);
+
+        return $this;
+    }
+
+    /**
+     * Mark order as fulfilled (barcodes scanned for social commerce/ecommerce)
+     */
+    public function fulfill(Employee $fulfilledBy)
+    {
+        if (!$this->canBeFulfilled()) {
+            throw new \Exception('Order cannot be fulfilled in its current status.');
+        }
+
+        $this->fulfillment_status = 'fulfilled';
+        $this->fulfilled_at = now();
+        $this->fulfilled_by = $fulfilledBy->id;
+        $this->save();
 
         return $this;
     }
@@ -743,6 +784,11 @@ class Order extends Model
     public function canBeCancelled(): bool
     {
         return !in_array($this->status, ['delivered', 'cancelled', 'refunded']);
+    }
+
+    public function canBeFulfilled(): bool
+    {
+        return $this->isPendingFulfillment() && !$this->isCancelled();
     }
 
     public function canBeShipped(): bool

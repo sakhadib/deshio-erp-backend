@@ -759,6 +759,7 @@ Route::middleware('auth:api')->group(function () {
             Route::delete('/items/{itemId}', [OrderController::class, 'removeItem']);
             
             // Order lifecycle
+            Route::patch('/fulfill', [OrderController::class, 'fulfill']);  // Warehouse fulfillment (scan barcodes)
             Route::patch('/complete', [OrderController::class, 'complete']);  // Reduce inventory
             Route::patch('/cancel', [OrderController::class, 'cancel']);
         });
