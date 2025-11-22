@@ -329,7 +329,7 @@ class DashboardController extends Controller
             // Load store data separately for grouped results
             $storeIds = $storeSales->pluck('store_id')->toArray();
             $storesData = Store::whereIn('id', $storeIds)
-                ->select('id', 'name', 'address', 'city', 'state', 'store_type')
+                ->select('id', 'name', 'address', 'is_warehouse', 'is_online')
                 ->get()
                 ->keyBy('id');
 
@@ -342,12 +342,25 @@ class DashboardController extends Controller
 
             $stores = $storeSales->map(function ($sale, $index) use ($totalSales, $storesData) {
                 $store = $storesData->get($sale->store_id);
+                
+                // Derive store type from boolean flags
+                $storeType = 'N/A';
+                if ($store) {
+                    if ($store->is_warehouse) {
+                        $storeType = 'warehouse';
+                    } elseif ($store->is_online) {
+                        $storeType = 'online';
+                    } else {
+                        $storeType = 'physical';
+                    }
+                }
+                
                 return [
                     'rank' => $index + 1,
                     'store_id' => $sale->store_id,
                     'store_name' => $store ? $store->name : 'Unknown Store',
-                    'store_location' => $store ? ($store->city . ', ' . $store->state) : 'N/A',
-                    'store_type' => $store ? $store->store_type : 'N/A',
+                    'store_location' => $store ? $store->address : 'N/A',
+                    'store_type' => $storeType,
                     'total_sales' => round($sale->total_sales, 2),
                     'paid_amount' => round($sale->paid_amount, 2),
                     'order_count' => $sale->order_count,
