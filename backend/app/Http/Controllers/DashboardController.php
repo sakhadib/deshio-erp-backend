@@ -320,11 +320,9 @@ class DashboardController extends Controller
             if ($storeSales->isEmpty()) {
                 return response()->json([
                     'success' => true,
-                    'data' => [
-                        'period' => $period,
-                        'total_sales_all_stores' => 0,
-                        'top_stores' => [],
-                    ],
+                    'period' => $period,
+                    'total_sales_all_stores' => 0,
+                    'top_stores' => [],
                 ]);
             }
 
@@ -360,11 +358,9 @@ class DashboardController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'period' => $period,
-                    'total_sales_all_stores' => round($totalSales, 2),
-                    'top_stores' => $stores,
-                ],
+                'period' => $period,
+                'total_sales_all_stores' => round($totalSales, 2),
+                'top_stores' => $stores,
             ]);
         } catch (\Exception $e) {
             \Log::error('Dashboard topStoresBySales error: ' . $e->getMessage(), [
@@ -483,10 +479,8 @@ class DashboardController extends Controller
             if ($inventory->isEmpty()) {
                 return response()->json([
                     'success' => true,
-                    'data' => [
-                        'period_days' => $days,
-                        'slow_moving_products' => [],
-                    ],
+                    'period_days' => $days,
+                    'slow_moving_products' => [],
                 ]);
             }
 
@@ -557,10 +551,8 @@ class DashboardController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'period_days' => $days,
-                    'slow_moving_products' => $slowMovingProducts,
-                ],
+                'period_days' => $days,
+                'slow_moving_products' => $slowMovingProducts,
             ]);
         } catch (\Exception $e) {
             \Log::error('Dashboard slowMovingProducts error: ' . $e->getMessage(), [
