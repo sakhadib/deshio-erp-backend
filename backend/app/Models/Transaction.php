@@ -383,6 +383,57 @@ class Transaction extends Model
         ]);
     }
 
+    public static function createFromOrderCOGS(Order $order): self
+    {
+        $status = $order->status === 'completed' ? 'completed' : 'pending';
+        $transactionDate = $order->completed_at ?? now();
+        $cogsAccountId = static::getCOGSAccountId();
+        $inventoryAccountId = static::getInventoryAccountId();
+        
+        // Calculate total COGS from all order items
+        $totalCOGS = $order->items->sum('cogs');
+
+        $metadata = [
+            'order_number' => $order->order_number,
+            'customer_name' => $order->customer->name ?? null,
+            'order_type' => $order->order_type,
+            'items_count' => $order->items->count(),
+        ];
+
+        // DOUBLE-ENTRY BOOKKEEPING:
+        // 1. Debit COGS Account (Expense increases - cost of goods sold)
+        $debitTransaction = static::create([
+            'transaction_date' => $transactionDate,
+            'amount' => $totalCOGS,
+            'type' => 'Debit',
+            'account_id' => $cogsAccountId,
+            'reference_type' => Order::class,
+            'reference_id' => $order->id,
+            'description' => "COGS - Order {$order->order_number}",
+            'store_id' => $order->store_id,
+            'created_by' => $order->created_by,
+            'metadata' => $metadata,
+            'status' => $status,
+        ]);
+
+        // 2. Credit Inventory Account (Asset decreases - inventory reduced)
+        static::create([
+            'transaction_date' => $transactionDate,
+            'amount' => $totalCOGS,
+            'type' => 'Credit',
+            'account_id' => $inventoryAccountId,
+            'reference_type' => Order::class,
+            'reference_id' => $order->id,
+            'description' => "COGS - Order {$order->order_number}",
+            'store_id' => $order->store_id,
+            'created_by' => $order->created_by,
+            'metadata' => $metadata,
+            'status' => $status,
+        ]);
+
+        return $debitTransaction;
+    }
+
     // Helper methods for account IDs
     public static function getCashAccountId($storeId = null): ?int
     {
@@ -434,6 +485,54 @@ class Transaction extends Model
         // If no specific service revenue account, use sales revenue
         if (!$account) {
             return static::getSalesRevenueAccountId();
+        }
+        
+        return $account->id;
+    }
+
+    public static function getCOGSAccountId(): ?int
+    {
+        // Get COGS expense account from database
+        $account = Account::where('type', 'expense')
+            ->where(function ($query) {
+                $query->where('name', 'LIKE', '%COGS%')
+                    ->orWhere('name', 'LIKE', '%Cost of Goods Sold%')
+                    ->orWhere('sub_type', 'cogs');
+            })
+            ->where('is_active', true)
+            ->first();
+        
+        // If not found, get any expense account with COGS in name
+        if (!$account) {
+            $account = Account::where('type', 'expense')
+                ->where('is_active', true)
+                ->first();
+        }
+        
+        return $account ? $account->id : 3; // Fallback to ID 3
+    }
+
+    public static function getInventoryAccountId(): ?int
+    {
+        // Get inventory asset account from database
+        $account = Account::where('type', 'asset')
+            ->where(function ($query) {
+                $query->where('name', 'LIKE', '%Inventory%')
+                    ->orWhere('sub_type', 'inventory')
+                    ->orWhere('sub_type', 'current_asset');
+            })
+            ->where('is_active', true)
+            ->whereNotNull('id')
+            ->orderByRaw("CASE 
+                WHEN name LIKE '%Inventory%' THEN 1 
+                WHEN sub_type = 'inventory' THEN 2 
+                ELSE 3 
+            END")
+            ->first();
+        
+        // If not found, use cash account as fallback (not ideal but safe)
+        if (!$account) {
+            return static::getCashAccountId();
         }
         
         return $account->id;

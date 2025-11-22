@@ -10,6 +10,7 @@ use App\Models\ProductBatch;
 use App\Models\Store;
 use App\Models\Employee;
 use App\Models\PaymentMethod;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -906,6 +907,29 @@ class OrderController extends Controller
 
             // Update customer purchase stats
             $order->customer->recordPurchase($order->total_amount, $order->id);
+
+            // Create COGS accounting transactions
+            // This posts the Cost of Goods Sold to the accounting system:
+            // - Debit: COGS (Expense) - increases expense
+            // - Credit: Inventory (Asset) - decreases inventory value
+            try {
+                $orderWithItems = $order->fresh(['items']);
+                Transaction::createFromOrderCOGS($orderWithItems);
+                $totalCogs = collect($orderWithItems->items)->sum('cogs');
+                \Log::info('COGS Transactions Created', [
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'total_cogs' => $totalCogs,
+                ]);
+            } catch (\Exception $e) {
+                \Log::error('Failed to create COGS transactions', [
+                    'order_id' => $order->id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                // Don't fail the order completion if COGS transaction fails
+                // Just log the error for manual correction
+            }
 
             DB::commit();
 
