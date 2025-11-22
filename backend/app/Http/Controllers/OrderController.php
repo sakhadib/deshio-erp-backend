@@ -1041,6 +1041,12 @@ class OrderController extends Controller
      */
     private function formatOrderResponse(Order $order, $detailed = false)
     {
+        // Calculate COGS and gross margin for all responses
+        $totalCogs = $order->items->sum(function ($i) {
+            return $i->cogs ?? (($i->batch?->cost_price ?? 0) * $i->quantity);
+        });
+        $grossMargin = (float)$order->total_amount - $totalCogs;
+
         $response = [
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -1075,6 +1081,9 @@ class OrderController extends Controller
             'total_amount' => number_format((float)$order->total_amount, 2),
             'paid_amount' => number_format((float)$order->paid_amount, 2),
             'outstanding_amount' => number_format((float)$order->outstanding_amount, 2),
+            'total_cogs' => number_format($totalCogs, 2),
+            'gross_margin' => number_format($grossMargin, 2),
+            'gross_margin_percentage' => $order->total_amount > 0 ? number_format(($grossMargin / (float)$order->total_amount) * 100, 2) : '0.00',
             'is_installment' => $order->is_installment_payment,
             'order_date' => $order->order_date->format('Y-m-d H:i:s'),
             'created_at' => $order->created_at->format('Y-m-d H:i:s'),
@@ -1097,16 +1106,9 @@ class OrderController extends Controller
                     'tax_amount' => number_format((float)$item->tax_amount, 2),
                     'total_amount' => number_format((float)$item->total_amount, 2),
                     'cogs' => number_format((float)($item->cogs ?? (($item->batch?->cost_price ?? 0) * $item->quantity)), 2),
+                    'item_gross_margin' => number_format((float)$item->total_amount - (float)($item->cogs ?? (($item->batch?->cost_price ?? 0) * $item->quantity)), 2),
                 ];
             });
-
-            // Add order-level COGS and gross margin
-            $totalCogs = $order->items->sum(function ($i) {
-                return $i->cogs ?? (($i->batch?->cost_price ?? 0) * $i->quantity);
-            });
-
-            $response['total_cogs'] = number_format((float)$totalCogs, 2);
-            $response['gross_margin'] = number_format((float)($order->total_amount - $totalCogs), 2);
 
             $response['payments'] = $order->payments->map(function ($payment) {
                 $paymentData = [
