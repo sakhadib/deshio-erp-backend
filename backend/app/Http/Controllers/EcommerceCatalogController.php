@@ -24,18 +24,20 @@ class EcommerceCatalogController extends Controller
             $search = $request->get('search');
             $inStock = $request->get('in_stock', true);
 
-            $query = Product::with(['images', 'category'])
-                ->where('is_active', true)
-                ->where('status', 'active');
+            $query = Product::with(['images', 'category', 'batches' => function ($q) {
+                    $q->where('quantity', '>', 0)->orderBy('sell_price', 'asc');
+                }])
+                ->where('is_archived', false);
 
             if ($inStock) {
-                $query->where('stock_quantity', '>', 0);
+                $query->whereHas('batches', function ($q) {
+                    $q->where('quantity', '>', 0);
+                });
             }
 
             if ($category) {
                 $query->whereHas('category', function ($q) use ($category) {
-                    $q->where('name', 'like', "%{$category}%")
-                      ->orWhere('slug', $category);
+                    $q->where('name', 'like', "%{$category}%");
                 });
             }
 
@@ -43,44 +45,52 @@ class EcommerceCatalogController extends Controller
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
                       ->orWhere('description', 'like', "%{$search}%")
-                      ->orWhere('tags', 'like', "%{$search}%");
+                      ->orWhere('sku', 'like', "%{$search}%");
                 });
             }
 
-            if ($minPrice) {
-                $query->where('selling_price', '>=', $minPrice);
-            }
-
-            if ($maxPrice) {
-                $query->where('selling_price', '<=', $maxPrice);
-            }
-
+            // Price filtering needs to be done on the collection after loading batches
             // Sorting
-            $allowedSorts = ['created_at', 'name', 'selling_price', 'stock_quantity'];
+            $allowedSorts = ['created_at', 'name'];
             if (in_array($sortBy, $allowedSorts)) {
                 $query->orderBy($sortBy, $sortOrder === 'asc' ? 'asc' : 'desc');
             }
 
             $products = $query->paginate($perPage);
 
+            // Filter by price if needed (after loading products with batches)
+            $filteredProducts = collect($products->items())->filter(function ($product) use ($minPrice, $maxPrice) {
+                $lowestPrice = $product->batches->min('sell_price');
+                
+                if ($minPrice && $lowestPrice < $minPrice) {
+                    return false;
+                }
+                
+                if ($maxPrice && $lowestPrice > $maxPrice) {
+                    return false;
+                }
+                
+                return true;
+            });
+
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'products' => $products->map(function ($product) {
+                    'products' => $filteredProducts->values()->map(function ($product) {
+                        $lowestBatch = $product->batches->sortBy('sell_price')->first();
+                        $totalStock = $product->batches->sum('quantity');
+                        
                         return [
                             'id' => $product->id,
                             'name' => $product->name,
-                            'slug' => $product->slug,
+                            'sku' => $product->sku,
                             'description' => $product->description,
-                            'short_description' => substr($product->description, 0, 150) . '...',
-                            'selling_price' => $product->selling_price,
-                            'original_price' => $product->original_price,
-                            'discount_percentage' => $product->original_price > 0 
-                                ? round((($product->original_price - $product->selling_price) / $product->original_price) * 100, 2) 
-                                : 0,
-                            'stock_quantity' => $product->stock_quantity,
-                            'in_stock' => $product->stock_quantity > 0,
-                            'images' => $product->images->take(3)->map(function ($image) {
+                            'short_description' => $product->description ? (strlen($product->description) > 150 ? substr($product->description, 0, 150) . '...' : $product->description) : null,
+                            'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
+                            'cost_price' => $lowestBatch ? $lowestBatch->cost_price : 0,
+                            'stock_quantity' => $totalStock,
+                            'in_stock' => $totalStock > 0,
+                            'images' => $product->images->where('is_active', true)->take(3)->map(function ($image) {
                                 return [
                                     'id' => $image->id,
                                     'url' => $image->image_url,
@@ -91,11 +101,8 @@ class EcommerceCatalogController extends Controller
                             'category' => $product->category ? [
                                 'id' => $product->category->id,
                                 'name' => $product->category->name,
-                                'slug' => $product->category->slug,
                             ] : null,
-                            'tags' => $product->tags ? explode(',', $product->tags) : [],
                             'created_at' => $product->created_at,
-                            'is_featured' => $product->is_featured,
                         ];
                     }),
                     'pagination' => [
@@ -132,52 +139,43 @@ class EcommerceCatalogController extends Controller
     public function getProduct(Request $request, $identifier)
     {
         try {
-            // Find product by ID or slug
-            $product = Product::with(['images', 'category', 'barcodes'])
-                ->where('is_active', true)
-                ->where('status', 'active')
-                ->where(function ($q) use ($identifier) {
-                    if (is_numeric($identifier)) {
-                        $q->where('id', $identifier);
-                    } else {
-                        $q->where('slug', $identifier);
-                    }
-                })
+            // Find product by ID
+            $product = Product::with(['images', 'category', 'barcodes', 'batches' => function ($q) {
+                    $q->where('quantity', '>', 0)->orderBy('sell_price', 'asc');
+                }])
+                ->where('is_archived', false)
+                ->where('id', $identifier)
                 ->firstOrFail();
 
             // Get related products
-            $relatedProducts = Product::with(['images'])
+            $relatedProducts = Product::with(['images', 'batches' => function ($q) {
+                    $q->where('quantity', '>', 0)->orderBy('sell_price', 'asc');
+                }])
                 ->where('category_id', $product->category_id)
                 ->where('id', '!=', $product->id)
-                ->where('is_active', true)
-                ->where('status', 'active')
-                ->where('stock_quantity', '>', 0)
+                ->where('is_archived', false)
+                ->whereHas('batches', function ($q) {
+                    $q->where('quantity', '>', 0);
+                })
                 ->take(6)
                 ->get();
 
+            $lowestBatch = $product->batches->sortBy('sell_price')->first();
+            $totalStock = $product->batches->sum('quantity');
+            
             return response()->json([
                 'success' => true,
                 'data' => [
                     'product' => [
                         'id' => $product->id,
                         'name' => $product->name,
-                        'slug' => $product->slug,
-                        'description' => $product->description,
-                        'selling_price' => $product->selling_price,
-                        'original_price' => $product->original_price,
-                        'discount_percentage' => $product->original_price > 0 
-                            ? round((($product->original_price - $product->selling_price) / $product->original_price) * 100, 2) 
-                            : 0,
-                        'stock_quantity' => $product->stock_quantity,
-                        'in_stock' => $product->stock_quantity > 0,
                         'sku' => $product->sku,
-                        'weight' => $product->weight,
-                        'dimensions' => [
-                            'length' => $product->length,
-                            'width' => $product->width,
-                            'height' => $product->height,
-                        ],
-                        'images' => $product->images->map(function ($image) {
+                        'description' => $product->description,
+                        'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
+                        'cost_price' => $lowestBatch ? $lowestBatch->cost_price : 0,
+                        'stock_quantity' => $totalStock,
+                        'in_stock' => $totalStock > 0,
+                        'images' => $product->images->where('is_active', true)->map(function ($image) {
                             return [
                                 'id' => $image->id,
                                 'url' => $image->image_url,
@@ -189,25 +187,33 @@ class EcommerceCatalogController extends Controller
                         'category' => $product->category ? [
                             'id' => $product->category->id,
                             'name' => $product->category->name,
-                            'slug' => $product->category->slug,
                         ] : null,
-                        'tags' => $product->tags ? explode(',', $product->tags) : [],
-                        'specifications' => $product->specifications ?? [],
-                        'care_instructions' => $product->care_instructions,
-                        'warranty_info' => $product->warranty_info,
-                        'is_featured' => $product->is_featured,
+                        'vendor' => $product->vendor ? [
+                            'id' => $product->vendor->id,
+                            'name' => $product->vendor->business_name,
+                        ] : null,
+                        'batches' => $product->batches->map(function ($batch) {
+                            return [
+                                'id' => $batch->id,
+                                'sell_price' => $batch->sell_price,
+                                'quantity' => $batch->quantity,
+                                'store_id' => $batch->store_id,
+                            ];
+                        }),
                         'created_at' => $product->created_at,
                         'updated_at' => $product->updated_at,
                     ],
                     'related_products' => $relatedProducts->map(function ($product) {
+                        $lowestBatch = $product->batches->sortBy('sell_price')->first();
+                        $totalStock = $product->batches->sum('quantity');
+                        
                         return [
                             'id' => $product->id,
                             'name' => $product->name,
-                            'slug' => $product->slug,
-                            'selling_price' => $product->selling_price,
-                            'original_price' => $product->original_price,
-                            'images' => $product->images->take(1),
-                            'in_stock' => $product->stock_quantity > 0,
+                            'sku' => $product->sku,
+                            'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
+                            'images' => $product->images->where('is_active', true)->take(1),
+                            'in_stock' => $totalStock > 0,
                         ];
                     }),
                 ],
@@ -230,7 +236,7 @@ class EcommerceCatalogController extends Controller
             $cacheKey = 'ecommerce_categories';
             $categories = Cache::remember($cacheKey, 3600, function () {
                 return Category::with('children')
-                    ->where('is_active', true)
+                    ->where('is_archived', false)
                     ->whereNull('parent_id') // Root categories only
                     ->orderBy('display_order')
                     ->orderBy('name')
@@ -244,16 +250,13 @@ class EcommerceCatalogController extends Controller
                         return [
                             'id' => $category->id,
                             'name' => $category->name,
-                            'slug' => $category->slug,
                             'description' => $category->description,
-                            'image_url' => $category->image_url,
-                            'product_count' => $category->products()->where('is_active', true)->count(),
-                            'children' => $category->children->map(function ($child) {
+                            'product_count' => $category->products()->where('is_archived', false)->count(),
+                            'children' => $category->children->where('is_archived', false)->map(function ($child) {
                                 return [
                                     'id' => $child->id,
                                     'name' => $child->name,
-                                    'slug' => $child->slug,
-                                    'product_count' => $child->products()->where('is_active', true)->count(),
+                                    'product_count' => $child->products()->where('is_archived', false)->count(),
                                 ];
                             }),
                         ];
@@ -271,6 +274,7 @@ class EcommerceCatalogController extends Controller
 
     /**
      * Get featured products (public endpoint)
+     * Note: Since products table doesn't have is_featured, returning newest products with stock
      */
     public function getFeaturedProducts(Request $request)
     {
@@ -279,11 +283,13 @@ class EcommerceCatalogController extends Controller
 
             $cacheKey = "featured_products_{$limit}";
             $products = Cache::remember($cacheKey, 1800, function () use ($limit) {
-                return Product::with(['images', 'category'])
-                    ->where('is_active', true)
-                    ->where('status', 'active')
-                    ->where('is_featured', true)
-                    ->where('stock_quantity', '>', 0)
+                return Product::with(['images', 'category', 'batches' => function ($q) {
+                        $q->where('quantity', '>', 0)->orderBy('sell_price', 'asc');
+                    }])
+                    ->where('is_archived', false)
+                    ->whereHas('batches', function ($q) {
+                        $q->where('quantity', '>', 0);
+                    })
                     ->orderBy('created_at', 'desc')
                     ->take($limit)
                     ->get();
@@ -293,21 +299,19 @@ class EcommerceCatalogController extends Controller
                 'success' => true,
                 'data' => [
                     'featured_products' => $products->map(function ($product) {
+                        $lowestBatch = $product->batches->sortBy('sell_price')->first();
+                        $totalStock = $product->batches->sum('quantity');
+                        
                         return [
                             'id' => $product->id,
                             'name' => $product->name,
-                            'slug' => $product->slug,
-                            'selling_price' => $product->selling_price,
-                            'original_price' => $product->original_price,
-                            'discount_percentage' => $product->original_price > 0 
-                                ? round((($product->original_price - $product->selling_price) / $product->original_price) * 100, 2) 
-                                : 0,
-                            'images' => $product->images->take(2),
+                            'sku' => $product->sku,
+                            'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
+                            'images' => $product->images->where('is_active', true)->take(2),
                             'category' => $product->category ? [
                                 'name' => $product->category->name,
-                                'slug' => $product->category->slug,
                             ] : null,
-                            'in_stock' => $product->stock_quantity > 0,
+                            'in_stock' => $totalStock > 0,
                         ];
                     }),
                     'total_featured' => $products->count(),
@@ -338,14 +342,16 @@ class EcommerceCatalogController extends Controller
                 ], 400);
             }
 
-            $products = Product::with(['images', 'category'])
-                ->where('is_active', true)
-                ->where('status', 'active')
-                ->where('stock_quantity', '>', 0)
+            $products = Product::with(['images', 'category', 'batches' => function ($q) {
+                    $q->where('quantity', '>', 0)->orderBy('sell_price', 'asc');
+                }])
+                ->where('is_archived', false)
+                ->whereHas('batches', function ($q) {
+                    $q->where('quantity', '>', 0);
+                })
                 ->where(function ($q) use ($query) {
                     $q->where('name', 'like', "%{$query}%")
                       ->orWhere('description', 'like', "%{$query}%")
-                      ->orWhere('tags', 'like', "%{$query}%")
                       ->orWhere('sku', 'like', "%{$query}%");
                 })
                 ->orderByRaw("CASE 
@@ -357,27 +363,30 @@ class EcommerceCatalogController extends Controller
                 ->paginate($perPage);
 
             // Get search suggestions
-            $suggestions = Product::where('is_active', true)
-                ->where('status', 'active')
+            $suggestions = Product::where('is_archived', false)
                 ->where('name', 'like', "{$query}%")
                 ->pluck('name')
                 ->take(5);
 
+            $transformedProducts = collect($products->items())->map(function ($product) {
+                $lowestBatch = $product->batches->sortBy('sell_price')->first();
+                $totalStock = $product->batches->sum('quantity');
+                
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'sku' => $product->sku,
+                    'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
+                    'images' => $product->images->where('is_active', true)->take(1),
+                    'category' => $product->category->name ?? null,
+                    'in_stock' => $totalStock > 0,
+                ];
+            });
+
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'products' => $products->map(function ($product) {
-                        return [
-                            'id' => $product->id,
-                            'name' => $product->name,
-                            'slug' => $product->slug,
-                            'selling_price' => $product->selling_price,
-                            'original_price' => $product->original_price,
-                            'images' => $product->images->take(1),
-                            'category' => $product->category->name ?? null,
-                            'in_stock' => $product->stock_quantity > 0,
-                        ];
-                    }),
+                    'products' => $transformedProducts,
                     'suggestions' => $suggestions,
                     'search_query' => $query,
                     'pagination' => [
@@ -405,15 +414,11 @@ class EcommerceCatalogController extends Controller
         try {
             $cacheKey = 'product_price_range';
             $priceRange = Cache::remember($cacheKey, 3600, function () {
-                $minPrice = Product::where('is_active', true)
-                    ->where('status', 'active')
-                    ->where('stock_quantity', '>', 0)
-                    ->min('selling_price');
+                $minPrice = \App\Models\ProductBatch::where('quantity', '>', 0)
+                    ->min('sell_price');
 
-                $maxPrice = Product::where('is_active', true)
-                    ->where('status', 'active')
-                    ->where('stock_quantity', '>', 0)
-                    ->max('selling_price');
+                $maxPrice = \App\Models\ProductBatch::where('quantity', '>', 0)
+                    ->max('sell_price');
 
                 return [
                     'min_price' => $minPrice ?? 0,
@@ -443,10 +448,13 @@ class EcommerceCatalogController extends Controller
             $limit = min($request->get('limit', 8), 20);
             $days = $request->get('days', 30); // Products added in last 30 days
 
-            $products = Product::with(['images', 'category'])
-                ->where('is_active', true)
-                ->where('status', 'active')
-                ->where('stock_quantity', '>', 0)
+            $products = Product::with(['images', 'category', 'batches' => function ($q) {
+                    $q->where('quantity', '>', 0)->orderBy('sell_price', 'asc');
+                }])
+                ->where('is_archived', false)
+                ->whereHas('batches', function ($q) {
+                    $q->where('quantity', '>', 0);
+                })
                 ->where('created_at', '>=', now()->subDays($days))
                 ->orderBy('created_at', 'desc')
                 ->take($limit)
@@ -456,13 +464,14 @@ class EcommerceCatalogController extends Controller
                 'success' => true,
                 'data' => [
                     'new_arrivals' => $products->map(function ($product) {
+                        $lowestBatch = $product->batches->sortBy('sell_price')->first();
+                        
                         return [
                             'id' => $product->id,
                             'name' => $product->name,
-                            'slug' => $product->slug,
-                            'selling_price' => $product->selling_price,
-                            'original_price' => $product->original_price,
-                            'images' => $product->images->take(2),
+                            'sku' => $product->sku,
+                            'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
+                            'images' => $product->images->where('is_active', true)->take(2),
                             'category' => $product->category->name ?? null,
                             'added_days_ago' => $product->created_at->diffInDays(now()),
                         ];
