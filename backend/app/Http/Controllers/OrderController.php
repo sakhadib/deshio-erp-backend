@@ -388,6 +388,18 @@ class OrderController extends Controller
                 $itemSubtotal = $quantity * $unitPrice;
                 $itemTotal = $itemSubtotal - $discount + $tax;
 
+                // Calculate COGS from batch cost price
+                $cogs = round(($batch->cost_price ?? 0) * $quantity, 2);
+                
+                // Log COGS during order creation for debugging
+                \Log::info('Order Item COGS at Creation', [
+                    'product_name' => $product->name,
+                    'batch_id' => $batch->id,
+                    'batch_cost_price' => $batch->cost_price,
+                    'quantity' => $quantity,
+                    'calculated_cogs' => $cogs,
+                ]);
+
                 $orderItem = OrderItem::create([
                     'order_id' => $order->id,
                     'product_id' => $product->id,
@@ -399,7 +411,7 @@ class OrderController extends Controller
                     'unit_price' => $unitPrice,
                     'discount_amount' => $discount,
                     'tax_amount' => $tax,
-                    'cogs' => round(($batch->cost_price ?? 0) * $quantity, 2),
+                    'cogs' => $cogs,
                     'total_amount' => $itemTotal,
                 ]);
 
@@ -864,6 +876,18 @@ class OrderController extends Controller
 
                 // Ensure COGS is stored/updated at the time of completion
                 $calculatedCogs = ($batch ? ($batch->cost_price ?? 0) * $item->quantity : 0);
+                
+                // Log COGS calculation for debugging
+                \Log::info('COGS Calculation', [
+                    'order_item_id' => $item->id,
+                    'product_name' => $item->product_name,
+                    'batch_id' => $batch ? $batch->id : null,
+                    'batch_cost_price' => $batch ? $batch->cost_price : null,
+                    'quantity' => $item->quantity,
+                    'calculated_cogs' => round($calculatedCogs, 2),
+                    'existing_cogs' => $item->cogs,
+                ]);
+                
                 $item->update(['cogs' => round($calculatedCogs, 2)]);
 
                 // Reduce batch quantity
