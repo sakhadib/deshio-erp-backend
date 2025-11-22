@@ -316,6 +316,18 @@ class DashboardController extends Controller
                 ->limit($limit)
                 ->get();
 
+            // Handle empty results
+            if ($storeSales->isEmpty()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'period' => $period,
+                        'total_sales_all_stores' => 0,
+                        'top_stores' => [],
+                    ],
+                ]);
+            }
+
             // Load store data separately for grouped results
             $storeIds = $storeSales->pluck('store_id')->toArray();
             $storesData = Store::whereIn('id', $storeIds)
@@ -355,10 +367,14 @@ class DashboardController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
+            \Log::error('Dashboard topStoresBySales error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Error fetching top stores by sales',
                 'error' => $e->getMessage(),
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null,
             ], 500);
         }
     }
@@ -463,6 +479,17 @@ class DashboardController extends Controller
 
             $inventory = $inventoryQuery->groupBy('product_id')->get();
 
+            // Handle empty inventory
+            if ($inventory->isEmpty()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'period_days' => $days,
+                        'slow_moving_products' => [],
+                    ],
+                ]);
+            }
+
             // Get sales for these products in the period
             $productIds = $inventory->pluck('product_id');
 
@@ -536,10 +563,14 @@ class DashboardController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
+            \Log::error('Dashboard slowMovingProducts error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Error fetching slow-moving products',
                 'error' => $e->getMessage(),
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null,
             ], 500);
         }
     }
