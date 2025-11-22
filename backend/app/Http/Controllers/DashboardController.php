@@ -314,8 +314,14 @@ class DashboardController extends Controller
                 ->groupBy('store_id')
                 ->orderBy('total_sales', 'desc')
                 ->limit($limit)
-                ->with('store:id,name,address,city,state,store_type')
                 ->get();
+
+            // Load store data separately for grouped results
+            $storeIds = $storeSales->pluck('store_id')->toArray();
+            $storesData = Store::whereIn('id', $storeIds)
+                ->select('id', 'name', 'address', 'city', 'state', 'store_type')
+                ->get()
+                ->keyBy('id');
 
             $totalSales = Order::whereNotIn('status', ['cancelled'])
                 ->when($period === 'week', fn($q) => $q->whereBetween('order_date', [now()->startOfWeek(), now()->endOfWeek()]))
@@ -324,17 +330,18 @@ class DashboardController extends Controller
                 ->when($period === 'today', fn($q) => $q->whereDate('order_date', today()))
                 ->sum('total_amount');
 
-            $stores = $storeSales->map(function ($sale, $index) use ($totalSales) {
+            $stores = $storeSales->map(function ($sale, $index) use ($totalSales, $storesData) {
+                $store = $storesData->get($sale->store_id);
                 return [
                     'rank' => $index + 1,
                     'store_id' => $sale->store_id,
-                    'store_name' => $sale->store ? $sale->store->name : 'Unknown Store',
-                    'store_location' => $sale->store ? ($sale->store->city . ', ' . $sale->store->state) : 'N/A',
-                    'store_type' => $sale->store ? $sale->store->store_type : 'N/A',
+                    'store_name' => $store ? $store->name : 'Unknown Store',
+                    'store_location' => $store ? ($store->city . ', ' . $store->state) : 'N/A',
+                    'store_type' => $store ? $store->store_type : 'N/A',
                     'total_sales' => round($sale->total_sales, 2),
                     'paid_amount' => round($sale->paid_amount, 2),
                     'order_count' => $sale->order_count,
-                    'average_order_value' => round($sale->total_sales / $sale->order_count, 2),
+                    'average_order_value' => $sale->order_count > 0 ? round($sale->total_sales / $sale->order_count, 2) : 0,
                     'contribution_percentage' => $totalSales > 0 ? round(($sale->total_sales / $totalSales) * 100, 2) : 0,
                 ];
             });
@@ -388,19 +395,26 @@ class DashboardController extends Controller
                 ->groupBy('product_id', 'product_name')
                 ->orderBy('total_revenue', 'desc')
                 ->limit($limit)
-                ->with('product:id,name,sku,category_id')
                 ->get();
 
-            $products = $topProducts->map(function ($item, $index) {
+            // Load product data separately for grouped results
+            $productIds = $topProducts->pluck('product_id')->toArray();
+            $productsData = Product::whereIn('id', $productIds)
+                ->select('id', 'name', 'sku', 'category_id')
+                ->get()
+                ->keyBy('id');
+
+            $products = $topProducts->map(function ($item, $index) use ($productsData) {
+                $product = $productsData->get($item->product_id);
                 return [
                     'rank' => $index + 1,
                     'product_id' => $item->product_id,
                     'product_name' => $item->product_name,
-                    'product_sku' => $item->product ? $item->product->sku : 'N/A',
+                    'product_sku' => $product ? $product->sku : 'N/A',
                     'total_quantity_sold' => $item->total_quantity,
                     'total_revenue' => round($item->total_revenue, 2),
                     'order_count' => $item->order_count,
-                    'average_price' => round($item->total_revenue / $item->total_quantity, 2),
+                    'average_price' => $item->total_quantity > 0 ? round($item->total_revenue / $item->total_quantity, 2) : 0,
                 ];
             });
 
