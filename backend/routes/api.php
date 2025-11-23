@@ -1245,19 +1245,6 @@ Route::prefix('profile')->middleware('auth:customer')->group(function () {
     Route::post('/deactivate', [App\Http\Controllers\CustomerProfileController::class, 'deactivateAccount']);
 });
 
-// Public product catalog for e-commerce
-Route::prefix('catalog')->group(function () {
-    Route::get('/products', [App\Http\Controllers\EcommerceCatalogController::class, 'getProducts']);
-    Route::get('/products/{id}', [App\Http\Controllers\EcommerceCatalogController::class, 'getProduct']);
-    Route::get('/search', [App\Http\Controllers\EcommerceCatalogController::class, 'searchProducts']);
-    Route::get('/categories', [App\Http\Controllers\EcommerceCatalogController::class, 'getCategories']);
-    Route::get('/categories/{id}/products', [App\Http\Controllers\EcommerceCatalogController::class, 'getCategoryProducts']);
-    Route::get('/featured', [App\Http\Controllers\EcommerceCatalogController::class, 'getFeaturedProducts']);
-    Route::get('/deals', [App\Http\Controllers\EcommerceCatalogController::class, 'getDeals']);
-    Route::get('/recommendations', [App\Http\Controllers\EcommerceCatalogController::class, 'getRecommendations']);
-    Route::post('/compare', [App\Http\Controllers\EcommerceCatalogController::class, 'compareProducts']);
-});
-
 // Customer address management
 Route::prefix('addresses')->middleware('auth:customer')->group(function () {
     Route::get('/', [App\Http\Controllers\CustomerAddressController::class, 'index']);
