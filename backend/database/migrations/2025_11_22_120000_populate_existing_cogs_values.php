@@ -29,8 +29,17 @@ return new class extends Migration
                 WHERE cogs IS NULL
                   AND product_batch_id IS NOT NULL
             ");
+        } elseif ($driver === 'pgsql') {
+            // PostgreSQL uses FROM clause for UPDATE with JOIN
+            $affectedRows = DB::update("
+                UPDATE order_items oi
+                SET cogs = ROUND(pb.cost_price * oi.quantity, 2)
+                FROM product_batches pb
+                WHERE oi.product_batch_id = pb.id
+                  AND oi.cogs IS NULL
+            ");
         } else {
-            // MySQL/PostgreSQL support JOIN in UPDATE
+            // MySQL supports JOIN in UPDATE
             $affectedRows = DB::update("
                 UPDATE order_items oi
                 JOIN product_batches pb ON oi.product_batch_id = pb.id
