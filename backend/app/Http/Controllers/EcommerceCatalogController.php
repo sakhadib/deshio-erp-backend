@@ -107,7 +107,7 @@ class EcommerceCatalogController extends Controller
                         'current_page' => $products->currentPage(),
                         'last_page' => $products->lastPage(),
                         'per_page' => $products->perPage(),
-                        'total' => $filteredProducts->count(), // Fixed: Use filtered count
+                        'total' => $minPrice || $maxPrice ? $filteredProducts->count() : $products->total(),
                         'from' => $products->firstItem(),
                         'to' => $products->lastItem(),
                     ],
