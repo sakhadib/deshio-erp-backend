@@ -37,7 +37,7 @@ class EcommerceCatalogController extends Controller
 
             if ($category) {
                 $query->whereHas('category', function ($q) use ($category) {
-                    $q->where('name', 'like', "%{$category}%");
+                    $q->where('title', 'like', "%{$category}%");
                 });
             }
 
@@ -100,7 +100,7 @@ class EcommerceCatalogController extends Controller
                             }),
                             'category' => $product->category ? [
                                 'id' => $product->category->id,
-                                'name' => $product->category->name,
+                                'name' => $product->category->title,
                             ] : null,
                             'created_at' => $product->created_at,
                         ];
@@ -109,7 +109,7 @@ class EcommerceCatalogController extends Controller
                         'current_page' => $products->currentPage(),
                         'last_page' => $products->lastPage(),
                         'per_page' => $products->perPage(),
-                        'total' => $products->total(),
+                        'total' => $filteredProducts->count(), // Fixed: Use filtered count
                         'from' => $products->firstItem(),
                         'to' => $products->lastItem(),
                     ],
@@ -236,10 +236,10 @@ class EcommerceCatalogController extends Controller
             $cacheKey = 'ecommerce_categories';
             $categories = Cache::remember($cacheKey, 3600, function () {
                 return Category::with('children')
-                    ->where('is_archived', false)
+                    ->where('is_active', true)
                     ->whereNull('parent_id') // Root categories only
-                    ->orderBy('display_order')
-                    ->orderBy('name')
+                    ->orderBy('order', 'asc')
+                    ->orderBy('title', 'asc')
                     ->get();
             });
 
@@ -249,14 +249,14 @@ class EcommerceCatalogController extends Controller
                     'categories' => $categories->map(function ($category) {
                         return [
                             'id' => $category->id,
-                            'name' => $category->name,
+                            'name' => $category->title,
                             'description' => $category->description,
-                            'product_count' => $category->products()->where('is_archived', false)->count(),
-                            'children' => $category->children->where('is_archived', false)->map(function ($child) {
+                            'product_count' => $category->products()->count(),
+                            'children' => $category->children->where('is_active', true)->map(function ($child) {
                                 return [
                                     'id' => $child->id,
-                                    'name' => $child->name,
-                                    'product_count' => $child->products()->where('is_archived', false)->count(),
+                                    'name' => $child->title,
+                                    'product_count' => $child->products()->count(),
                                 ];
                             }),
                         ];
