@@ -315,7 +315,14 @@ class EcommerceCatalogController extends Controller
                             'name' => $product->name,
                             'sku' => $product->sku,
                             'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
-                            'images' => $product->images->where('is_active', true)->take(2),
+                            'images' => $product->images->where('is_active', true)->take(2)->map(function ($image) {
+                                return [
+                                    'id' => $image->id,
+                                    'url' => $image->image_url,
+                                    'alt_text' => $image->alt_text,
+                                    'is_primary' => $image->is_primary,
+                                ];
+                            }),
                             'category' => $product->category ? [
                                 'name' => $product->category->title,
                             ] : null,
@@ -479,7 +486,14 @@ class EcommerceCatalogController extends Controller
                             'name' => $product->name,
                             'sku' => $product->sku,
                             'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
-                            'images' => $product->images->where('is_active', true)->take(2),
+                            'images' => $product->images->where('is_active', true)->take(2)->map(function ($image) {
+                                return [
+                                    'id' => $image->id,
+                                    'url' => $image->image_url,
+                                    'alt_text' => $image->alt_text,
+                                    'is_primary' => $image->is_primary,
+                                ];
+                            }),
                             'category' => $product->category->title ?? null,
                             'added_days_ago' => $product->created_at->diffInDays(now()),
                         ];
