@@ -186,7 +186,7 @@ class EcommerceCatalogController extends Controller
                         }),
                         'category' => $product->category ? [
                             'id' => $product->category->id,
-                            'name' => $product->category->name,
+                            'name' => $product->category->title,
                         ] : null,
                         'vendor' => $product->vendor ? [
                             'id' => $product->vendor->id,
@@ -317,7 +317,7 @@ class EcommerceCatalogController extends Controller
                             'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
                             'images' => $product->images->where('is_active', true)->take(2),
                             'category' => $product->category ? [
-                                'name' => $product->category->name,
+                                'name' => $product->category->title,
                             ] : null,
                             'in_stock' => $totalStock > 0,
                         ];
@@ -386,7 +386,7 @@ class EcommerceCatalogController extends Controller
                     'sku' => $product->sku,
                     'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
                     'images' => $product->images->where('is_active', true)->take(1),
-                    'category' => $product->category->name ?? null,
+                    'category' => $product->category->title ?? null,
                     'in_stock' => $totalStock > 0,
                 ];
             });
@@ -480,7 +480,7 @@ class EcommerceCatalogController extends Controller
                             'sku' => $product->sku,
                             'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
                             'images' => $product->images->where('is_active', true)->take(2),
-                            'category' => $product->category->name ?? null,
+                            'category' => $product->category->title ?? null,
                             'added_days_ago' => $product->created_at->diffInDays(now()),
                         ];
                     }),
