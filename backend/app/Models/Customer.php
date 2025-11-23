@@ -237,8 +237,8 @@ class Customer extends Authenticatable
         // Basic phone formatting - can be enhanced based on country
         $phone = $this->phone;
         if (strlen($phone) === 11 && str_starts_with($phone, '01')) {
-            // Bangladesh mobile format
-            return '+880 ' . substr($phone, 0, 5) . '-' . substr($phone, 5);
+            // Bangladesh mobile format - remove leading 0 and format
+            return '+880 ' . substr($phone, 1, 4) . '-' . substr($phone, 5);
         }
         return $phone;
     }
