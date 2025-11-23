@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Vendor;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class VendorController extends Controller
 {
+    use DatabaseAgnosticSearch;
+
     public function createVendor(Request $request)
     {
         $validated = $request->validate([
@@ -111,12 +114,7 @@ class VendorController extends Controller
 
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('contact_person', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
-            });
+            $this->whereAnyLike($query, ['name', 'email', 'contact_person', 'phone'], $search);
         }
 
         // Sorting

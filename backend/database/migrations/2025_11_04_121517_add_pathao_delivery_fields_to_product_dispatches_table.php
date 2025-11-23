@@ -30,13 +30,17 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('product_dispatches', function (Blueprint $table) {
+        $driver = Schema::getConnection()->getDriverName();
+        
+        Schema::table('product_dispatches', function (Blueprint $table) use ($driver) {
             $table->dropIndex('idx_pathao_pending_shipment');
             $table->dropIndex(['for_pathao_delivery']);
             
-            $table->dropForeign(['shipment_id']);
-            $table->dropForeign(['order_id']);
-            $table->dropForeign(['customer_id']);
+            if ($driver !== 'sqlite') {
+                $table->dropForeign(['shipment_id']);
+                $table->dropForeign(['order_id']);
+                $table->dropForeign(['customer_id']);
+            }
             
             $table->dropColumn([
                 'for_pathao_delivery',

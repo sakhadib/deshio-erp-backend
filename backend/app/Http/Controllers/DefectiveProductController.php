@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Order;
 use App\Models\Vendor;
 use App\Models\Employee;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Storage;
 
 class DefectiveProductController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Get all defective products
      */
@@ -68,9 +70,9 @@ class DefectiveProductController extends Controller
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
                     $q->whereHas('barcode', function ($bq) use ($search) {
-                        $bq->where('barcode', 'like', "%{$search}%");
+                        $this->whereLike($bq, 'barcode', $search);
                     })->orWhereHas('product', function ($pq) use ($search) {
-                        $pq->where('name', 'like', "%{$search}%");
+                        $this->whereLike($pq, 'name', $search);
                     });
                 });
             }

@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Service;
 use App\Models\ServiceOrder;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class ServiceController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Get all services with filters
      */
@@ -35,11 +37,7 @@ class ServiceController extends Controller
         // Search
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('service_code', 'like', "%{$search}%");
-            });
+            $this->whereAnyLike($query, ['name', 'description', 'service_code'], $search);
         }
 
         // Sorting

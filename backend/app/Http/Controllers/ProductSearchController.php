@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\ProductField;
 use App\Models\Category;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ProductSearchController extends Controller
 {
+    use DatabaseAgnosticSearch;
     // Bangla to English phonetic mapping
     private $banglaToRomanMap = [
         'আ' => 'a', 'অ' => 'o', 'ই' => 'i', 'ঈ' => 'ee', 'উ' => 'u', 'ঊ' => 'oo',
@@ -323,8 +325,8 @@ class ProductSearchController extends Controller
             ->where('is_archived', false)
             ->where(function($q) use ($searchTerms) {
                 foreach ($searchTerms as $term) {
-                    $q->orWhere('name', 'like', "%{$term}%")
-                      ->orWhere('sku', 'like', "%{$term}%");
+                    $this->orWhereLike($q, 'name', $term)
+                         ->orWhereLike($q, 'sku', $term);
                 }
             })
             ->limit($limit)
@@ -368,9 +370,9 @@ class ProductSearchController extends Controller
         $suggestions = [];
 
         // Get product name suggestions
-        $productNames = Product::where('is_archived', false)
-            ->where('name', 'like', "%{$query}%")
-            ->limit($limit)
+        $productQuery = Product::query()->where('is_archived', false);
+        $this->whereLike($productQuery, 'name', $query);
+        $productNames = $productQuery->limit($limit)
             ->pluck('name')
             ->unique();
 
@@ -383,8 +385,9 @@ class ProductSearchController extends Controller
         }
 
         // Get category suggestions
-        $categories = Category::where('title', 'like', "%{$query}%")
-            ->limit(3)
+        $categoryQuery = Category::query();
+        $this->whereLike($categoryQuery, 'title', $query);
+        $categories = $categoryQuery->limit(3)
             ->pluck('title');
 
         foreach ($categories as $category) {
@@ -652,13 +655,13 @@ class ProductSearchController extends Controller
             foreach ($searchTerms as $term) {
                 $q->orWhere(function($subQ) use ($term, $searchFields) {
                     if (in_array('name', $searchFields)) {
-                        $subQ->orWhere('name', 'like', $term . '%');
+                        $this->orWhereLike($subQ, 'name', $term, 'start');
                     }
                     if (in_array('sku', $searchFields)) {
-                        $subQ->orWhere('sku', 'like', $term . '%');
+                        $this->orWhereLike($subQ, 'sku', $term, 'start');
                     }
                     if (in_array('description', $searchFields)) {
-                        $subQ->orWhere('description', 'like', $term . '%');
+                        $this->orWhereLike($subQ, 'description', $term, 'start');
                     }
                 });
             }
@@ -689,22 +692,22 @@ class ProductSearchController extends Controller
             foreach ($searchTerms as $term) {
                 $q->orWhere(function($subQ) use ($term, $searchFields) {
                     if (in_array('name', $searchFields)) {
-                        $subQ->orWhere('name', 'like', "%{$term}%");
+                        $this->orWhereLike($subQ, 'name', $term);
                     }
                     if (in_array('sku', $searchFields)) {
-                        $subQ->orWhere('sku', 'like', "%{$term}%");
+                        $this->orWhereLike($subQ, 'sku', $term);
                     }
                     if (in_array('description', $searchFields)) {
-                        $subQ->orWhere('description', 'like', "%{$term}%");
+                        $this->orWhereLike($subQ, 'description', $term);
                     }
                     if (in_array('category', $searchFields)) {
                         $subQ->orWhereHas('category', function($catQ) use ($term) {
-                            $catQ->where('title', 'like', "%{$term}%");
+                            $this->whereLike($catQ, 'title', $term);
                         });
                     }
                     if (in_array('custom_fields', $searchFields)) {
                         $subQ->orWhereHas('productFields', function($fieldQ) use ($term) {
-                            $fieldQ->where('value', 'like', "%{$term}%");
+                            $this->whereLike($fieldQ, 'value', $term);
                         });
                     }
                 });

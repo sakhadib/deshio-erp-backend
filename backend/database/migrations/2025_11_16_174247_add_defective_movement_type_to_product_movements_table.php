@@ -12,7 +12,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        DB::statement("ALTER TABLE product_movements MODIFY COLUMN movement_type ENUM('dispatch', 'transfer', 'return', 'adjustment', 'defective') NOT NULL");
+        // Database-agnostic approach: Drop and recreate column
+        Schema::table('product_movements', function (Blueprint $table) {
+            $table->dropColumn('movement_type');
+        });
+        
+        Schema::table('product_movements', function (Blueprint $table) {
+            $table->enum('movement_type', ['dispatch', 'transfer', 'return', 'adjustment', 'defective'])
+                ->after('id');
+        });
     }
 
     /**
@@ -20,6 +28,13 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement("ALTER TABLE product_movements MODIFY COLUMN movement_type ENUM('dispatch', 'transfer', 'return', 'adjustment') NOT NULL");
+        Schema::table('product_movements', function (Blueprint $table) {
+            $table->dropColumn('movement_type');
+        });
+        
+        Schema::table('product_movements', function (Blueprint $table) {
+            $table->enum('movement_type', ['dispatch', 'transfer', 'return', 'adjustment'])
+                ->after('id');
+        });
     }
 };

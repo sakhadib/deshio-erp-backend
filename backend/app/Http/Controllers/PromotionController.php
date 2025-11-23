@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Promotion;
 use App\Models\Customer;
 use App\Models\Order;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
 class PromotionController extends Controller
 {
+    use DatabaseAgnosticSearch;
     public function index(Request $request)
     {
         $query = Promotion::with(['createdBy', 'usages']);
@@ -40,10 +42,7 @@ class PromotionController extends Controller
         // Search by code or name
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%");
-            });
+            $this->whereAnyLike($query, ['code', 'name'], $search);
         }
 
         // Sort

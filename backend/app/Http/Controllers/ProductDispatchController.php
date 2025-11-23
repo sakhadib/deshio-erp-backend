@@ -7,6 +7,7 @@ use App\Models\ProductDispatchItem;
 use App\Models\ProductBatch;
 use App\Models\Store;
 use App\Models\Employee;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Validator;
 
 class ProductDispatchController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * List all dispatches with filters
      * 
@@ -64,7 +66,7 @@ class ProductDispatchController extends Controller
 
         // Search by dispatch number
         if ($request->filled('search')) {
-            $query->where('dispatch_number', 'LIKE', '%' . $request->search . '%');
+            $this->whereLike($query, 'dispatch_number', $request->search);
         }
 
         // Date range filter

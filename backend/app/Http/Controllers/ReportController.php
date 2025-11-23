@@ -7,11 +7,13 @@ use App\Models\Product;
 use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\Expense;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ReportController extends Controller
 {
+    use DatabaseAgnosticSearch;
     public function dashboard(Request $request)
     {
         $period = $request->get('period', 'today'); // today, week, month, year
@@ -43,16 +45,10 @@ class ReportController extends Controller
         $query = Order::whereBetween('created_at', [$dateFrom, $dateTo])
             ->where('status', 'completed');
 
-        $dateFormat = match($groupBy) {
-            'day' => '%Y-%m-%d',
-            'week' => '%Y-%u',
-            'month' => '%Y-%m',
-            'year' => '%Y',
-            default => '%Y-%m-%d'
-        };
+        $dateFormatSql = $this->getDateFormatSql('created_at', $groupBy);
 
         $salesData = $query->selectRaw("
-                DATE_FORMAT(created_at, '{$dateFormat}') as period,
+                {$dateFormatSql} as period,
                 COUNT(*) as total_orders,
                 SUM(total_amount) as total_sales,
                 SUM(paid_amount) as total_paid,
@@ -184,8 +180,10 @@ class ReportController extends Controller
         $dateFrom = $request->get('date_from', now()->startOfYear());
         $dateTo = $request->get('date_to', now()->endOfYear());
 
+        $dateFormatSql = $this->getDateFormatSql('created_at', 'month');
+
         $newCustomers = Customer::whereBetween('created_at', [$dateFrom, $dateTo])
-            ->selectRaw('DATE_FORMAT(created_at, "%Y-%m") as month, COUNT(*) as count')
+            ->selectRaw("{$dateFormatSql} as month, COUNT(*) as count")
             ->groupBy('month')
             ->orderBy('month')
             ->get();
@@ -197,7 +195,7 @@ class ReportController extends Controller
                     ->where('created_at', '<', $dateFrom)
                     ->distinct();
             })
-            ->selectRaw('DATE_FORMAT(created_at, "%Y-%m") as month, COUNT(DISTINCT customer_id) as count')
+            ->selectRaw("{$dateFormatSql} as month, COUNT(DISTINCT customer_id) as count")
             ->groupBy('month')
             ->orderBy('month')
             ->get();

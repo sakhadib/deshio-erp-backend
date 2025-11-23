@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\Role;
 use App\Models\Store;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
+    use DatabaseAgnosticSearch;
     public function createEmployee(Request $request)
     {
         $validated = $request->validate([
@@ -218,12 +220,7 @@ class EmployeeController extends Controller
 
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('employee_code', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
-            });
+            $this->whereAnyLike($query, ['name', 'email', 'employee_code', 'phone'], $search);
         }
 
         // Sorting

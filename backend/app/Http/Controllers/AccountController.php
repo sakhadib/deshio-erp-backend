@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class AccountController extends Controller
 {
+    use DatabaseAgnosticSearch;
     public function index(Request $request)
     {
         $query = Account::with(['parent', 'children']);
@@ -36,10 +38,7 @@ class AccountController extends Controller
         // Search by name or code
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('account_code', 'like', "%{$search}%");
-            });
+            $this->whereAnyLike($query, ['name', 'account_code'], $search);
         }
 
         // Sort

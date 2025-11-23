@@ -38,8 +38,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('order_items', function (Blueprint $table) {
-            $table->dropForeign(['product_barcode_id']);
+        $driver = Schema::getConnection()->getDriverName();
+        
+        Schema::table('order_items', function (Blueprint $table) use ($driver) {
+            if ($driver !== 'sqlite') {
+                $table->dropForeign(['product_barcode_id']);
+            }
             $table->dropColumn('product_barcode_id');
         });
     }

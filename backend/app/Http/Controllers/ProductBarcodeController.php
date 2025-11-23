@@ -6,11 +6,13 @@ use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\ProductBatch;
 use App\Models\ProductMovement;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class ProductBarcodeController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Scan a barcode and get complete product information
      * This is the core endpoint for barcode scanning
@@ -223,7 +225,7 @@ class ProductBarcodeController extends Controller
 
         // Search by barcode
         if ($request->filled('search')) {
-            $query->where('barcode', 'LIKE', '%' . $request->search . '%');
+            $this->whereLike($query, 'barcode', $request->search);
         }
 
         $barcodes = $query->paginate($request->input('per_page', 20));

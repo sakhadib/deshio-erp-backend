@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\VendorPayment;
 use App\Models\VendorPaymentItem;
 use App\Models\PurchaseOrder;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class VendorPaymentController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Create a vendor payment
      * Supports partial payments: e.g., $10,000 bill can be paid $7,000 now
@@ -114,11 +116,7 @@ class VendorPaymentController extends Controller
         }
 
         if ($request->has('search')) {
-            $query->where(function($q) use ($request) {
-                $q->where('payment_number', 'like', "%{$request->search}%")
-                  ->orWhere('reference_number', 'like', "%{$request->search}%")
-                  ->orWhere('transaction_id', 'like', "%{$request->search}%");
-            });
+            $this->whereAnyLike($query, ['payment_number', 'reference_number', 'transaction_id'], $request->search);
         }
 
         if ($request->has('from_date') && $request->has('to_date')) {

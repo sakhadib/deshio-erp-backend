@@ -21,8 +21,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('inventory_rebalancings', function (Blueprint $table) {
-            $table->dropForeign(['dispatch_id']);
+        $driver = Schema::getConnection()->getDriverName();
+        
+        Schema::table('inventory_rebalancings', function (Blueprint $table) use ($driver) {
+            if ($driver !== 'sqlite') {
+                $table->dropForeign(['dispatch_id']);
+            }
             $table->dropColumn('dispatch_id');
         });
     }

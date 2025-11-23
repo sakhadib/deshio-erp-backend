@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,7 +11,7 @@ use Illuminate\Support\Str;
 
 class Transaction extends Model
 {
-    use HasFactory;
+    use HasFactory, DatabaseAgnosticSearch;
 
     protected $fillable = [
         'transaction_number',
@@ -438,11 +439,11 @@ class Transaction extends Model
     public static function getCashAccountId($storeId = null): ?int
     {
         // Get cash account from database or return default
-        $account = Account::where('type', 'asset')
+        $query = Account::query()->where('type', 'asset')
             ->where('sub_type', 'current_asset')
-            ->where('name', 'LIKE', '%Cash%')
-            ->where('is_active', true)
-            ->first();
+            ->where('is_active', true);
+        (new static)->whereLike($query, 'name', 'Cash');
+        $account = $query->first();
         
         // If no cash account found, get any current asset account
         if (!$account) {
@@ -465,10 +466,10 @@ class Transaction extends Model
         
         // If not found, get any sales revenue account by name
         if (!$account) {
-            $account = Account::where('type', 'income')
-                ->where('name', 'LIKE', '%Sales%')
-                ->where('is_active', true)
-                ->first();
+            $query = Account::query()->where('type', 'income')
+                ->where('is_active', true);
+            (new static)->whereLike($query, 'name', 'Sales');
+            $account = $query->first();
         }
         
         return $account ? $account->id : 2; // Fallback to ID 2
@@ -477,10 +478,10 @@ class Transaction extends Model
     public static function getServiceRevenueAccountId(): ?int
     {
         // Get service revenue account from database
-        $account = Account::where('type', 'income')
-            ->where('name', 'LIKE', '%Service%')
-            ->where('is_active', true)
-            ->first();
+        $query = Account::query()->where('type', 'income')
+            ->where('is_active', true);
+        (new static)->whereLike($query, 'name', 'Service');
+        $account = $query->first();
         
         // If no specific service revenue account, use sales revenue
         if (!$account) {
@@ -493,14 +494,15 @@ class Transaction extends Model
     public static function getCOGSAccountId(): ?int
     {
         // Get COGS expense account from database
-        $account = Account::where('type', 'expense')
-            ->where(function ($query) {
-                $query->where('name', 'LIKE', '%COGS%')
-                    ->orWhere('name', 'LIKE', '%Cost of Goods Sold%')
-                    ->orWhere('sub_type', 'cogs');
+        $query = Account::where('type', 'expense')
+            ->where(function ($q) {
+                $instance = new static;
+                $instance->whereLike($q, 'name', 'COGS');
+                $instance->orWhereLike($q, 'name', 'Cost of Goods Sold');
+                $q->orWhere('sub_type', 'cogs');
             })
-            ->where('is_active', true)
-            ->first();
+            ->where('is_active', true);
+        $account = $query->first();
         
         // If not found, get any expense account with COGS in name
         if (!$account) {
@@ -515,20 +517,21 @@ class Transaction extends Model
     public static function getInventoryAccountId(): ?int
     {
         // Get inventory asset account from database
-        $account = Account::where('type', 'asset')
-            ->where(function ($query) {
-                $query->where('name', 'LIKE', '%Inventory%')
-                    ->orWhere('sub_type', 'inventory')
-                    ->orWhere('sub_type', 'current_asset');
+        $likeOp = (new static)->getLikeOperator();
+        $query = Account::where('type', 'asset')
+            ->where(function ($q) {
+                (new static)->whereLike($q, 'name', 'Inventory');
+                $q->orWhere('sub_type', 'inventory')
+                  ->orWhere('sub_type', 'current_asset');
             })
             ->where('is_active', true)
             ->whereNotNull('id')
             ->orderByRaw("CASE 
-                WHEN name LIKE '%Inventory%' THEN 1 
+                WHEN name {$likeOp} '%Inventory%' THEN 1 
                 WHEN sub_type = 'inventory' THEN 2 
                 ELSE 3 
-            END")
-            ->first();
+            END");
+        $account = $query->first();
         
         // If not found, use cash account as fallback (not ideal but safe)
         if (!$account) {

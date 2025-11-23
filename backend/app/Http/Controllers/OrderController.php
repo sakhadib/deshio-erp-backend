@@ -11,6 +11,7 @@ use App\Models\Store;
 use App\Models\Employee;
 use App\Models\PaymentMethod;
 use App\Models\Transaction;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * List all orders with filters
      * 
@@ -75,11 +77,11 @@ class OrderController extends Controller
         // Search by order number or customer name
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('order_number', 'LIKE', '%' . $request->search . '%')
-                  ->orWhereHas('customer', function ($customerQuery) use ($request) {
-                      $customerQuery->where('name', 'LIKE', '%' . $request->search . '%')
-                                    ->orWhere('phone', 'LIKE', '%' . $request->search . '%');
-                  });
+                $this->whereLike($q, 'order_number', $request->search);
+                $q->orWhereHas('customer', function ($customerQuery) use ($request) {
+                    $this->whereLike($customerQuery, 'name', $request->search);
+                    $this->orWhereLike($customerQuery, 'phone', $request->search);
+                });
             });
         }
 

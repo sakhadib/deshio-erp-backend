@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Expense;
 use App\Models\ExpensePayment;
 use App\Models\ExpenseReceipt;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Validator;
 
 class ExpenseController extends Controller
 {
+    use DatabaseAgnosticSearch;
     public function index(Request $request)
     {
         $query = Expense::with(['category', 'vendor', 'employee', 'store', 'createdBy', 'approvedBy', 'payments']);
@@ -48,11 +50,7 @@ class ExpenseController extends Controller
         // Search
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('expense_number', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('reference_number', 'like', "%{$search}%");
-            });
+            $this->whereAnyLike($query, ['expense_number', 'description', 'reference_number'], $search);
         }
 
         $sortBy = $request->get('sort_by', 'expense_date');

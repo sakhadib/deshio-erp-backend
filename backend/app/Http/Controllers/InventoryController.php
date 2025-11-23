@@ -6,11 +6,13 @@ use App\Models\ProductBatch;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\MasterInventory;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class InventoryController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Get global inventory overview across all stores
      */
@@ -92,9 +94,9 @@ class InventoryController extends Controller
             $search = $request->search;
 
             // Search products by name or SKU
-            $products = Product::where('name', 'like', "%{$search}%")
-                ->orWhere('sku', 'like', "%{$search}%")
-                ->with(['productBatches' => function ($query) {
+            $products = Product::query();
+            $this->whereAnyLike($products, ['name', 'sku'], $search);
+            $products = $products->with(['productBatches' => function ($query) {
                     $query->where('quantity', '>', 0)->with('store');
                 }])
                 ->get()

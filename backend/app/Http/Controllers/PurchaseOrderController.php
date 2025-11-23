@@ -6,12 +6,14 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Product;
 use App\Models\Store;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class PurchaseOrderController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Create a new purchase order
      */
@@ -127,7 +129,7 @@ class PurchaseOrderController extends Controller
         }
 
         if ($request->has('search')) {
-            $query->where('po_number', 'like', "%{$request->search}%");
+            $this->whereLike($query, 'po_number', $request->search);
         }
 
         if ($request->has('from_date') && $request->has('to_date')) {

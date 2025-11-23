@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Employee;
 use App\Models\ProductBatch;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 
 class ProductReturnController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Get all product returns
      */
@@ -57,10 +59,10 @@ class ProductReturnController extends Controller
             if ($request->has('search')) {
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
-                    $q->where('return_number', 'like', "%{$search}%")
-                        ->orWhereHas('order', function ($oq) use ($search) {
-                            $oq->where('order_number', 'like', "%{$search}%");
-                        });
+                    $this->whereLike($q, 'return_number', $search);
+                    $q->orWhereHas('order', function ($oq) use ($search) {
+                        $this->whereLike($oq, 'order_number', $search);
+                    });
                 });
             }
 

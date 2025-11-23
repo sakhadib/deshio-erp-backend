@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 
 class PurchaseOrder extends Model
 {
-    use HasFactory;
+    use HasFactory, DatabaseAgnosticSearch;
 
     protected $fillable = [
         'po_number',
@@ -133,8 +134,9 @@ class PurchaseOrder extends Model
     public static function generatePONumber(): string
     {
         $date = now()->format('Ymd');
-        $lastPO = static::where('po_number', 'like', "PO-{$date}-%")
-            ->orderBy('po_number', 'desc')
+        $query = static::query();
+        (new static)->whereLike($query, 'po_number', "PO-{$date}-", 'start');
+        $lastPO = $query->orderBy('po_number', 'desc')
             ->first();
 
         if ($lastPO) {

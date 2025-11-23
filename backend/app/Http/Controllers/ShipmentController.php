@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Shipment;
 use App\Models\Order;
 use App\Models\Store;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,7 @@ use Codeboxr\PathaoCourier\Facade\PathaoCourier;
 
 class ShipmentController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * List all shipments with filters
      * 
@@ -64,14 +66,14 @@ class ShipmentController extends Controller
         // Search by shipment number
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('shipment_number', 'LIKE', '%' . $request->search . '%')
-                  ->orWhere('pathao_consignment_id', 'LIKE', '%' . $request->search . '%')
-                  ->orWhereHas('order', function ($orderQuery) use ($request) {
-                      $orderQuery->where('order_number', 'LIKE', '%' . $request->search . '%');
-                  })
+                $this->whereLike($q, 'shipment_number', $request->search);
+                $this->orWhereLike($q, 'pathao_consignment_id', $request->search);
+                $q->orWhereHas('order', function ($orderQuery) use ($request) {
+                    $this->whereLike($orderQuery, 'order_number', $request->search);
+                })
                   ->orWhereHas('order.customer', function ($customerQuery) use ($request) {
-                      $customerQuery->where('name', 'LIKE', '%' . $request->search . '%')
-                                    ->orWhere('phone', 'LIKE', '%' . $request->search . '%');
+                    $this->whereLike($customerQuery, 'name', $request->search);
+                    $this->orWhereLike($customerQuery, 'phone', $request->search);
                   });
             });
         }

@@ -8,11 +8,13 @@ use App\Models\ProductBatch;
 use App\Models\Store;
 use App\Models\Product;
 use App\Models\Employee;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class BarcodeLocationController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Get current location and status of a specific barcode
      * 
@@ -113,7 +115,7 @@ class BarcodeLocationController extends Controller
 
         // Search by barcode
         if ($request->has('search')) {
-            $query->where('barcode', 'like', '%' . $request->search . '%');
+            $this->whereLike($query, 'barcode', $request->search);
         }
 
         // Pagination
@@ -224,7 +226,7 @@ class BarcodeLocationController extends Controller
 
         // Search by barcode pattern
         if ($request->has('barcode_search')) {
-            $query->where('barcode', 'like', '%' . $request->barcode_search . '%');
+            $this->whereLike($query, 'barcode', $request->barcode_search);
         }
 
         // Filter by location update date range
@@ -1020,8 +1022,10 @@ class BarcodeLocationController extends Controller
                 $q->whereHas('barcode', function ($q2) use ($request) {
                     $q2->where('product_id', $request->product_id);
                 });
-            })
-            ->selectRaw('DATE(movement_date) as date, COUNT(*) as count')
+            });
+            
+        $dateCastSql = $this->getDateCastSql('movement_date');
+        $trends = $query->selectRaw("{$dateCastSql} as date, COUNT(*) as count")
             ->groupBy('date')
             ->orderBy('date')
             ->get();
@@ -1192,8 +1196,10 @@ class BarcodeLocationController extends Controller
             })
             ->when($request->has('product_id'), function ($q) use ($request) {
                 $q->where('product_id', $request->product_id);
-            })
-            ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
+            });
+            
+        $dateCastSql = $this->getDateCastSql('created_at');
+        $trends = $query->selectRaw("{$dateCastSql} as date, COUNT(*) as count")
             ->groupBy('date')
             ->orderBy('date', 'desc')
             ->get();

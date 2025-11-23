@@ -12,16 +12,6 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('service_orders', function (Blueprint $table) {
-            // Update payment_status to include overdue
-            $table->enum('payment_status', [
-                'unpaid',
-                'partially_paid',
-                'paid',
-                'refunded',
-                'partially_refunded',
-                'overdue'
-            ])->default('unpaid')->change();
-
             // Add outstanding amount calculation
             $table->decimal('outstanding_amount', 10, 2)->default(0)->after('paid_amount');
 
@@ -44,6 +34,22 @@ return new class extends Migration
             $table->index(['payment_status', 'next_payment_due']);
             $table->index(['is_installment_payment', 'paid_installments']);
         });
+
+        // Update payment_status enum using drop/recreate for SQLite compatibility
+        Schema::table('service_orders', function (Blueprint $table) {
+            $table->dropColumn('payment_status');
+        });
+        
+        Schema::table('service_orders', function (Blueprint $table) {
+            $table->enum('payment_status', [
+                'unpaid',
+                'partially_paid',
+                'paid',
+                'refunded',
+                'partially_refunded',
+                'overdue'
+            ])->default('unpaid')->after('id');
+        });
     }
 
     /**
@@ -51,6 +57,21 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // Revert payment_status enum using drop/recreate for SQLite compatibility
+        Schema::table('service_orders', function (Blueprint $table) {
+            $table->dropColumn('payment_status');
+        });
+        
+        Schema::table('service_orders', function (Blueprint $table) {
+            $table->enum('payment_status', [
+                'unpaid',
+                'partially_paid',
+                'paid',
+                'refunded',
+                'partially_refunded'
+            ])->default('unpaid')->after('id');
+        });
+
         Schema::table('service_orders', function (Blueprint $table) {
             // Remove new columns
             $table->dropColumn([
@@ -65,15 +86,6 @@ return new class extends Migration
                 'payment_schedule',
                 'payment_history',
             ]);
-
-            // Revert payment_status enum
-            $table->enum('payment_status', [
-                'unpaid',
-                'partially_paid',
-                'paid',
-                'refunded',
-                'partially_refunded'
-            ])->default('unpaid')->change();
         });
     }
 };

@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Permission;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
 class PermissionController extends Controller
 {
+    use DatabaseAgnosticSearch;
     public function index(Request $request)
     {
         $query = Permission::query();
@@ -107,8 +109,9 @@ class PermissionController extends Controller
 
     public function getByModule()
     {
+        $stringAggSql = $this->getStringAggregateSql('title', ',');
         $permissions = Permission::active()
-            ->selectRaw('module, GROUP_CONCAT(title) as permissions, COUNT(*) as count')
+            ->selectRaw("module, {$stringAggSql} as permissions, COUNT(*) as count")
             ->groupBy('module')
             ->orderBy('module')
             ->get();

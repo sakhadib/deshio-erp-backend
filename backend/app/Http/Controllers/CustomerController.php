@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\Order;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 class CustomerController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Get all customers with filters and pagination
      */
@@ -37,12 +39,7 @@ class CustomerController extends Controller
         // Search by name, phone, email, customer_code
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('customer_code', 'like', "%{$search}%");
-            });
+            $this->whereAnyLike($query, ['name', 'phone', 'email', 'customer_code'], $search);
         }
 
         // Filter by city
@@ -320,9 +317,10 @@ class CustomerController extends Controller
         ];
 
         // Monthly purchase trend (last 12 months)
+        $dateFormatSql = $this->getDateFormatSql('created_at', 'month');
         $monthlyTrend = Order::where('customer_id', $id)
             ->where('created_at', '>=', now()->subMonths(12))
-            ->selectRaw('DATE_FORMAT(created_at, "%Y-%m") as month, SUM(total_amount) as total, COUNT(*) as count')
+            ->selectRaw("{$dateFormatSql} as month, SUM(total_amount) as total, COUNT(*) as count")
             ->groupBy('month')
             ->orderBy('month', 'asc')
             ->get();
@@ -540,12 +538,9 @@ class CustomerController extends Controller
     {
         $query = $request->get('q', '');
         
-        $customers = Customer::where('name', 'like', "%{$query}%")
-            ->orWhere('phone', 'like', "%{$query}%")
-            ->orWhere('email', 'like', "%{$query}%")
-            ->orWhere('customer_code', 'like', "%{$query}%")
-            ->limit(20)
-            ->get();
+        $customers = Customer::query();
+        $this->whereAnyLike($customers, ['name', 'phone', 'email', 'customer_code'], $query);
+        $customers = $customers->limit(20)->get();
 
         return response()->json([
             'success' => true,

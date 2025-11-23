@@ -7,6 +7,7 @@ use App\Models\ProductReturn;
 use App\Models\Order;
 use App\Models\Employee;
 use App\Models\Transaction;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 
 class RefundController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Get all refunds
      */
@@ -54,7 +56,7 @@ class RefundController extends Controller
 
             // Search by refund number
             if ($request->has('search')) {
-                $query->where('refund_number', 'like', "%{$request->search}%");
+                $this->whereLike($query, 'refund_number', $request->search);
             }
 
             // Sort

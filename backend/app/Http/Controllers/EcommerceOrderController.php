@@ -8,6 +8,7 @@ use App\Models\Cart;
 use App\Models\Product;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,7 @@ use Carbon\Carbon;
 
 class EcommerceOrderController extends Controller
 {
+    use DatabaseAgnosticSearch;
     public function __construct()
     {
         $this->middleware('auth:customer');
@@ -45,10 +47,10 @@ class EcommerceOrderController extends Controller
 
             if ($search) {
                 $query->where(function($q) use ($search) {
-                    $q->where('order_number', 'like', "%{$search}%")
-                      ->orWhereHas('items.product', function($pq) use ($search) {
-                          $pq->where('name', 'like', "%{$search}%");
-                      });
+                    $this->whereLike($q, 'order_number', $search);
+                    $q->orWhereHas('items.product', function($pq) use ($search) {
+                        $this->whereLike($pq, 'name', $search);
+                    });
                 });
             }
 

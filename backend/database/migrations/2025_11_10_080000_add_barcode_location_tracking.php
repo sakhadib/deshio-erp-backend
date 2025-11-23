@@ -111,14 +111,20 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('product_dispatch_items', function (Blueprint $table) {
-            $table->dropForeign(['product_barcode_id']);
+        $driver = Schema::getConnection()->getDriverName();
+        
+        Schema::table('product_dispatch_items', function (Blueprint $table) use ($driver) {
+            if ($driver !== 'sqlite') {
+                $table->dropForeign(['product_barcode_id']);
+            }
             $table->dropIndex(['product_barcode_id']);
             $table->dropColumn('product_barcode_id');
         });
 
-        Schema::table('product_barcodes', function (Blueprint $table) {
-            $table->dropForeign(['current_store_id']);
+        Schema::table('product_barcodes', function (Blueprint $table) use ($driver) {
+            if ($driver !== 'sqlite') {
+                $table->dropForeign(['current_store_id']);
+            }
             $table->dropIndex(['current_store_id']);
             $table->dropIndex(['current_status']);
             $table->dropIndex(['current_store_id', 'current_status']);

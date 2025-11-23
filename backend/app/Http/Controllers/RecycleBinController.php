@@ -10,12 +10,14 @@ use App\Models\Store;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Field;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class RecycleBinController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Get all soft deleted items across different models
      * 
@@ -37,8 +39,7 @@ class RecycleBinController extends Controller
                 $products = Product::onlyTrashed()
                     ->with(['category', 'vendor'])
                     ->when($search, function ($query) use ($search) {
-                        $query->where('name', 'like', "%{$search}%")
-                              ->orWhere('sku', 'like', "%{$search}%");
+                        $this->whereAnyLike($query, ['name', 'sku'], $search);
                     })
                     ->orderBy($sortBy, $sortDirection)
                     ->get()
@@ -65,7 +66,7 @@ class RecycleBinController extends Controller
                 $categories = Category::onlyTrashed()
                     ->withCount('products')
                     ->when($search, function ($query) use ($search) {
-                        $query->where('name', 'like', "%{$search}%");
+                        $this->whereLike($query, 'name', $search);
                     })
                     ->orderBy($sortBy, $sortDirection)
                     ->get()
@@ -91,8 +92,7 @@ class RecycleBinController extends Controller
                 $employees = Employee::onlyTrashed()
                     ->with('role')
                     ->when($search, function ($query) use ($search) {
-                        $query->where('name', 'like', "%{$search}%")
-                              ->orWhere('email', 'like', "%{$search}%");
+                        $this->whereAnyLike($query, ['name', 'email'], $search);
                     })
                     ->orderBy($sortBy, $sortDirection)
                     ->get()
@@ -118,8 +118,10 @@ class RecycleBinController extends Controller
             if ($type === 'all' || $type === 'vendors') {
                 $vendors = Vendor::onlyTrashed()
                     ->when($search, function ($query) use ($search) {
-                        $query->where('name', 'like', "%{$search}%")
-                              ->orWhere('email', 'like', "%{$search}%");
+                        $likeOperator = $this->getLikeOperator();
+                        $pattern = $this->buildLikePattern($search);
+                        $query->where('name', $likeOperator, $pattern)
+                              ->orWhere('email', $likeOperator, $pattern);
                     })
                     ->orderBy($sortBy, $sortDirection)
                     ->get()
@@ -145,7 +147,9 @@ class RecycleBinController extends Controller
             if ($type === 'all' || $type === 'stores') {
                 $stores = Store::onlyTrashed()
                     ->when($search, function ($query) use ($search) {
-                        $query->where('name', 'like', "%{$search}%");
+                        $likeOperator = $this->getLikeOperator();
+                        $pattern = $this->buildLikePattern($search);
+                        $query->where('name', $likeOperator, $pattern);
                     })
                     ->orderBy($sortBy, $sortDirection)
                     ->get()

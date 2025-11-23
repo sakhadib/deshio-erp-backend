@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Collection;
 use App\Models\Product;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
 class CollectionController extends Controller
 {
+    use DatabaseAgnosticSearch;
     public function index(Request $request)
     {
         $query = Collection::with(['createdBy', 'products']);
@@ -36,10 +38,7 @@ class CollectionController extends Controller
 
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
-            });
+            $this->whereAnyLike($query, ['name', 'description'], $search);
         }
 
         $query->orderBy('sort_order')->orderBy('created_at', 'desc');

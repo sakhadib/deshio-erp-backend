@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Store;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class StoreController extends Controller
 {
+    use DatabaseAgnosticSearch;
     public function createStore(Request $request)
     {
         $validated = $request->validate([
@@ -143,13 +145,7 @@ class StoreController extends Controller
 
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('store_code', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('contact_person', 'like', "%{$search}%");
-            });
+            $this->whereAnyLike($query, ['name', 'email', 'store_code', 'phone', 'contact_person'], $search);
         }
 
         // Sorting

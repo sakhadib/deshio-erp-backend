@@ -7,12 +7,14 @@ use App\Models\Field;
 use App\Models\ProductField;
 use App\Models\Category;
 use App\Models\Vendor;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Get all products with filters and custom fields
      */
@@ -39,11 +41,7 @@ class ProductController extends Controller
 
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('sku', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
-            });
+            $this->whereAnyLike($query, ['name', 'sku', 'description'], $search);
         }
 
         // Search by custom field value
@@ -55,7 +53,7 @@ class ProductController extends Controller
                 if ($fieldId) {
                     $q->where('field_id', $fieldId);
                 }
-                $q->where('value', 'like', "%{$fieldValue}%");
+                $this->whereLike($q, 'value', $fieldValue);
             });
         }
 

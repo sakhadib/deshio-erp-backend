@@ -23,8 +23,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('categories', function (Blueprint $table) {
-            $table->dropForeign(['parent_id']);
+        $driver = Schema::getConnection()->getDriverName();
+        
+        Schema::table('categories', function (Blueprint $table) use ($driver) {
+            if ($driver !== 'sqlite') {
+                $table->dropForeign(['parent_id']);
+            }
             $table->dropColumn(['parent_id', 'level', 'path']);
         });
     }

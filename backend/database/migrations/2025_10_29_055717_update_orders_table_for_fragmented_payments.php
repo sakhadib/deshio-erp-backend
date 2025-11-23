@@ -12,9 +12,6 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('orders', function (Blueprint $table) {
-            // Update payment_status to include partial payments
-            $table->enum('payment_status', ['pending', 'partially_paid', 'paid', 'failed', 'refunded', 'overdue'])->default('pending')->change();
-
             // Add fields for fragmented payment tracking
             $table->decimal('paid_amount', 10, 2)->default(0)->after('total_amount');
             $table->decimal('outstanding_amount', 10, 2)->default(0)->after('paid_amount');
@@ -38,6 +35,15 @@ return new class extends Migration
             $table->index(['payment_status', 'next_payment_due']);
             $table->index(['is_installment_payment', 'paid_installments']);
         });
+
+        // Update payment_status enum using drop/recreate for SQLite compatibility
+        Schema::table('orders', function (Blueprint $table) {
+            $table->dropColumn('payment_status');
+        });
+        
+        Schema::table('orders', function (Blueprint $table) {
+            $table->enum('payment_status', ['pending', 'partially_paid', 'paid', 'failed', 'refunded', 'overdue'])->default('pending')->after('id');
+        });
     }
 
     /**
@@ -45,6 +51,15 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // Revert payment_status enum using drop/recreate for SQLite compatibility
+        Schema::table('orders', function (Blueprint $table) {
+            $table->dropColumn('payment_status');
+        });
+        
+        Schema::table('orders', function (Blueprint $table) {
+            $table->enum('payment_status', ['pending', 'paid', 'failed', 'refunded'])->default('pending')->after('id');
+        });
+
         Schema::table('orders', function (Blueprint $table) {
             // Remove new columns
             $table->dropColumn([
@@ -60,9 +75,6 @@ return new class extends Migration
                 'payment_schedule',
                 'payment_history',
             ]);
-
-            // Revert payment_status enum
-            $table->enum('payment_status', ['pending', 'paid', 'failed', 'refunded'])->default('pending')->change();
         });
     }
 };

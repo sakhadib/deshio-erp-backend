@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 class VendorPayment extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, DatabaseAgnosticSearch;
 
     protected $fillable = [
         'payment_number',
@@ -98,8 +99,9 @@ class VendorPayment extends Model
     public static function generatePaymentNumber(): string
     {
         $date = now()->format('Ymd');
-        $lastPayment = static::where('payment_number', 'like', "VP-{$date}-%")
-            ->orderBy('payment_number', 'desc')
+        $query = static::query();
+        (new static)->whereLike($query, 'payment_number', "VP-{$date}-", 'start');
+        $lastPayment = $query->orderBy('payment_number', 'desc')
             ->first();
 
         if ($lastPayment) {

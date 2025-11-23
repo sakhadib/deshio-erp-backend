@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Category;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
 class EcommerceCatalogController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Get products for e-commerce (public endpoint)
      */
@@ -37,16 +39,12 @@ class EcommerceCatalogController extends Controller
 
             if ($category) {
                 $query->whereHas('category', function ($q) use ($category) {
-                    $q->where('title', 'like', "%{$category}%");
+                    $this->whereLike($q, 'title', $category);
                 });
             }
 
             if ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('description', 'like', "%{$search}%")
-                      ->orWhere('sku', 'like', "%{$search}%");
-                });
+                $this->whereAnyLike($query, ['name', 'description', 'sku'], $search);
             }
 
             // Price filtering needs to be done on the collection after loading batches
@@ -347,10 +345,10 @@ class EcommerceCatalogController extends Controller
     public function searchProducts(Request $request)
     {
         try {
-            $query = $request->get('q');
+            $searchQuery = $request->get('q');
             $perPage = min($request->get('per_page', 12), 50);
 
-            if (!$query || strlen($query) < 2) {
+            if (!$searchQuery || strlen($searchQuery) < 2) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Search query must be at least 2 characters',
@@ -364,22 +362,20 @@ class EcommerceCatalogController extends Controller
                 ->whereHas('batches', function ($q) {
                     $q->where('quantity', '>', 0);
                 })
-                ->where(function ($q) use ($query) {
-                    $q->where('name', 'like', "%{$query}%")
-                      ->orWhere('description', 'like', "%{$query}%")
-                      ->orWhere('sku', 'like', "%{$query}%");
-                })
-                ->orderByRaw("CASE 
-                    WHEN name LIKE '{$query}%' THEN 1
-                    WHEN name LIKE '%{$query}%' THEN 2
-                    WHEN description LIKE '%{$query}%' THEN 3
-                    ELSE 4
-                END")
-                ->paginate($perPage);
+                ->where(function ($query) use ($searchQuery) {
+                    $this->whereAnyLike($query, ['name', 'description', 'sku'], $searchQuery);
+                });
+
+            // Add relevance ordering
+            $this->searchWithRelevance($products, ['name', 'description', 'sku'], $searchQuery, 'name');
+            
+            $products = $products->paginate($perPage);
 
             // Get search suggestions
             $suggestions = Product::where('is_archived', false)
-                ->where('name', 'like', "{$query}%")
+                ->where(function ($query) use ($searchQuery) {
+                    $this->whereLike($query, 'name', $searchQuery, 'start');
+                })
                 ->pluck('name')
                 ->take(5);
 
@@ -403,7 +399,7 @@ class EcommerceCatalogController extends Controller
                 'data' => [
                     'products' => $transformedProducts,
                     'suggestions' => $suggestions,
-                    'search_query' => $query,
+                    'search_query' => $searchQuery,
                     'pagination' => [
                         'current_page' => $products->currentPage(),
                         'last_page' => $products->lastPage(),

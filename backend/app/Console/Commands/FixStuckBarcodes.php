@@ -6,9 +6,11 @@ use Illuminate\Console\Command;
 use App\Models\ProductBarcode;
 use App\Models\ProductDispatch;
 use App\Models\ProductBatch;
+use App\Traits\DatabaseAgnosticSearch;
 
 class FixStuckBarcodes extends Command
 {
+    use DatabaseAgnosticSearch;
     /**
      * The name and signature of the console command.
      *
@@ -95,10 +97,11 @@ class FixStuckBarcodes extends Command
                         $relatedDispatch = ProductDispatch::where('dispatch_number', $metadata['dispatch_number'])->first();
                         if ($relatedDispatch && $relatedDispatch->status === 'delivered') {
                             // Find destination batch created for this product
-                            $destinationBatch = ProductBatch::where('store_id', $relatedDispatch->destination_store_id)
-                                ->where('product_id', $barcode->product_id)
-                                ->where('batch_number', 'LIKE', '%DST-' . $metadata['dispatch_number'])
-                                ->first();
+                            $batchQuery = ProductBatch::query()
+                                ->where('store_id', $relatedDispatch->destination_store_id)
+                                ->where('product_id', $barcode->product_id);
+                            $this->whereLike($batchQuery, 'batch_number', 'DST-' . $metadata['dispatch_number'], 'end');
+                            $destinationBatch = $batchQuery->first();
                             
                             if ($destinationBatch) {
                                 $destinationBatchId = $destinationBatch->id;

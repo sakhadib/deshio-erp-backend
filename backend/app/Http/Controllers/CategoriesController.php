@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
@@ -10,6 +11,7 @@ use Illuminate\Validation\Rule;
 
 class CategoriesController extends Controller
 {
+    use DatabaseAgnosticSearch;
     public function createCategory(Request $request)
     {
         $validated = $request->validate([
@@ -242,11 +244,7 @@ class CategoriesController extends Controller
 
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('slug', 'like', "%{$search}%");
-            });
+            $this->whereAnyLike($query, ['title', 'description', 'slug'], $search);
         }
 
         // Load relationships

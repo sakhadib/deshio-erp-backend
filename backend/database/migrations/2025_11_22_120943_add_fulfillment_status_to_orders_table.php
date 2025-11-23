@@ -34,8 +34,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('orders', function (Blueprint $table) {
-            $table->dropForeign(['fulfilled_by']);
+        $driver = Schema::getConnection()->getDriverName();
+        
+        Schema::table('orders', function (Blueprint $table) use ($driver) {
+            if ($driver !== 'sqlite') {
+                $table->dropForeign(['fulfilled_by']);
+            }
             $table->dropColumn(['fulfillment_status', 'fulfilled_at', 'fulfilled_by']);
         });
     }

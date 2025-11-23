@@ -10,12 +10,14 @@ use App\Models\ProductReturn;
 use App\Models\Expense;
 use App\Models\Store;
 use App\Models\MasterInventory;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * Get today's key metrics
      * 
@@ -135,8 +137,9 @@ class DashboardController extends Controller
             $endDate = Carbon::today();
             $startDate = $endDate->copy()->subDays(29);
 
+            $dateCastSql = $this->getDateCastSql('order_date');
             $salesQuery = Order::select(
-                DB::raw('DATE(order_date) as date'),
+                DB::raw("{$dateCastSql} as date"),
                 DB::raw('COUNT(*) as order_count'),
                 DB::raw('SUM(total_amount) as total_sales'),
                 DB::raw('SUM(paid_amount) as paid_amount')
@@ -144,7 +147,7 @@ class DashboardController extends Controller
                 ->whereDate('order_date', '>=', $startDate)
                 ->whereDate('order_date', '<=', $endDate)
                 ->whereNotIn('status', ['cancelled'])
-                ->groupBy(DB::raw('DATE(order_date)'))
+                ->groupBy(DB::raw($dateCastSql))
                 ->orderBy('date', 'asc');
 
             if ($storeId) {
@@ -662,6 +665,8 @@ class DashboardController extends Controller
             $storeId = $request->query('store_id');
             $today = Carbon::today();
 
+            $dateCastSql = $this->getDateCastSql('created_at');
+            $dateDiffSql = $this->getDateDiffDaysSql($dateCastSql);
             $query = ProductBatch::where('quantity', '>', 0)
                 ->where('is_active', true)
                 ->select(
@@ -672,7 +677,7 @@ class DashboardController extends Controller
                     'cost_price',
                     'created_at',
                     'store_id',
-                    DB::raw('DATEDIFF(CURDATE(), DATE(created_at)) as age_days'),
+                    DB::raw("{$dateDiffSql} as age_days"),
                     DB::raw('quantity * cost_price as inventory_value')
                 );
 

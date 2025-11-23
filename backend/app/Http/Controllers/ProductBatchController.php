@@ -6,12 +6,14 @@ use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductBarcode;
 use App\Models\Store;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class ProductBatchController extends Controller
 {
+    use DatabaseAgnosticSearch;
     /**
      * List all batches with filtering options
      * 
@@ -68,7 +70,7 @@ class ProductBatchController extends Controller
 
         // Search by batch number
         if ($request->filled('search')) {
-            $query->where('batch_number', 'LIKE', '%' . $request->search . '%');
+            $this->whereLike($query, 'batch_number', $request->search);
         }
 
         // Sort
