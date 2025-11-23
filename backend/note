@@ -1,0 +1,10 @@
+now the payment of #file:Order.php or #file:OrderItem.php .
+by #file:Customer.php 
+
+now, the shop customer will pay cash / card / online-pay
+ecommerce option should be bank, card, onlinepay
+social commerce is onlineBanking.
+
+also we need fragmented payment. like a 500$ payment customer can pay 200$ card, 250$ cash and 50$ mobilebanking.
+
+so this is the case. 

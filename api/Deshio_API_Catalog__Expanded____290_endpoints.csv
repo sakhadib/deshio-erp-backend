@@ -1,0 +1,291 @@
+category,api title,api description (short),route (api/.../...),Type (get/post/put/delete...),"Authentication Type (Admin, Employee, None)"
+auth,Register,Create account (optional for employees via admin),api/auth/register,post,None
+auth,Login,Authenticate user and get token,api/auth/login,post,None
+auth,Refresh Token,Refresh auth token,api/auth/refresh,post,Employee
+auth,Logout,Revoke current session,api/auth/logout,post,Employee
+auth,Logout All,Revoke all active sessions,api/auth/logout-all,post,Employee
+auth,Me,Get current user profile,api/auth/me,get,Employee
+auth,Send Email Verification,Send verification email,api/auth/email/send-verification,post,Employee
+auth,Verify Email,Confirm email verification token,api/auth/email/verify,post,None
+auth,Resend Verification,Resend verification email,api/auth/email/resend,post,Employee
+auth,Forgot Password,Request password reset email,api/auth/password/forgot,post,None
+auth,Reset Password,Confirm reset with token,api/auth/password/reset,post,None
+auth,Change Password,Change password (logged-in),api/auth/password/change,post,Employee
+auth,Enable 2FA,Enable TOTP 2FA,api/auth/2fa/enable,post,Employee
+auth,Verify 2FA,Verify TOTP code,api/auth/2fa/verify,post,Employee
+auth,Disable 2FA,Disable TOTP 2FA,api/auth/2fa/disable,post,Employee
+auth,Get Backup Codes,Retrieve 2FA backup codes,api/auth/2fa/backup-codes,get,Employee
+auth,Rotate API Key,Generate a new API key,api/auth/api-key/rotate,post,Admin
+auth,Token Introspect,Check token validity and scopes,api/auth/token/introspect,post,Admin
+rbac,List Roles,List Roles,api/roles,get,Admin
+rbac,Create Role,Create Role,api/roles,post,Admin
+rbac,Get Role,Get Role,api/roles/{id},get,Admin
+rbac,Update Role,Update Role,api/roles/{id},put,Admin
+rbac,Delete Role,Delete Role,api/roles/{id},delete,Admin
+rbac,List Permissions,List Permissions,api/permissions,get,Admin
+rbac,Create Permission,Create Permission,api/permissions,post,Admin
+rbac,Get Permission,Get Permission,api/permissions/{id},get,Admin
+rbac,Update Permission,Update Permission,api/permissions/{id},put,Admin
+rbac,Delete Permission,Delete Permission,api/permissions/{id},delete,Admin
+rbac,Grant Permission to Role,Assign permission to role,api/roles/{role_id}/permissions,post,Admin
+rbac,Revoke Permission from Role,Remove permission from role,api/roles/{role_id}/permissions/{permission_id},delete,Admin
+rbac,List Role Permissions,Permissions under a role,api/roles/{role_id}/permissions,get,Admin
+rbac,Assign Role to User,Attach role to user,api/users/{user_id}/roles,post,Admin
+rbac,Remove Role from User,Detach role from user,api/users/{user_id}/roles/{role_id},delete,Admin
+rbac,List User Roles,Roles assigned to a user,api/users/{user_id}/roles,get,Admin
+rbac,Check Permission,Check if user has permission,api/rbac/check,post,Admin
+rbac,Simulate Policy,Simulate access decision,api/rbac/simulate,post,Admin
+user,List Users,List Users,api/users,get,Admin
+user,Create User,Create User,api/users,post,Admin
+user,Get User,Get User,api/users/{id},get,Admin
+user,Update User,Update User,api/users/{id},put,Admin
+user,Delete User,Delete User,api/users/{id},delete,Admin
+user,Activate User,Activate User,api/users/{id}/activate,post,Admin
+user,Deactivate User,Deactivate User,api/users/{id}/deactivate,post,Admin
+user,Invite User,Invite User,api/users/invite,post,Admin
+user,Resend Invite,Resend Invite,api/users/{id}/resend-invite,post,Admin
+user,List Sessions,List Sessions,api/users/{id}/sessions,get,Admin
+user,Revoke Session,Revoke Session,api/users/{id}/sessions/{session_id},delete,Admin
+category,List Categories,Paginated categories,api/categories,get,Employee
+category,Create Categorie,Create categorie,api/categories,post,Admin
+category,Get Categorie,Get by id,api/categories/{id},get,Employee
+category,Update Categorie,Update by id,api/categories/{id},put,Admin
+category,Delete Categorie,Delete by id,api/categories/{id},delete,Admin
+vendor,List Vendors,Paginated vendors,api/vendors,get,Employee
+vendor,Create Vendor,Create vendor,api/vendors,post,Admin
+vendor,Get Vendor,Get by id,api/vendors/{id},get,Employee
+vendor,Update Vendor,Update by id,api/vendors/{id},put,Admin
+vendor,Delete Vendor,Delete by id,api/vendors/{id},delete,Admin
+product,List Products,Paginated products,api/products,get,Employee
+product,Create Product,Create product,api/products,post,Admin
+product,Get Product,Get by id,api/products/{id},get,Employee
+product,Update Product,Update by id,api/products/{id},put,Admin
+product,Delete Product,Delete by id,api/products/{id},delete,Admin
+field,List Fields,Paginated fields,api/fields,get,Employee
+field,Create Field,Create field,api/fields,post,Admin
+field,Get Field,Get by id,api/fields/{id},get,Employee
+field,Update Field,Update by id,api/fields/{id},put,Admin
+field,Delete Field,Delete by id,api/fields/{id},delete,Admin
+feature,Attach Feature,Set a field value for product,api/products/{id}/features,post,Admin
+feature,Remove Feature,Remove product feature,api/products/{id}/features/{feature_id},delete,Admin
+product,Bulk Import Products,CSV/Excel import,api/products/import,post,Admin
+product,Bulk Export Products,Export CSV/Excel,api/products/export,get,Admin
+product,Archive Product,Soft-archive product,api/products/{id}/archive,post,Admin
+product,Restore Product,Restore archived product,api/products/{id}/restore,post,Admin
+store,List Stores,Paginated stores,api/stores,get,Employee
+store,Create Store,Create store,api/stores,post,Admin
+store,Get Store,Get by id,api/stores/{id},get,Employee
+store,Update Store,Update by id,api/stores/{id},put,Admin
+store,Delete Store,Delete by id,api/stores/{id},delete,Admin
+store,Set Online Status,Toggle online store,api/stores/{id}/online,post,Admin
+store,Set Warehouse Flag,Toggle warehouse,api/stores/{id}/warehouse,post,Admin
+customer,List Customers,Paginated customers,api/customers,get,Employee
+customer,Create Customer,Create customer,api/customers,post,Admin
+customer,Get Customer,Get by id,api/customers/{id},get,Employee
+customer,Update Customer,Update by id,api/customers/{id},put,Admin
+customer,Delete Customer,Delete by id,api/customers/{id},delete,Admin
+customer,Merge Customers,Merge duplicate customers,api/customers/merge,post,Admin
+batch,List Batches,Paginated batches,api/batches,get,Employee
+batch,Create Batche,Create batche,api/batches,post,Admin
+batch,Get Batche,Get by id,api/batches/{id},get,Employee
+batch,Update Batche,Update by id,api/batches/{id},put,Admin
+batch,Delete Batche,Delete by id,api/batches/{id},delete,Admin
+batch,Split Batch,Split a batch into multiples,api/batches/{id}/split,post,Admin
+batch,Merge Batches,Merge batches of same product,api/batches/merge,post,Admin
+batch,Reprice Batch,Update sell price for batch,api/batches/{id}/reprice,post,Admin
+batch,Move Batch Store,Move batch ownership to store,api/batches/{id}/move-store,post,Admin
+inventory,Inventory Snapshot,List inventory by filters,api/inventory,get,Employee
+inventory,Reserve Inventory,Reserve items for order,api/inventory/reserve,post,Employee
+inventory,Release Reservation,Release reserved items,api/inventory/reserve/{reservation_id}/release,post,Employee
+inventory,Transfer Stock,Transfer between stores,api/inventory/transfer,post,Admin
+inventory,Adjust Stock,Manual stock adjustment,api/inventory/adjust,post,Admin
+inventory,Start Cycle Count,Open a cycle count session,api/inventory/cycle-counts,post,Admin
+inventory,Submit Cycle Count,Submit counted quantities,api/inventory/cycle-counts/{id}/submit,post,Admin
+inventory,Recount Cycle,Initiate recount task,api/inventory/cycle-counts/{id}/recount,post,Admin
+inventory,Discrepancy Report,List count variances,api/inventory/cycle-counts/{id}/discrepancies,get,Admin
+inventory,Inventory Ledger,Per product/batch/store ledger,api/inventory/ledger,get,Admin
+dispatch,List Dispatches,Paginated dispatches,api/dispatches,get,Employee
+dispatch,Create Dispatche,Create dispatche,api/dispatches,post,Admin
+dispatch,Get Dispatche,Get by id,api/dispatches/{id},get,Employee
+dispatch,Update Dispatche,Update by id,api/dispatches/{id},put,Admin
+dispatch,Delete Dispatche,Delete by id,api/dispatches/{id},delete,Admin
+dispatch,Pick Items,Mark items picked,api/dispatches/{id}/pick,post,Employee
+dispatch,Pack Items,Mark items packed,api/dispatches/{id}/pack,post,Employee
+dispatch,Ship Dispatch,Mark as shipped / handover,api/dispatches/{id}/ship,post,Employee
+dispatch,Receive Dispatch,Receive at destination,api/dispatches/{id}/receive,post,Employee
+dispatch,Reject Dispatch,Reject due to damage/mismatch,api/dispatches/{id}/reject,post,Employee
+dispatch,Add Tracking,Attach tracking info,api/dispatches/{id}/tracking,post,Employee
+dispatch,Track Dispatch,Get live tracking info,api/dispatches/{id}/tracking,get,Employee
+dispatch,Scan Event,Append scan event,api/dispatches/{id}/scan-events,post,Employee
+dispatch,Proof of Delivery,Upload POD,api/dispatches/{id}/pod,post,Employee
+order,Create Order,Initialize order,api/orders,post,Employee
+order,List Orders,Filter by status/date/customer,api/orders,get,Employee
+order,Get Order,Get order with items,api/orders/{id},get,Employee
+order,Update Order,Update fields,api/orders/{id},put,Employee
+order,Cancel Order,Cancel order,api/orders/{id}/cancel,post,Employee
+order,Confirm Order,Confirm after payment/validation,api/orders/{id}/confirm,post,Employee
+order,Assign Store,Assign order to a store,api/orders/{id}/assign-store,post,Admin
+order,Reassign Store,Reassign to another store,api/orders/{id}/reassign-store,post,Admin
+order,Reserve Items,Reserve inventory for order,api/orders/{id}/reserve,post,Employee
+order,Release Reservation,Release order reservation,api/orders/{id}/release-reservation,post,Employee
+order,Add Note,Add internal note,api/orders/{id}/notes,post,Employee
+order,List Notes,List internal notes,api/orders/{id}/notes,get,Employee
+order,Attach File,Attach document/image,api/orders/{id}/attachments,post,Employee
+order,List Attachments,List attachments,api/orders/{id}/attachments,get,Employee
+order-item,Add Item,Add product to order,api/orders/{id}/items,post,Employee
+order-item,Update Item,Update quantity/status,api/orders/{id}/items/{item_id},put,Employee
+order-item,Remove Item,Remove product from order,api/orders/{id}/items/{item_id},delete,Employee
+order-item,Substitute Item,Substitute with another product,api/orders/{id}/items/{item_id}/substitute,post,Employee
+order-item,Backorder Item,Mark item as backordered,api/orders/{id}/items/{item_id}/backorder,post,Employee
+order-item,Fulfill Item,Mark item fulfilled,api/orders/{id}/items/{item_id}/fulfill,post,Employee
+payment,Create Payment Intent,Initialize payment,api/payments/intents,post,Employee
+payment,Capture Payment,Capture authorized amount,api/payments/{id}/capture,post,Employee
+payment,Void Payment,Void an authorization,api/payments/{id}/void,post,Employee
+payment,List Payments,List payments by filters,api/payments,get,Admin
+shipment,Create Shipment,Create shipment for order,api/orders/{id}/shipments,post,Employee
+shipment,List Shipments,List order shipments,api/orders/{id}/shipments,get,Employee
+shipment,Print Label,Generate/print labels,api/shipments/{id}/label,get,Employee
+shipment,Track Shipment,Track shipment by id,api/shipments/{id}/tracking,get,Employee
+shipment,Mark Delivered,Confirm delivery,api/shipments/{id}/delivered,post,Employee
+return,Create RMA,Initiate return request (RMA),api/returns,post,Employee
+return,List RMAs,List return requests,api/returns,get,Employee
+return,Get RMA,Get return details,api/returns/{id},get,Employee
+return,Approve RMA,Approve requested return,api/returns/{id}/approve,post,Employee
+return,Reject RMA,Reject return,api/returns/{id}/reject,post,Employee
+return,Receive Items,Mark returned items received,api/returns/{id}/receive,post,Employee
+return,Restock Items,Return items to inventory,api/returns/{id}/restock,post,Employee
+return,Create Exchange,Create exchange order,api/returns/{id}/exchange,post,Employee
+return,Close RMA,Close return request,api/returns/{id}/close,post,Employee
+refund,Create Refund,Refund full/partial,api/refunds,post,Employee
+refund,List Refunds,List refunds,api/refunds,get,Admin
+refund,Get Refund,Refund details,api/refunds/{id},get,Admin
+refund,Cancel Refund,Cancel pending refund,api/refunds/{id}/cancel,post,Admin
+transaction,Create Transaction,Record movement/financial entry,api/transactions,post,Employee
+transaction,List Transactions,Filter by type/date/store,api/transactions,get,Employee
+transaction,Get Transaction,Transaction details,api/transactions/{id},get,Employee
+transaction,Reverse Transaction,Create reversal entry,api/transactions/{id}/reverse,post,Admin
+transaction,Export Journal,Export accounting journal,api/transactions/export,get,Admin
+transaction,Reconcile Period,Lock & reconcile period,api/transactions/reconcile,post,Admin
+sales,List Sales,Sales entries joined to txns,api/sales,get,Employee
+sales,Sales By User,Sales by salesperson,api/sales/by-user,get,Admin
+sales,Sales By Store,Sales grouped by store,api/sales/by-store,get,Admin
+sales,Sales By Product,Sales grouped by product,api/sales/by-product,get,Admin
+purchase,List Purchase-Orders,Paginated purchase-orders,api/purchase-orders,get,Admin
+purchase,Create Purchase-Order,Create purchase-order,api/purchase-orders,post,Admin
+purchase,Get Purchase-Order,Get by id,api/purchase-orders/{id},get,Admin
+purchase,Update Purchase-Order,Update by id,api/purchase-orders/{id},put,Admin
+purchase,Delete Purchase-Order,Delete by id,api/purchase-orders/{id},delete,Admin
+purchase,Receive Purchase,Receive PO to batch,api/purchase-orders/{id}/receive,post,Admin
+purchase,Cancel Purchase,Cancel PO,api/purchase-orders/{id}/cancel,post,Admin
+service,List Services,Paginated services,api/services,get,Employee
+service,Create Service,Create service,api/services,post,Admin
+service,Get Service,Get by id,api/services/{id},get,Employee
+service,Update Service,Update by id,api/services/{id},put,Admin
+service,Delete Service,Delete by id,api/services/{id},delete,Admin
+service-order,Create Service Order,Create intake,api/service-orders,post,Employee
+service-order,List Service Orders,Filter by status/date,api/service-orders,get,Employee
+service-order,Get Service Order,Service order details,api/service-orders/{id},get,Employee
+service-order,Update Service Order,Update fields/status,api/service-orders/{id},put,Employee
+service-order,Cancel Service Order,Cancel service job,api/service-orders/{id}/cancel,post,Employee
+service-order,Add Service Note,Add internal note,api/service-orders/{id}/notes,post,Employee
+service-order,Complete Service,Mark as completed,api/service-orders/{id}/complete,post,Employee
+service-order,Deliver Service,Mark as delivered,api/service-orders/{id}/deliver,post,Employee
+log,List Logs,System/user action logs,api/logs,get,Admin
+log,Get Log,Get single log entry,api/logs/{id},get,Admin
+audit,Audit Trail,Entity-level change history,api/audit/{entity}/{id},get,Admin
+audit,Export Audit,Export audit events,api/audit/export,get,Admin
+report,Sales Summary,Sales Summary,api/reports/sales-summary,get,Admin
+report,Revenue by Day,Revenue by Day,api/reports/revenue-by-day,get,Admin
+report,Revenue by Store,Revenue by Store,api/reports/revenue-by-store,get,Admin
+report,Revenue by Product,Revenue by Product,api/reports/revenue-by-product,get,Admin
+report,Top Products,Top Products,api/reports/top-products,get,Admin
+report,Top Customers,Top Customers,api/reports/top-customers,get,Admin
+report,Customer LTV,Customer LTV,api/reports/customer-ltv,get,Admin
+report,Abandoned Orders,Abandoned Orders,api/reports/abandoned-orders,get,Admin
+report,Inventory Snapshot,Inventory Snapshot,api/reports/inventory-snapshot,get,Admin
+report,Inventory Aging,Inventory Aging,api/reports/inventory-aging,get,Admin
+report,Stock Valuation,Stock Valuation,api/reports/stock-valuation,get,Admin
+report,Low Stock,Low Stock,api/reports/low-stock,get,Admin
+report,Out of Stock,Out of Stock,api/reports/out-of-stock,get,Admin
+report,Return Rates,Return Rates,api/reports/return-rates,get,Admin
+report,Refund Summary,Refund Summary,api/reports/refund-summary,get,Admin
+report,Order Fulfillment SLA,Order Fulfillment SLA,api/reports/fulfillment-sla,get,Admin
+report,Dispatch Performance,Dispatch Performance,api/reports/dispatch-performance,get,Admin
+report,Cycle Count Accuracy,Cycle Count Accuracy,api/reports/cycle-count-accuracy,get,Admin
+report,Price Change History,Price Change History,api/reports/price-change-history,get,Admin
+report,User Activity,User Activity,api/reports/user-activity,get,Admin
+report,Permission Coverage,Permission Coverage,api/reports/permission-coverage,get,Admin
+search,Global Search,Search across entities,api/search,get,Employee
+search,Advanced Search,Structured search queries,api/search/advanced,post,Admin
+import-export,Import Customers,CSV/Excel import,api/customers/import,post,Admin
+import-export,Export Customers,Export CSV/Excel,api/customers/export,get,Admin
+import-export,Import Inventory,Bulk load inventory,api/inventory/import,post,Admin
+import-export,Export Inventory,Export inventory,api/inventory/export,get,Admin
+attachment,Upload,Upload file,api/attachments,post,Employee
+attachment,Get,Get attachment,api/attachments/{id},get,Employee
+attachment,Delete,Delete attachment,api/attachments/{id},delete,Employee
+notification,List Templates,Email/SMS templates,api/notifications/templates,get,Admin
+notification,Create Template,Create template,api/notifications/templates,post,Admin
+notification,Send Test,Send test notification,api/notifications/test,post,Admin
+webhook,List Webhooks,Paginated webhooks,api/webhooks,get,Admin
+webhook,Create Webhook,Create webhook,api/webhooks,post,Admin
+webhook,Get Webhook,Get by id,api/webhooks/{id},get,Admin
+webhook,Update Webhook,Update by id,api/webhooks/{id},put,Admin
+webhook,Delete Webhook,Delete by id,api/webhooks/{id},delete,Admin
+webhook,Retry Webhook,Retry failed delivery,api/webhooks/{id}/retry,post,Admin
+webhook,Deliveries,List webhook deliveries,api/webhooks/{id}/deliveries,get,Admin
+integration,List Carriers,Available shipping carriers,api/integrations/carriers,get,Admin
+integration,Connect Carrier,Connect shipping account,api/integrations/carriers,post,Admin
+integration,Disconnect Carrier,Disconnect carrier,api/integrations/carriers/{id},delete,Admin
+integration,Rate Shipment,Get shipping rates,api/integrations/carriers/{id}/rates,post,Employee
+integration,Create Waybill,Create carrier waybill,api/integrations/carriers/{id}/waybill,post,Employee
+integration,Track Waybill,Track shipment via carrier,api/integrations/carriers/{id}/track/{waybill},get,Employee
+pricing,Set Price,Set product price at store/batch,api/pricing,post,Admin
+pricing,Get Price,Get effective price,api/pricing,get,Employee
+pricing,Price Overrides,Store-level overrides,api/pricing/overrides,post,Admin
+pricing,Delete Override,Remove override,api/pricing/overrides/{id},delete,Admin
+promotion,List Promotions,Paginated promotions,api/promotions,get,Admin
+promotion,Create Promotion,Create promotion,api/promotions,post,Admin
+promotion,Get Promotion,Get by id,api/promotions/{id},get,Admin
+promotion,Update Promotion,Update by id,api/promotions/{id},put,Admin
+promotion,Delete Promotion,Delete by id,api/promotions/{id},delete,Admin
+promotion,Apply Promotion,Apply promo to order,api/orders/{id}/apply-promo,post,Employee
+promotion,Remove Promotion,Remove promo from order,api/orders/{id}/remove-promo,post,Employee
+catalog,Rebuild Search Index,Re-index products,api/catalog/reindex,post,Admin
+catalog,Suggest Keywords,Autosuggest terms,api/catalog/suggest,get,Employee
+monitoring,Health,Service health,api/health,get,None
+monitoring,Metrics,Operational metrics,api/metrics,get,Admin
+monitoring,Queue Stats,Background queue status,api/queues,get,Admin
+order,Generate Invoice,Create/Regenerate invoice PDF,api/orders/{id}/invoice,post,Employee
+order,Get Invoice,Download invoice PDF,api/orders/{id}/invoice,get,Employee
+order,Apply Tax,Apply tax profile,api/orders/{id}/apply-tax,post,Employee
+order,Remove Tax,Remove tax profile,api/orders/{id}/remove-tax,post,Employee
+order,Set Payment Method,Set payment method,api/orders/{id}/payment-method,post,Employee
+order,Mark Paid,Mark order as paid (offline),api/orders/{id}/mark-paid,post,Employee
+order,Packing List,Generate packing list,api/orders/{id}/packing-list,get,Employee
+order,Picking List,Generate picking list,api/orders/{id}/picking-list,get,Employee
+order,Timeline,Order event timeline,api/orders/{id}/timeline,get,Employee
+order,Duplicate Order,Clone order,api/orders/{id}/duplicate,post,Employee
+order,Flag Fraud,Flag as suspected fraud,api/orders/{id}/flag-fraud,post,Admin
+order,Unflag Fraud,Remove fraud flag,api/orders/{id}/unflag-fraud,post,Admin
+dispatch,Manifest,Generate shipment manifest,api/dispatches/{id}/manifest,get,Employee
+dispatch,Label,Generate dispatch label,api/dispatches/{id}/label,get,Employee
+inventory,FIFO Valuation,FIFO stock valuation,api/inventory/valuation/fifo,get,Admin
+inventory,LIFO Valuation,LIFO stock valuation,api/inventory/valuation/lifo,get,Admin
+inventory,Avg Cost Valuation,Average cost valuation,api/inventory/valuation/avg,get,Admin
+batch,Set Availability,Toggle availability,api/batches/{id}/availability,post,Admin
+batch,Audit Ledger,Batch movement ledger,api/batches/{id}/ledger,get,Admin
+customer,Blacklist Customer,Blacklist for fraud/abuse,api/customers/{id}/blacklist,post,Admin
+customer,Unblacklist Customer,Remove from blacklist,api/customers/{id}/unblacklist,post,Admin
+customer,Add Tag,Tag customer,api/customers/{id}/tags,post,Employee
+customer,Remove Tag,Remove customer tag,api/customers/{id}/tags/{tag},delete,Employee
+product,Add Image,Upload product image,api/products/{id}/images,post,Admin
+product,List Images,List product images,api/products/{id}/images,get,Employee
+product,Delete Image,Delete product image,api/products/{id}/images/{image_id},delete,Admin
+product,Set Primary Image,Set primary display image,api/products/{id}/images/{image_id}/primary,post,Admin
+product,Add Barcode,Add barcode to product,api/products/{id}/barcodes,post,Admin
+product,List Barcodes,List product barcodes,api/products/{id}/barcodes,get,Employee
+product,Delete Barcode,Delete product barcode,api/products/{id}/barcodes/{code},delete,Admin
+store,Business Hours,Set business hours,api/stores/{id}/business-hours,post,Admin
+store,Holidays,Set store holidays,api/stores/{id}/holidays,post,Admin
+store,Sales Targets,Set sales targets,api/stores/{id}/targets,post,Admin
