@@ -81,6 +81,7 @@ class EcommerceCatalogController extends Controller
                         return [
                             'id' => $product->id,
                             'name' => $product->name,
+                            'brand' => $product->brand,
                             'sku' => $product->sku,
                             'description' => $product->description,
                             'short_description' => $product->description ? (strlen($product->description) > 150 ? substr($product->description, 0, 150) . '...' : $product->description) : null,
@@ -167,6 +168,7 @@ class EcommerceCatalogController extends Controller
                     'product' => [
                         'id' => $product->id,
                         'name' => $product->name,
+                        'brand' => $product->brand,
                         'sku' => $product->sku,
                         'description' => $product->description,
                         'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
@@ -208,6 +210,7 @@ class EcommerceCatalogController extends Controller
                         return [
                             'id' => $product->id,
                             'name' => $product->name,
+                            'brand' => $product->brand,
                             'sku' => $product->sku,
                             'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
                             'images' => $product->images->where('is_active', true)->take(1),
@@ -386,6 +389,7 @@ class EcommerceCatalogController extends Controller
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
+                    'brand' => $product->brand,
                     'sku' => $product->sku,
                     'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
                     'images' => $product->images->where('is_active', true)->take(1),
@@ -480,6 +484,7 @@ class EcommerceCatalogController extends Controller
                         return [
                             'id' => $product->id,
                             'name' => $product->name,
+                            'brand' => $product->brand,
                             'sku' => $product->sku,
                             'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
                             'images' => $product->images->where('is_active', true)->take(2)->map(function ($image) {

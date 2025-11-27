@@ -119,6 +119,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'category_id' => 'required|exists:categories,id',
             'vendor_id' => 'required|exists:vendors,id',
+            'brand' => 'required|string|max:255',
             'sku' => 'required|string', // SKU not unique - supports variations
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -133,6 +134,7 @@ class ProductController extends Controller
             $product = Product::create([
                 'category_id' => $validated['category_id'],
                 'vendor_id' => $validated['vendor_id'],
+                'brand' => $validated['brand'],
                 'sku' => $validated['sku'],
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
@@ -186,6 +188,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'category_id' => 'sometimes|exists:categories,id',
             'vendor_id' => 'sometimes|exists:vendors,id',
+            'brand' => 'sometimes|string|max:255',
             'sku' => 'sometimes|string', // SKU not unique - supports variations
             'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
@@ -200,6 +203,7 @@ class ProductController extends Controller
             $product->update([
                 'category_id' => $validated['category_id'] ?? $product->category_id,
                 'vendor_id' => $validated['vendor_id'] ?? $product->vendor_id,
+                'brand' => $validated['brand'] ?? $product->brand,
                 'sku' => $validated['sku'] ?? $product->sku,
                 'name' => $validated['name'] ?? $product->name,
                 'description' => $validated['description'] ?? $product->description,

@@ -27,6 +27,7 @@ class ProductFactory extends Factory
         return [
             'category_id' => \App\Models\Category::factory(),
             'vendor_id' => \App\Models\Vendor::factory(),
+            'brand' => $this->faker->randomElement(['Nike', 'Adidas', 'Puma', 'Reebok', 'New Balance', 'Under Armour', 'Converse', 'Vans', 'Fila', 'Champion']),
             'sku' => $this->faker->unique()->regexify('[A-Z]{3}[0-9]{6}'),
             'name' => $this->faker->words(3, true),
             'description' => $this->faker->paragraph(),
