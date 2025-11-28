@@ -372,4 +372,148 @@ class EcommerceCatalogControllerTest extends TestCase
         // Verify cache exists
         $this->assertTrue(Cache::has('product_price_range'));
     }
+
+    /** @test */
+    public function get_suggested_products_returns_top_selling_products()
+    {
+        $store = Store::factory()->create();
+        $customer = \App\Models\Customer::factory()->create();
+        
+        // Create an order directly with all required fields
+        $order = \App\Models\Order::create([
+            'customer_id' => $customer->id,
+            'store_id' => $store->id,
+            'order_number' => 'ORD-' . uniqid(),
+            'order_type' => 'counter',
+            'status' => 'delivered',
+            'payment_status' => 'paid',
+            'subtotal' => 1000.00,
+            'tax_amount' => 0.00,
+            'discount_amount' => 0.00,
+            'shipping_amount' => 0.00,
+            'total_amount' => 1000.00,
+            'order_date' => now(),
+        ]);
+        
+        // Create 5 products with different sales volumes
+        $products = [];
+        for ($i = 1; $i <= 5; $i++) {
+            $product = Product::factory()->create(['name' => "Product $i"]);
+            ProductBatch::factory()->create([
+                'product_id' => $product->id,
+                'store_id' => $store->id,
+                'quantity' => 100,
+                'sell_price' => 100.00
+            ]);
+            ProductImage::factory()->create(['product_id' => $product->id]);
+            
+            // Create order items with different quantities (5 sold most, 1 sold least)
+            \App\Models\OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $product->id,
+                'product_name' => "Product $i",
+                'product_sku' => "SKU-$i",
+                'quantity' => (6 - $i) * 10, // 50, 40, 30, 20, 10
+                'unit_price' => 100.00,
+                'discount_amount' => 0,
+                'tax_amount' => 0,
+                'cogs' => 50.00,
+                'total_amount' => (6 - $i) * 1000,
+            ]);
+            
+            $products[] = $product;
+        }
+
+        Cache::flush();
+        $request = Request::create('/catalog/suggested-products', 'GET');
+
+        $response = $this->controller->getSuggestedProducts($request);
+        $data = $response->getData(true);
+
+        $this->assertTrue($data['success']);
+        $this->assertArrayHasKey('suggested_products', $data['data']);
+        $this->assertCount(5, $data['data']['suggested_products']);
+        
+        // First product should be the one with highest sales (Product 1)
+        $this->assertEquals($products[0]->id, $data['data']['suggested_products'][0]['id']);
+        $this->assertEquals('Product 1', $data['data']['suggested_products'][0]['name']);
+    }
+
+    /** @test */
+    public function get_suggested_products_respects_limit_parameter()
+    {
+        $store = Store::factory()->create();
+        $customer = \App\Models\Customer::factory()->create();
+        
+        // Create an order directly with all required fields
+        $order = \App\Models\Order::create([
+            'customer_id' => $customer->id,
+            'store_id' => $store->id,
+            'order_number' => 'ORD-' . uniqid(),
+            'order_type' => 'counter',
+            'status' => 'delivered',
+            'payment_status' => 'paid',
+            'subtotal' => 1000.00,
+            'tax_amount' => 0.00,
+            'discount_amount' => 0.00,
+            'shipping_amount' => 0.00,
+            'total_amount' => 1000.00,
+            'order_date' => now(),
+        ]);
+        
+        // Create 10 products
+        for ($i = 1; $i <= 10; $i++) {
+            $product = Product::factory()->create();
+            ProductBatch::factory()->create([
+                'product_id' => $product->id,
+                'store_id' => $store->id,
+                'quantity' => 10
+            ]);
+            
+            \App\Models\OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $product->id,
+                'product_name' => "Product $i",
+                'product_sku' => "SKU-$i",
+                'quantity' => $i,
+                'unit_price' => 100.00,
+                'discount_amount' => 0,
+                'tax_amount' => 0,
+                'cogs' => 50.00,
+                'total_amount' => $i * 100,
+            ]);
+        }
+
+        Cache::flush();
+        $request = Request::create('/catalog/suggested-products', 'GET', ['limit' => 3]);
+
+        $response = $this->controller->getSuggestedProducts($request);
+        $data = $response->getData(true);
+
+        $this->assertTrue($data['success']);
+        $this->assertCount(3, $data['data']['suggested_products']);
+        $this->assertEquals(3, $data['data']['total_suggested']);
+    }
+
+    /** @test */
+    public function get_suggested_products_uses_cache()
+    {
+        Cache::flush();
+
+        $store = Store::factory()->create();
+        $product = Product::factory()->create();
+        ProductBatch::factory()->create([
+            'product_id' => $product->id,
+            'store_id' => $store->id,
+            'quantity' => 10
+        ]);
+
+        $request = Request::create('/catalog/suggested-products', 'GET');
+
+        // First call - should cache
+        $this->controller->getSuggestedProducts($request);
+
+        // Verify cache was set
+        $this->assertTrue(Cache::has('suggested_products_5'));
+    }
 }

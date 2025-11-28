@@ -125,6 +125,7 @@ Route::prefix('catalog')->group(function () {
     Route::get('/categories', [\App\Http\Controllers\EcommerceCatalogController::class, 'getCategories']);
     Route::get('/featured-products', [\App\Http\Controllers\EcommerceCatalogController::class, 'getFeaturedProducts']);
     Route::get('/new-arrivals', [\App\Http\Controllers\EcommerceCatalogController::class, 'getNewArrivals']);
+    Route::get('/suggested-products', [\App\Http\Controllers\EcommerceCatalogController::class, 'getSuggestedProducts']);
     Route::get('/search', [\App\Http\Controllers\EcommerceCatalogController::class, 'searchProducts']);
     Route::get('/price-range', [\App\Http\Controllers\EcommerceCatalogController::class, 'getPriceRange']);
 });
