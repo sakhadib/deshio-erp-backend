@@ -481,4 +481,105 @@ class CustomerAuthenticationTest extends TestCase
         $this->assertIsArray($customer->preferences);
         $this->assertIsArray($customer->social_profiles);
     }
+
+    /** @test */
+    public function customer_implements_jwt_subject()
+    {
+        $customer = Customer::factory()->create([
+            'customer_type' => 'ecommerce',
+            'password' => bcrypt('password123'),
+        ]);
+
+        $this->assertInstanceOf(\Tymon\JWTAuth\Contracts\JWTSubject::class, $customer);
+    }
+
+    /** @test */
+    public function get_jwt_identifier_returns_primary_key()
+    {
+        $customer = Customer::factory()->create([
+            'customer_type' => 'ecommerce',
+            'password' => bcrypt('password123'),
+        ]);
+
+        $this->assertEquals($customer->id, $customer->getJWTIdentifier());
+    }
+
+    /** @test */
+    public function get_jwt_custom_claims_returns_correct_data()
+    {
+        $customer = Customer::factory()->create([
+            'customer_type' => 'ecommerce',
+            'email' => 'test@example.com',
+            'phone' => '01712345678',
+            'password' => bcrypt('password123'),
+        ]);
+
+        $claims = $customer->getJWTCustomClaims();
+
+        $this->assertIsArray($claims);
+        $this->assertEquals('ecommerce', $claims['customer_type']);
+        $this->assertEquals('test@example.com', $claims['email']);
+        $this->assertEquals('01712345678', $claims['phone']);
+        $this->assertArrayHasKey('customer_code', $claims);
+    }
+
+    /** @test */
+    public function jwt_token_can_be_generated_for_customer()
+    {
+        $customer = Customer::factory()->create([
+            'customer_type' => 'ecommerce',
+            'email' => 'test@example.com',
+            'password' => bcrypt('password123'),
+            'status' => 'active',
+        ]);
+
+        $token = \Tymon\JWTAuth\Facades\JWTAuth::fromUser($customer);
+
+        $this->assertNotEmpty($token);
+        $this->assertIsString($token);
+    }
+
+    /** @test */
+    public function jwt_token_can_be_parsed_to_customer()
+    {
+        $customer = Customer::factory()->create([
+            'customer_type' => 'ecommerce',
+            'email' => 'test@example.com',
+            'password' => bcrypt('password123'),
+            'status' => 'active',
+        ]);
+
+        // Generate token
+        $token = \Tymon\JWTAuth\Facades\JWTAuth::fromUser($customer);
+        
+        // Parse token to get payload
+        $payload = \Tymon\JWTAuth\Facades\JWTAuth::setToken($token)->getPayload();
+
+        // Verify the token contains correct customer information
+        $this->assertEquals($customer->id, $payload->get('sub'));
+        $this->assertEquals($customer->customer_type, $payload->get('customer_type'));
+        $this->assertEquals($customer->email, $payload->get('email'));
+        $this->assertEquals($customer->phone, $payload->get('phone'));
+        $this->assertEquals($customer->customer_code, $payload->get('customer_code'));
+    }
+
+    /** @test */
+    public function customer_guard_uses_correct_provider()
+    {
+        $guardConfig = config('auth.guards.customer');
+        
+        $this->assertNotNull($guardConfig);
+        $this->assertEquals('jwt', $guardConfig['driver']);
+        $this->assertEquals('customers', $guardConfig['provider']);
+    }
+
+    /** @test */
+    public function customers_provider_uses_customer_model()
+    {
+        $providerConfig = config('auth.providers.customers');
+        
+        $this->assertNotNull($providerConfig);
+        $this->assertEquals('eloquent', $providerConfig['driver']);
+        $this->assertEquals(\App\Models\Customer::class, $providerConfig['model']);
+    }
 }
