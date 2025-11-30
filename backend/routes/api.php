@@ -145,6 +145,29 @@ Route::middleware('auth:customer')->prefix('profile')->group(function () {
     Route::post('/deactivate', [\App\Http\Controllers\CustomerProfileController::class, 'deactivateAccount']);
 });
 
+// E-commerce Order Management (Customer)
+Route::middleware('auth:customer')->prefix('customer')->group(function () {
+    Route::prefix('orders')->group(function () {
+        // Create order from cart
+        Route::post('/create-from-cart', [\App\Http\Controllers\EcommerceOrderController::class, 'createFromCart']);
+        
+        // List customer orders with filters
+        Route::get('/', [\App\Http\Controllers\EcommerceOrderController::class, 'index']);
+        
+        // Get order details
+        Route::get('/{orderNumber}', [\App\Http\Controllers\EcommerceOrderController::class, 'show']);
+        
+        // Cancel order
+        Route::post('/{orderNumber}/cancel', [\App\Http\Controllers\EcommerceOrderController::class, 'cancel']);
+        
+        // Track order
+        Route::get('/{orderNumber}/track', [\App\Http\Controllers\EcommerceOrderController::class, 'track']);
+        
+        // Get order statistics
+        Route::get('/stats/summary', [\App\Http\Controllers\EcommerceOrderController::class, 'statistics']);
+    });
+});
+
 // Public API for payment methods (no auth required for POS/Social Commerce)
 Route::get('/payment-methods', [PaymentController::class, 'getMethodsByCustomerType']);
 
@@ -160,6 +183,33 @@ Route::middleware('auth:api')->group(function () {
 
 // Protected routes
 Route::middleware('auth:api')->group(function () {
+    // Order Management (Employee) - Inventory & Assignment
+    Route::prefix('order-management')->group(function () {
+        // Get orders pending store assignment
+        Route::get('/pending-assignment', [\App\Http\Controllers\OrderManagementController::class, 'getPendingAssignmentOrders']);
+        
+        // Get available stores for an order based on inventory
+        Route::get('/orders/{orderId}/available-stores', [\App\Http\Controllers\OrderManagementController::class, 'getAvailableStores']);
+        
+        // Assign order to a specific store
+        Route::post('/orders/{orderId}/assign-store', [\App\Http\Controllers\OrderManagementController::class, 'assignOrderToStore']);
+    });
+
+    // Store Fulfillment (Store Employee) - Dashboard & Barcode Scanning
+    Route::prefix('store/fulfillment')->group(function () {
+        // Get orders assigned to employee's store
+        Route::get('/orders/assigned', [\App\Http\Controllers\StoreFulfillmentController::class, 'getAssignedOrders']);
+        
+        // Get specific order details for fulfillment
+        Route::get('/orders/{orderId}', [\App\Http\Controllers\StoreFulfillmentController::class, 'getOrderDetails']);
+        
+        // Scan barcode to fulfill order item
+        Route::post('/orders/{orderId}/scan-barcode', [\App\Http\Controllers\StoreFulfillmentController::class, 'scanBarcode']);
+        
+        // Mark order as ready for shipment
+        Route::post('/orders/{orderId}/ready-for-shipment', [\App\Http\Controllers\StoreFulfillmentController::class, 'markReadyForShipment']);
+    });
+
     // Employee management routes
     Route::prefix('employees')->group(function () {
         Route::get('/', [EmployeeController::class, 'getEmployees']);
