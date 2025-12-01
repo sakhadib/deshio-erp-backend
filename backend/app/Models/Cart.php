@@ -14,6 +14,7 @@ class Cart extends Model
     protected $fillable = [
         'customer_id',
         'product_id',
+        'variant_options',
         'quantity',
         'unit_price',
         'notes',
@@ -23,6 +24,7 @@ class Cart extends Model
     protected $casts = [
         'unit_price' => 'decimal:2',
         'quantity' => 'integer',
+        'variant_options' => 'array',
     ];
 
     // Relationships

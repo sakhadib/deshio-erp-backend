@@ -47,6 +47,7 @@ class CartController extends Controller
                                 'stock_quantity' => $item->product->stock_quantity,
                                 'in_stock' => $item->product->stock_quantity > 0,
                             ],
+                            'variant_options' => $item->variant_options,
                             'quantity' => $item->quantity,
                             'unit_price' => $item->unit_price,
                             'total_price' => $item->quantity * $item->unit_price,
@@ -83,6 +84,9 @@ class CartController extends Controller
                 'product_id' => 'required|integer|exists:products,id',
                 'quantity' => 'required|integer|min:1|max:100',
                 'notes' => 'nullable|string|max:500',
+                'variant_options' => 'nullable|array',
+                'variant_options.color' => 'nullable|string|max:50',
+                'variant_options.size' => 'nullable|string|max:50',
             ]);
 
             if ($validator->fails()) {
@@ -111,11 +115,19 @@ class CartController extends Controller
                 ], 400);
             }
 
-            // Check if item already exists in cart
-            $existingCartItem = Cart::where('customer_id', $customer->id)
+            // Check if item already exists in cart (matching product_id and variant_options)
+            $query = Cart::where('customer_id', $customer->id)
                 ->where('product_id', $product->id)
-                ->where('status', 'active')
-                ->first();
+                ->where('status', 'active');
+            
+            // Match variant_options: NULL vs NULL, or exact JSON match
+            if ($request->has('variant_options') && $request->variant_options) {
+                $query->where('variant_options', json_encode($request->variant_options));
+            } else {
+                $query->whereNull('variant_options');
+            }
+            
+            $existingCartItem = $query->first();
 
             if ($existingCartItem) {
                 // Update existing cart item
@@ -139,6 +151,7 @@ class CartController extends Controller
                 $cartItem = Cart::create([
                     'customer_id' => $customer->id,
                     'product_id' => $product->id,
+                    'variant_options' => $request->variant_options,
                     'quantity' => $request->quantity,
                     'unit_price' => $product->selling_price,
                     'notes' => $request->notes,
@@ -162,6 +175,7 @@ class CartController extends Controller
                             'selling_price' => $cartItem->product->selling_price,
                             'images' => $cartItem->product->images->take(1),
                         ],
+                        'variant_options' => $cartItem->variant_options,
                         'quantity' => $cartItem->quantity,
                         'unit_price' => $cartItem->unit_price,
                         'total_price' => $cartItem->quantity * $cartItem->unit_price,
