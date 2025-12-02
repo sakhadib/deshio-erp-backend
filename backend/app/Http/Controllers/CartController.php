@@ -19,7 +19,9 @@ class CartController extends Controller
         try {
             $customer = JWTAuth::parseToken()->authenticate();
             
-            $cartItems = Cart::with(['product.images', 'product.category'])
+            $cartItems = Cart::with(['product.images', 'product.category', 'product.batches' => function($q) {
+                    $q->active()->available();
+                }])
                 ->where('customer_id', $customer->id)
                 ->where('status', 'active')
                 ->orderBy('created_at', 'desc')
@@ -35,17 +37,22 @@ class CartController extends Controller
                 'success' => true,
                 'data' => [
                     'cart_items' => $cartItems->map(function ($item) {
+                        // Get current stock and price from batches
+                        $totalStock = $item->product->batches->sum('quantity');
+                        $currentBatch = $item->product->batches->first();
+                        $currentPrice = $currentBatch ? $currentBatch->sell_price : $item->unit_price;
+                        
                         return [
                             'id' => $item->id,
                             'product_id' => $item->product_id,
                             'product' => [
                                 'id' => $item->product->id,
                                 'name' => $item->product->name,
-                                'selling_price' => $item->product->selling_price,
+                                'selling_price' => $currentPrice,
                                 'images' => $item->product->images->take(1),
                                 'category' => $item->product->category->name ?? null,
-                                'stock_quantity' => $item->product->stock_quantity,
-                                'in_stock' => $item->product->stock_quantity > 0,
+                                'stock_quantity' => $totalStock,
+                                'in_stock' => $totalStock > 0,
                             ],
                             'variant_options' => $item->variant_options,
                             'quantity' => $item->quantity,
@@ -97,32 +104,49 @@ class CartController extends Controller
                 ], 422);
             }
 
-            $product = Product::findOrFail($request->product_id);
+            $product = Product::with(['batches' => function($q) {
+                $q->active()->available();
+            }])->findOrFail($request->product_id);
 
-            // Check if product is available for purchase
-            if (!$product->is_active || $product->status !== 'active') {
+            // Check if product is archived (ERP uses is_archived instead of status)
+            if ($product->is_archived) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Product is not available for purchase',
                 ], 400);
             }
 
-            // Check stock availability
-            if ($product->stock_quantity < $request->quantity) {
+            // Get available stock from batches (ERP manages stock via ProductBatch)
+            $totalStock = $product->batches->sum('quantity');
+            
+            if ($totalStock < $request->quantity) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Insufficient stock. Available: ' . $product->stock_quantity,
+                    'message' => 'Insufficient stock. Available: ' . $totalStock,
                 ], 400);
             }
+            
+            // Get price from the first available batch (you can modify this logic)
+            $availableBatch = $product->batches->first();
+            if (!$availableBatch) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No available batches for this product',
+                ], 400);
+            }
+            
+            $productPrice = $availableBatch->sell_price;
 
             // Check if item already exists in cart (matching product_id and variant_options)
             $query = Cart::where('customer_id', $customer->id)
                 ->where('product_id', $product->id)
                 ->where('status', 'active');
             
-            // Match variant_options: NULL vs NULL, or exact JSON match
+            // Match variant_options: NULL vs NULL, or exact JSON match using MD5 hash
             if ($request->has('variant_options') && $request->variant_options) {
-                $query->where('variant_options', json_encode($request->variant_options));
+                // Use raw SQL for JSON comparison in PostgreSQL
+                $variantJson = json_encode($request->variant_options);
+                $query->whereRaw('MD5(CAST(variant_options AS TEXT)) = MD5(?)', [$variantJson]);
             } else {
                 $query->whereNull('variant_options');
             }
@@ -133,10 +157,12 @@ class CartController extends Controller
                 // Update existing cart item
                 $newQuantity = $existingCartItem->quantity + $request->quantity;
                 
-                if ($newQuantity > $product->stock_quantity) {
+                // Re-check stock availability
+                $totalStock = $product->batches->sum('quantity');
+                if ($newQuantity > $totalStock) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Total quantity exceeds available stock. Current in cart: ' . $existingCartItem->quantity . ', Available: ' . $product->stock_quantity,
+                        'message' => 'Total quantity exceeds available stock. Current in cart: ' . $existingCartItem->quantity . ', Available: ' . $totalStock,
                     ], 400);
                 }
 
@@ -153,14 +179,20 @@ class CartController extends Controller
                     'product_id' => $product->id,
                     'variant_options' => $request->variant_options,
                     'quantity' => $request->quantity,
-                    'unit_price' => $product->selling_price,
+                    'unit_price' => $productPrice,
                     'notes' => $request->notes,
                     'status' => 'active',
                 ]);
             }
 
             // Load relationships
-            $cartItem->load(['product.images', 'product.category']);
+            $cartItem->load(['product.images', 'product.category', 'product.batches' => function($q) {
+                $q->active()->available();
+            }]);
+            
+            // Get current price from batch
+            $currentBatch = $cartItem->product->batches->first();
+            $currentPrice = $currentBatch ? $currentBatch->sell_price : $cartItem->unit_price;
 
             return response()->json([
                 'success' => true,
@@ -172,7 +204,7 @@ class CartController extends Controller
                         'product' => [
                             'id' => $cartItem->product->id,
                             'name' => $cartItem->product->name,
-                            'selling_price' => $cartItem->product->selling_price,
+                            'selling_price' => $currentPrice,
                             'images' => $cartItem->product->images->take(1),
                         ],
                         'variant_options' => $cartItem->variant_options,
@@ -217,13 +249,16 @@ class CartController extends Controller
                 ->where('status', 'active')
                 ->firstOrFail();
 
-            $product = Product::findOrFail($cartItem->product_id);
+            $product = Product::with(['batches' => function($q) {
+                $q->active()->available();
+            }])->findOrFail($cartItem->product_id);
 
-            // Check stock availability
-            if ($product->stock_quantity < $request->quantity) {
+            // Check stock availability from batches
+            $totalStock = $product->batches->sum('quantity');
+            if ($totalStock < $request->quantity) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Insufficient stock. Available: ' . $product->stock_quantity,
+                    'message' => 'Insufficient stock. Available: ' . $totalStock,
                 ], 400);
             }
 
@@ -347,19 +382,26 @@ class CartController extends Controller
                 ->where('status', 'saved')
                 ->firstOrFail();
 
-            $product = Product::findOrFail($cartItem->product_id);
+            $product = Product::with(['batches' => function($q) {
+                $q->active()->available();
+            }])->findOrFail($cartItem->product_id);
 
-            // Check stock availability
-            if ($product->stock_quantity < $cartItem->quantity) {
+            // Check stock availability from batches
+            $totalStock = $product->batches->sum('quantity');
+            if ($totalStock < $cartItem->quantity) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Insufficient stock. Available: ' . $product->stock_quantity,
+                    'message' => 'Insufficient stock. Available: ' . $totalStock,
                 ], 400);
             }
+            
+            // Get current price from batch
+            $currentBatch = $product->batches->first();
+            $currentPrice = $currentBatch ? $currentBatch->sell_price : $cartItem->unit_price;
 
             $cartItem->update([
                 'status' => 'active',
-                'unit_price' => $product->selling_price, // Update price
+                'unit_price' => $currentPrice, // Update price from batch
             ]);
 
             return response()->json([
@@ -383,7 +425,9 @@ class CartController extends Controller
         try {
             $customer = JWTAuth::parseToken()->authenticate();
 
-            $savedItems = Cart::with(['product.images', 'product.category'])
+            $savedItems = Cart::with(['product.images', 'product.category', 'product.batches' => function($q) {
+                    $q->active()->available();
+                }])
                 ->where('customer_id', $customer->id)
                 ->where('status', 'saved')
                 ->orderBy('updated_at', 'desc')
@@ -393,22 +437,27 @@ class CartController extends Controller
                 'success' => true,
                 'data' => [
                     'saved_items' => $savedItems->map(function ($item) {
+                        // Get current stock and price from batches
+                        $totalStock = $item->product->batches->sum('quantity');
+                        $currentBatch = $item->product->batches->first();
+                        $currentPrice = $currentBatch ? $currentBatch->sell_price : $item->unit_price;
+                        
                         return [
                             'id' => $item->id,
                             'product_id' => $item->product_id,
                             'product' => [
                                 'id' => $item->product->id,
                                 'name' => $item->product->name,
-                                'selling_price' => $item->product->selling_price,
+                                'selling_price' => $currentPrice,
                                 'images' => $item->product->images->take(1),
                                 'category' => $item->product->category->name ?? null,
-                                'stock_quantity' => $item->product->stock_quantity,
-                                'in_stock' => $item->product->stock_quantity > 0,
-                                'price_changed' => $item->unit_price != $item->product->selling_price,
+                                'stock_quantity' => $totalStock,
+                                'in_stock' => $totalStock > 0,
+                                'price_changed' => $item->unit_price != $currentPrice,
                             ],
                             'quantity' => $item->quantity,
                             'original_price' => $item->unit_price,
-                            'current_price' => $item->product->selling_price,
+                            'current_price' => $currentPrice,
                             'notes' => $item->notes,
                             'saved_at' => $item->updated_at,
                         ];
@@ -468,7 +517,9 @@ class CartController extends Controller
         try {
             $customer = JWTAuth::parseToken()->authenticate();
 
-            $cartItems = Cart::with('product')
+            $cartItems = Cart::with(['product.batches' => function($q) {
+                    $q->active()->available();
+                }])
                 ->where('customer_id', $customer->id)
                 ->where('status', 'active')
                 ->get();
@@ -486,8 +537,8 @@ class CartController extends Controller
             foreach ($cartItems as $item) {
                 $product = $item->product;
                 
-                // Check product availability
-                if (!$product->is_active || $product->status !== 'active') {
+                // Check product availability (ERP uses is_archived)
+                if ($product->is_archived) {
                     $issues[] = [
                         'item_id' => $item->id,
                         'product_name' => $product->name,
@@ -496,25 +547,28 @@ class CartController extends Controller
                     continue;
                 }
 
-                // Check stock
-                if ($product->stock_quantity < $item->quantity) {
+                // Check stock from batches
+                $totalStock = $product->batches->sum('quantity');
+                if ($totalStock < $item->quantity) {
                     $issues[] = [
                         'item_id' => $item->id,
                         'product_name' => $product->name,
-                        'issue' => 'Insufficient stock. Available: ' . $product->stock_quantity,
-                        'available_quantity' => $product->stock_quantity,
+                        'issue' => 'Insufficient stock. Available: ' . $totalStock,
+                        'available_quantity' => $totalStock,
                     ];
                     continue;
                 }
 
-                // Check price changes
-                if ($item->unit_price != $product->selling_price) {
+                // Check price changes from batch
+                $currentBatch = $product->batches->first();
+                $currentPrice = $currentBatch ? $currentBatch->sell_price : $item->unit_price;
+                if ($item->unit_price != $currentPrice) {
                     $issues[] = [
                         'item_id' => $item->id,
                         'product_name' => $product->name,
                         'issue' => 'Price has changed',
                         'old_price' => $item->unit_price,
-                        'new_price' => $product->selling_price,
+                        'new_price' => $currentPrice,
                     ];
                 }
 
