@@ -145,6 +145,37 @@ Route::middleware('auth:customer')->prefix('profile')->group(function () {
     Route::post('/deactivate', [\App\Http\Controllers\CustomerProfileController::class, 'deactivateAccount']);
 });
 
+// ============================================
+// E-COMMERCE CUSTOMER ADDRESS MANAGEMENT ROUTES
+// Delivery and billing address management
+// ============================================
+
+Route::middleware('auth:customer')->prefix('customer')->group(function () {
+    Route::prefix('addresses')->group(function () {
+        // List all addresses for customer
+        Route::get('/', [\App\Http\Controllers\CustomerAddressController::class, 'index']);
+        
+        // Create new address
+        Route::post('/', [\App\Http\Controllers\CustomerAddressController::class, 'store']);
+        
+        // Get default addresses
+        Route::get('/default/shipping', [\App\Http\Controllers\CustomerAddressController::class, 'getDefaultShipping']);
+        Route::get('/default/billing', [\App\Http\Controllers\CustomerAddressController::class, 'getDefaultBilling']);
+        
+        // Validate address
+        Route::post('/validate', [\App\Http\Controllers\CustomerAddressController::class, 'validateAddress']);
+        
+        // Individual address operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [\App\Http\Controllers\CustomerAddressController::class, 'show']);
+            Route::put('/', [\App\Http\Controllers\CustomerAddressController::class, 'update']);
+            Route::delete('/', [\App\Http\Controllers\CustomerAddressController::class, 'destroy']);
+            Route::patch('/set-default-shipping', [\App\Http\Controllers\CustomerAddressController::class, 'setDefaultShipping']);
+            Route::patch('/set-default-billing', [\App\Http\Controllers\CustomerAddressController::class, 'setDefaultBilling']);
+        });
+    });
+});
+
 // E-commerce Order Management (Customer)
 Route::middleware('auth:customer')->prefix('customer')->group(function () {
     Route::prefix('orders')->group(function () {

@@ -119,7 +119,7 @@ class EcommerceOrderController extends Controller
                     'items.product.images',
                     'customer',
                     'store',
-                    'orderPayments'
+                    'payments'
                 ])
                 ->firstOrFail();
 
