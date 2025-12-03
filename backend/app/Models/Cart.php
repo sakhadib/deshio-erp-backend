@@ -15,6 +15,7 @@ class Cart extends Model
         'customer_id',
         'product_id',
         'variant_options',
+        'variant_hash',
         'quantity',
         'unit_price',
         'notes',
@@ -26,6 +27,27 @@ class Cart extends Model
         'quantity' => 'integer',
         'variant_options' => 'array',
     ];
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Automatically compute variant_hash when creating/updating
+        static::saving(function ($cart) {
+            $cart->variant_hash = $cart->computeVariantHash();
+        });
+    }
+
+    /**
+     * Compute MD5 hash of variant_options for database-agnostic unique indexing
+     */
+    public function computeVariantHash(): ?string
+    {
+        if (empty($this->variant_options)) {
+            return null;
+        }
+        return md5(json_encode($this->variant_options));
+    }
 
     // Relationships
     public function customer(): BelongsTo

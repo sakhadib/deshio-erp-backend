@@ -17,14 +17,16 @@ return new class extends Migration
             
             // Add variant_options JSON column
             $table->json('variant_options')->nullable()->after('product_id');
+            
+            // Add a computed hash column for variant_options to enable unique indexing
+            // This is database-agnostic and works with MySQL, PostgreSQL, SQLite
+            $table->string('variant_hash', 32)->nullable()->after('variant_options');
+            
+            // Add regular index on the hash column
+            // Note: Uniqueness will be enforced at application level in CartController
+            // since JSON comparison varies across databases
+            $table->index(['customer_id', 'product_id', 'variant_hash', 'status'], 'idx_cart_variant_lookup');
         });
-        
-        // Add unique index using raw SQL with md5 hash for variant_options
-        // This allows NULL values and handles JSON comparison properly
-        \DB::statement('
-            CREATE UNIQUE INDEX unique_customer_product_variant_status 
-            ON carts (customer_id, product_id, MD5(CAST(variant_options AS TEXT)), status)
-        ');
     }
 
     /**
@@ -32,12 +34,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Drop the unique index
-        \DB::statement('DROP INDEX IF EXISTS unique_customer_product_variant_status');
-        
         Schema::table('carts', function (Blueprint $table) {
-            // Remove variant_options column
-            $table->dropColumn('variant_options');
+            // Drop the index
+            $table->dropIndex('idx_cart_variant_lookup');
+            
+            // Remove variant_hash and variant_options columns
+            $table->dropColumn(['variant_hash', 'variant_options']);
             
             // Restore old constraint
             $table->unique(['customer_id', 'product_id', 'status'], 'unique_customer_product_status');

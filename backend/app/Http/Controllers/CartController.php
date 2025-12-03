@@ -138,15 +138,19 @@ class CartController extends Controller
             $productPrice = $availableBatch->sell_price;
 
             // Check if item already exists in cart (matching product_id and variant_options)
+            // Compute hash for database-agnostic comparison
+            $variantHash = null;
+            if ($request->has('variant_options') && $request->variant_options) {
+                $variantHash = md5(json_encode($request->variant_options));
+            }
+            
             $query = Cart::where('customer_id', $customer->id)
                 ->where('product_id', $product->id)
                 ->where('status', 'active');
             
-            // Match variant_options: NULL vs NULL, or exact JSON match using MD5 hash
-            if ($request->has('variant_options') && $request->variant_options) {
-                // Use raw SQL for JSON comparison in PostgreSQL
-                $variantJson = json_encode($request->variant_options);
-                $query->whereRaw('MD5(CAST(variant_options AS TEXT)) = MD5(?)', [$variantJson]);
+            // Match variant_hash (database-agnostic)
+            if ($variantHash) {
+                $query->where('variant_hash', $variantHash);
             } else {
                 $query->whereNull('variant_options');
             }
