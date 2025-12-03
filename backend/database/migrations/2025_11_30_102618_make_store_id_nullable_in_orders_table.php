@@ -12,16 +12,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Drop the existing foreign key constraint
         Schema::table('orders', function (Blueprint $table) {
+            // Drop the existing foreign key constraint
             $table->dropForeign(['store_id']);
-        });
-
-        // Make store_id nullable
-        DB::statement('ALTER TABLE orders ALTER COLUMN store_id DROP NOT NULL');
-
-        // Re-add the foreign key constraint
-        Schema::table('orders', function (Blueprint $table) {
+            
+            // Make store_id nullable using Laravel's database-agnostic method
+            $table->unsignedBigInteger('store_id')->nullable()->change();
+            
+            // Re-add the foreign key constraint
             $table->foreign('store_id')
                 ->references('id')
                 ->on('stores')
@@ -34,16 +32,14 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Drop the foreign key
         Schema::table('orders', function (Blueprint $table) {
+            // Drop the foreign key
             $table->dropForeign(['store_id']);
-        });
-
-        // Make store_id NOT NULL
-        DB::statement('ALTER TABLE orders ALTER COLUMN store_id SET NOT NULL');
-
-        // Re-add the foreign key constraint with cascade
-        Schema::table('orders', function (Blueprint $table) {
+            
+            // Make store_id NOT NULL using Laravel's database-agnostic method
+            $table->unsignedBigInteger('store_id')->nullable(false)->change();
+            
+            // Re-add the foreign key constraint with cascade
             $table->foreign('store_id')
                 ->references('id')
                 ->on('stores')
