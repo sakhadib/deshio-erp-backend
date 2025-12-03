@@ -12,26 +12,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // PostgreSQL requires dropping and recreating enum types
-        DB::statement("ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check");
-        DB::statement("ALTER TABLE orders ALTER COLUMN status TYPE VARCHAR(50)");
-        DB::statement("
-            ALTER TABLE orders ADD CONSTRAINT orders_status_check 
-            CHECK (status IN (
-                'pending', 
-                'pending_assignment', 
-                'assigned_to_store', 
-                'picking', 
-                'ready_for_shipment',
-                'confirmed', 
-                'processing', 
-                'ready_for_pickup', 
-                'shipped', 
-                'delivered', 
-                'cancelled', 
-                'refunded'
-            ))
-        ");
+        Schema::table('orders', function (Blueprint $table) {
+            // Change status column to string with more length to accommodate new statuses
+            // Database-agnostic way - Laravel will handle the syntax for each DB
+            $table->string('status', 50)->change();
+        });
+        
+        // Note: CHECK constraints are not portable across all databases
+        // Laravel doesn't have native support for CHECK constraints
+        // Consider implementing status validation at the application level (model/controller)
+        // or use enum cast in the model for stricter type safety
     }
 
     /**
@@ -39,19 +29,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement("ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check");
-        DB::statement("
-            ALTER TABLE orders ADD CONSTRAINT orders_status_check 
-            CHECK (status IN (
-                'pending', 
-                'confirmed', 
-                'processing', 
-                'ready_for_pickup', 
-                'shipped', 
-                'delivered', 
-                'cancelled', 
-                'refunded'
-            ))
-        ");
+        Schema::table('orders', function (Blueprint $table) {
+            // Revert to original length if needed
+            $table->string('status', 50)->change();
+        });
     }
 };
