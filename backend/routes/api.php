@@ -43,6 +43,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\CategoriesController;
+use App\Http\Controllers\SslcommerzController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -144,6 +145,21 @@ Route::middleware('auth:customer')->prefix('profile')->group(function () {
     Route::get('/stats', [\App\Http\Controllers\CustomerProfileController::class, 'getCustomerStats']);
     Route::post('/deactivate', [\App\Http\Controllers\CustomerProfileController::class, 'deactivateAccount']);
 });
+
+// ============================================
+// SSLCOMMERZ PAYMENT GATEWAY CALLBACKS
+// Handle payment success, failure, cancel, and IPN
+// ============================================
+
+Route::controller(SslcommerzController::class)
+    ->prefix('sslcommerz')
+    ->name('sslc.')
+    ->group(function () {
+        Route::post('success', 'success')->name('success');
+        Route::post('failure', 'failure')->name('failure');
+        Route::post('cancel', 'cancel')->name('cancel');
+        Route::post('ipn', 'ipn')->name('ipn');
+    });
 
 // ============================================
 // E-COMMERCE CUSTOMER ADDRESS MANAGEMENT ROUTES

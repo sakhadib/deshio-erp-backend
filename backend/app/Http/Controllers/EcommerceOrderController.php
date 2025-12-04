@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\OrderPayment;
 use App\Models\Cart;
 use App\Models\Product;
 use App\Models\Customer;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Raziul\Sslcommerz\Facades\Sslcommerz;
 use Carbon\Carbon;
 
 class EcommerceOrderController extends Controller
@@ -160,7 +162,7 @@ class EcommerceOrderController extends Controller
     {
         try {
             $validator = Validator::make($request->all(), [
-                'payment_method' => 'required|string|in:cash,card,bank_transfer,digital_wallet,cod',
+                'payment_method' => 'required|string|in:cash,card,bank_transfer,digital_wallet,cod,sslcommerz',
                 'shipping_address_id' => 'required|exists:customer_addresses,id',
                 'billing_address_id' => 'nullable|exists:customer_addresses,id',
                 'notes' => 'nullable|string|max:500',
@@ -273,9 +275,52 @@ class EcommerceOrderController extends Controller
                     ->where('status', 'active')
                     ->delete();
 
+                // Handle payment based on method
+                if ($request->payment_method === 'sslcommerz') {
+                    // Initiate SSLCommerz payment
+                    $transactionId = 'TXN-' . $order->id . '-' . time();
+                    
+                    // Create pending payment record
+                    OrderPayment::create([
+                        'order_id' => $order->id,
+                        'payment_method_id' => null, // SSLCommerz doesn't use payment_methods table
+                        'amount' => $totalAmount,
+                        'transaction_id' => $transactionId,
+                        'status' => 'pending',
+                        'payment_date' => now(),
+                    ]);
+
+                    $customer = Customer::find($customerId);
+                    
+                    $response = Sslcommerz::setOrder($totalAmount, $transactionId, 'Order #' . $order->order_number)
+                        ->setCustomer($customer->name, $customer->email, $customer->phone ?? '01700000000')
+                        ->setShippingInfo($cartItems->sum('quantity'), $shippingAddress->full_address ?? 'N/A')
+                        ->makePayment(['value_a' => $order->id]); // Pass order ID as additional data
+
+                    DB::commit();
+
+                    if ($response->success()) {
+                        return response()->json([
+                            'success' => true,
+                            'message' => 'Order created. Redirecting to payment gateway.',
+                            'data' => [
+                                'order' => $order,
+                                'payment_url' => $response->gatewayPageURL(),
+                                'transaction_id' => $transactionId,
+                            ],
+                        ], 201);
+                    } else {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Failed to initiate payment gateway',
+                            'error' => $response->failedReason(),
+                        ], 500);
+                    }
+                }
+
                 DB::commit();
 
-                // Load relationships for response
+                // Load relationships for response (for COD and other methods)
                 $order->load(['items.product.images', 'customer']);
 
                 return response()->json([
