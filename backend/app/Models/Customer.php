@@ -249,6 +249,39 @@ class Customer extends Authenticatable implements JWTSubject
         return $this->preferences['communication'] ?? [];
     }
 
+    /**
+     * Find or create a customer by phone number (for guest checkout)
+     * Creates customer with default password if phone doesn't exist
+     */
+    public static function findOrCreateByPhone(string $phone, array $additionalData = []): self
+    {
+        // Clean phone number (remove spaces, dashes, etc.)
+        $cleanPhone = preg_replace('/[^0-9+]/', '', $phone);
+        
+        // Try to find existing customer by phone
+        $customer = static::where('phone', $cleanPhone)->first();
+        
+        if ($customer) {
+            return $customer;
+        }
+        
+        // Create new guest customer
+        return static::create([
+            'customer_type' => 'ecommerce',
+            'phone' => $cleanPhone,
+            'name' => $additionalData['name'] ?? 'Customer ' . $cleanPhone,
+            'email' => $additionalData['email'] ?? null,
+            'password' => bcrypt('default'), // Default password
+            'address' => $additionalData['address'] ?? null,
+            'city' => $additionalData['city'] ?? null,
+            'state' => $additionalData['state'] ?? null,
+            'postal_code' => $additionalData['postal_code'] ?? null,
+            'country' => $additionalData['country'] ?? 'Bangladesh',
+            'status' => 'active',
+            'email_verified_at' => null, // Not verified for guest customers
+        ]);
+    }
+
     public function getShoppingPreferencesAttribute()
     {
         return $this->preferences['shopping'] ?? [];

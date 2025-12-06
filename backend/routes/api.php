@@ -59,6 +59,14 @@ Route::post('/signup', [AuthController::class, 'signup']);
 Route::post('/login', [AuthController::class, 'login']);
 
 // ============================================
+// E-COMMERCE GUEST CHECKOUT (NO AUTH REQUIRED)
+// Phone-based checkout for simplified customer experience
+// ============================================
+
+Route::post('/guest-checkout', [\App\Http\Controllers\GuestCheckoutController::class, 'checkout']);
+Route::post('/guest-orders/by-phone', [\App\Http\Controllers\GuestCheckoutController::class, 'getOrdersByPhone']);
+
+// ============================================
 // E-COMMERCE CUSTOMER AUTHENTICATION ROUTES
 // Customer registration, login, password reset
 // ============================================
