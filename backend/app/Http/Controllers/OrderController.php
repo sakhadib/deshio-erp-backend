@@ -29,7 +29,7 @@ class OrderController extends Controller
     {
         $query = Order::with([
             'customer',
-            'store',
+            'store', // Nullable - E-commerce orders have no store until manually assigned
             'items.product',
             'items.batch',
             'payments.paymentMethod',
