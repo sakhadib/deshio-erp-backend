@@ -72,6 +72,7 @@ class GuestCheckoutController extends Controller
                 // Step 2: Validate products and calculate totals
                 $subtotal = 0;
                 $orderItems = [];
+                $hasOutOfStockItems = false;
 
                 foreach ($request->items as $item) {
                     $product = Product::find($item['product_id']);
@@ -84,13 +85,29 @@ class GuestCheckoutController extends Controller
                         ], 404);
                     }
 
-                    // Get latest batch for price
-                    $batch = ProductBatch::where('product_id', $product->id)
+                    // Get latest batch for price (check both in-stock and any batch)
+                    $inStockBatch = ProductBatch::where('product_id', $product->id)
                         ->where('quantity', '>', 0)
                         ->orderBy('created_at', 'desc')
                         ->first();
+                    
+                    // If no in-stock batch, get the latest batch for reference price
+                    $anyBatch = ProductBatch::where('product_id', $product->id)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
 
-                    $unitPrice = $batch ? $batch->unit_price : $product->price;
+                    $unitPrice = $inStockBatch ? $inStockBatch->unit_price : ($anyBatch ? $anyBatch->unit_price : null);
+                    
+                    // Mark as pre-order if no stock available
+                    if (!$inStockBatch || $inStockBatch->quantity < $item['quantity']) {
+                        $hasOutOfStockItems = true;
+                    }
+                    
+                    // If price is not available (no batches), set to 0 and mark as TBA
+                    if ($unitPrice === null) {
+                        $unitPrice = 0;
+                    }
+                    
                     $itemTotal = $unitPrice * $item['quantity'];
                     $subtotal += $itemTotal;
 
@@ -102,6 +119,7 @@ class GuestCheckoutController extends Controller
                         'unit_price' => $unitPrice,
                         'total_amount' => $itemTotal,
                         'variant_options' => $item['variant_options'] ?? null,
+                        'is_preorder_item' => !$inStockBatch || $inStockBatch->quantity < $item['quantity'],
                     ];
                 }
 
@@ -136,6 +154,8 @@ class GuestCheckoutController extends Controller
                     'customer_id' => $customer->id,
                     'store_id' => null, // Will be assigned by employee
                     'order_type' => 'ecommerce',
+                    'is_preorder' => $hasOutOfStockItems,
+                    'preorder_notes' => $hasOutOfStockItems ? 'This order contains out-of-stock items and will be fulfilled when stock becomes available.' : null,
                     'status' => 'pending_assignment',
                     'payment_status' => $request->payment_method === 'cod' ? 'pending' : 'unpaid',
                     'payment_method' => $request->payment_method,

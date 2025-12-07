@@ -7,6 +7,7 @@ use App\Models\OrderItem;
 use App\Models\OrderPayment;
 use App\Models\Cart;
 use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
 use App\Traits\DatabaseAgnosticSearch;
@@ -215,6 +216,19 @@ class EcommerceOrderController extends Controller
             DB::beginTransaction();
 
             try {
+                // Check if any items are out of stock (pre-order detection)
+                $hasOutOfStockItems = false;
+                foreach ($cartItems as $cartItem) {
+                    $availableStock = ProductBatch::where('product_id', $cartItem->product_id)
+                        ->where('quantity', '>', 0)
+                        ->sum('quantity');
+                    
+                    if ($availableStock < $cartItem->quantity) {
+                        $hasOutOfStockItems = true;
+                        break;
+                    }
+                }
+
                 // Calculate totals using unit_price from cart
                 $subtotal = $cartItems->sum(function($item) {
                     return $item->unit_price * $item->quantity;
@@ -236,6 +250,8 @@ class EcommerceOrderController extends Controller
                     'customer_id' => $customerId,
                     'store_id' => null, // Will be assigned later by employee
                     'order_type' => 'ecommerce',
+                    'is_preorder' => $hasOutOfStockItems,
+                    'preorder_notes' => $hasOutOfStockItems ? 'This order contains out-of-stock items and will be fulfilled when stock becomes available.' : null,
                     'status' => 'pending_assignment',
                     'payment_status' => in_array($request->payment_method, ['cod', 'cash']) ? 'pending' : 'unpaid',
                     'payment_method' => $request->payment_method,

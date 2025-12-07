@@ -238,6 +238,31 @@ Route::middleware('auth:api')->group(function () {
 
 // Protected routes
 Route::middleware('auth:api')->group(function () {
+    // ============================================
+    // PRE-ORDER MANAGEMENT ROUTES (ERP)
+    // Manage orders with out-of-stock items
+    // ============================================
+    
+    Route::prefix('pre-orders')->group(function () {
+        // List all pre-orders with filters
+        Route::get('/', [\App\Http\Controllers\PreOrderController::class, 'index']);
+        
+        // Get pre-orders ready to fulfill (stock available)
+        Route::get('/ready-to-fulfill', [\App\Http\Controllers\PreOrderController::class, 'getReadyToFulfill']);
+        
+        // Get pre-order statistics
+        Route::get('/statistics', [\App\Http\Controllers\PreOrderController::class, 'getStatistics']);
+        
+        // Get trending pre-order products
+        Route::get('/trending-products', [\App\Http\Controllers\PreOrderController::class, 'getTrendingProducts']);
+        
+        // Get specific pre-order details
+        Route::get('/{id}', [\App\Http\Controllers\PreOrderController::class, 'show']);
+        
+        // Mark pre-order as stock available
+        Route::post('/{id}/mark-stock-available', [\App\Http\Controllers\PreOrderController::class, 'markStockAvailable']);
+    });
+
     // Order Management (Employee) - Inventory & Assignment
     Route::prefix('order-management')->group(function () {
         // Get orders pending store assignment

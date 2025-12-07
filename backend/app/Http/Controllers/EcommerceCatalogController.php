@@ -24,18 +24,27 @@ class EcommerceCatalogController extends Controller
             $sortBy = $request->get('sort_by', 'created_at');
             $sortOrder = $request->get('sort_order', 'desc');
             $search = $request->get('search');
-            $inStock = $request->get('in_stock', true);
+            $inStock = $request->get('in_stock'); // null = all, true = in stock only, false = out of stock only
+            $preorderOnly = $request->boolean('preorder_only', false);
 
             $query = Product::with(['images', 'category', 'batches' => function ($q) {
-                    $q->where('quantity', '>', 0)->orderBy('sell_price', 'asc');
+                    $q->orderBy('sell_price', 'asc');
                 }])
                 ->where('is_archived', false);
 
-            if ($inStock) {
+            // Stock filtering
+            if ($inStock === 'true' || $inStock === true) {
+                // Only products with stock
                 $query->whereHas('batches', function ($q) {
                     $q->where('quantity', '>', 0);
                 });
+            } elseif ($inStock === 'false' || $inStock === false) {
+                // Only products without stock (pre-order items)
+                $query->whereDoesntHave('batches', function ($q) {
+                    $q->where('quantity', '>', 0);
+                });
             }
+            // If $inStock is null, show all products (in stock + out of stock)
 
             if ($category) {
                 $query->whereHas('category', function ($q) use ($category) {
@@ -78,6 +87,10 @@ class EcommerceCatalogController extends Controller
                         $lowestBatch = $product->batches->sortBy('sell_price')->first();
                         $totalStock = $product->batches->sum('quantity');
                         
+                        $availableBatches = $product->batches->where('quantity', '>', 0);
+                        $lowestAvailableBatch = $availableBatches->sortBy('sell_price')->first();
+                        $hasStock = $totalStock > 0;
+                        
                         return [
                             'id' => $product->id,
                             'name' => $product->name,
@@ -85,10 +98,12 @@ class EcommerceCatalogController extends Controller
                             'sku' => $product->sku,
                             'description' => $product->description,
                             'short_description' => $product->description ? (strlen($product->description) > 150 ? substr($product->description, 0, 150) . '...' : $product->description) : null,
-                            'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
-                            'cost_price' => $lowestBatch ? $lowestBatch->cost_price : 0,
+                            'selling_price' => $lowestAvailableBatch ? $lowestAvailableBatch->sell_price : null,
+                            'price_display' => $lowestAvailableBatch ? number_format($lowestAvailableBatch->sell_price, 2) . ' BDT' : 'TBA',
+                            'cost_price' => $lowestAvailableBatch ? $lowestAvailableBatch->cost_price : null,
                             'stock_quantity' => $totalStock,
-                            'in_stock' => $totalStock > 0,
+                            'in_stock' => $hasStock,
+                            'available_for_preorder' => !$hasStock,
                             'images' => $product->images->where('is_active', true)->take(3)->map(function ($image) {
                                 return [
                                     'id' => $image->id,

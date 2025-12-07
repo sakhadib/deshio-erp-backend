@@ -17,6 +17,9 @@ class Order extends Model
         'customer_id',
         'store_id',
         'order_type',
+        'is_preorder',
+        'stock_available_at',
+        'preorder_notes',
         'status',
         'fulfillment_status',
         'payment_status',
@@ -56,6 +59,8 @@ class Order extends Model
     ];
 
     protected $casts = [
+        'is_preorder' => 'boolean',
+        'stock_available_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'discount_amount' => 'decimal:2',
