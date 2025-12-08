@@ -52,7 +52,18 @@ class OrderController extends Controller
 
         // Filter by store
         if ($request->filled('store_id')) {
-            $query->where('store_id', $request->store_id);
+            if ($request->store_id === 'unassigned' || $request->store_id === 'null') {
+                $query->whereNull('store_id');
+            } else {
+                $query->where('store_id', $request->store_id);
+            }
+        }
+
+        // Filter unassigned e-commerce orders (pending store assignment)
+        if ($request->boolean('pending_assignment')) {
+            $query->whereNull('store_id')
+                  ->where('order_type', 'ecommerce')
+                  ->where('status', 'pending_assignment');
         }
 
         // Filter by customer
@@ -1143,10 +1154,10 @@ class OrderController extends Controller
                 'email' => $order->customer->email,
                 'customer_code' => $order->customer->customer_code,
             ],
-            'store' => [
+            'store' => $order->store ? [
                 'id' => $order->store->id,
                 'name' => $order->store->name,
-            ],
+            ] : null,
             'salesman' => $order->createdBy ? [
                 'id' => $order->createdBy->id,
                 'name' => $order->createdBy->name,
