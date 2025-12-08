@@ -218,7 +218,7 @@ class OrderController extends Controller
             'salesman_id' => 'nullable|exists:employees,id',  // Manual salesman entry for POS
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
-            'items.*.batch_id' => 'required|exists:product_batches,id',
+            'items.*.batch_id' => 'nullable|exists:product_batches,id',  // Optional for pre-orders
             'items.*.barcode' => 'nullable|string|exists:product_barcodes,barcode',  // Optional barcode for tracking
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
@@ -348,24 +348,34 @@ class OrderController extends Controller
             // Add items
             $subtotal = 0;
             $taxTotal = 0;
+            $hasPreOrderItems = false;  // Track if any items don't have batches
 
             foreach ($request->items as $itemData) {
                 $product = Product::findOrFail($itemData['product_id']);
-                $batch = ProductBatch::findOrFail($itemData['batch_id']);
+                
+                // Batch is optional for pre-orders
+                $batch = !empty($itemData['batch_id']) 
+                    ? ProductBatch::findOrFail($itemData['batch_id']) 
+                    : null;
 
-                // Validate stock availability
-                if ($batch->quantity < $itemData['quantity']) {
+                // Mark as pre-order if any item has no batch
+                if (!$batch) {
+                    $hasPreOrderItems = true;
+                }
+
+                // Validate stock availability only if batch exists (not a pre-order)
+                if ($batch && $batch->quantity < $itemData['quantity']) {
                     throw new \Exception("Insufficient stock for {$product->name}. Available: {$batch->quantity}");
                 }
 
-                // Validate batch belongs to the store
-                if ($batch->store_id != $request->store_id) {
+                // Validate batch belongs to the store (only if batch exists)
+                if ($batch && $batch->store_id != $request->store_id) {
                     throw new \Exception("Product batch not available at this store");
                 }
 
                 // Handle barcode if provided (optional for backward compatibility)
                 $barcodeId = null;
-                if (!empty($itemData['barcode'])) {
+                if (!empty($itemData['barcode']) && $batch) {
                     $barcode = \App\Models\ProductBarcode::where('barcode', $itemData['barcode'])
                         ->where('product_id', $product->id)
                         ->where('batch_id', $batch->id)
@@ -391,15 +401,15 @@ class OrderController extends Controller
                     'barcode_value' => $itemData['barcode'] ?? 'NOT_PROVIDED',
                     'barcode_id' => $barcodeId,
                     'product_id' => $product->id,
-                    'batch_id' => $batch->id
+                    'batch_id' => $batch?->id
                 ]);
 
                 $quantity = $itemData['quantity'];
                 $unitPrice = $itemData['unit_price'];
                 $discount = $itemData['discount_amount'] ?? 0;
                 
-                // Calculate tax from inclusive unit_price using batch tax_percentage
-                $taxPercentage = $batch->tax_percentage ?? 0;
+                // Calculate tax from inclusive unit_price using batch tax_percentage (if batch exists)
+                $taxPercentage = $batch?->tax_percentage ?? 0;
                 $basePrice = $taxPercentage > 0 
                     ? round($unitPrice / (1 + ($taxPercentage / 100)), 2)
                     : $unitPrice;
@@ -409,22 +419,23 @@ class OrderController extends Controller
                 $itemSubtotal = $quantity * $unitPrice;
                 $itemTotal = $itemSubtotal - $discount;
 
-                // Calculate COGS from batch cost price
-                $cogs = round(($batch->cost_price ?? 0) * $quantity, 2);
+                // Calculate COGS from batch cost price (0 if no batch - pre-order)
+                $cogs = $batch ? round(($batch->cost_price ?? 0) * $quantity, 2) : 0;
                 
                 // Log COGS during order creation for debugging
                 \Log::info('Order Item COGS at Creation', [
                     'product_name' => $product->name,
-                    'batch_id' => $batch->id,
-                    'batch_cost_price' => $batch->cost_price,
+                    'batch_id' => $batch?->id,
+                    'batch_cost_price' => $batch?->cost_price,
                     'quantity' => $quantity,
                     'calculated_cogs' => $cogs,
+                    'is_preorder' => !$batch,
                 ]);
 
                 $orderItem = OrderItem::create([
                     'order_id' => $order->id,
                     'product_id' => $product->id,
-                    'product_batch_id' => $batch->id,
+                    'product_batch_id' => $batch?->id,  // Nullable for pre-orders
                     'product_barcode_id' => $barcodeId,  // NEW: Store barcode if provided
                     'product_name' => $product->name,
                     'product_sku' => $product->sku,
@@ -446,6 +457,7 @@ class OrderController extends Controller
                 'tax_amount' => $taxTotal,
                 'total_amount' => $subtotal - ($request->discount_amount ?? 0) + ($request->shipping_amount ?? 0),
                 'outstanding_amount' => $subtotal - ($request->discount_amount ?? 0) + ($request->shipping_amount ?? 0),
+                'is_preorder' => $hasPreOrderItems,  // Mark order as pre-order if any items lack batches
             ]);
 
             // Setup installment plan if requested

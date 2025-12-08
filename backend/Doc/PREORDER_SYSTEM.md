@@ -1,542 +1,571 @@
-# Pre-Order System - API Documentation
+# Pre-Order System Documentation
 
-**Last Updated:** December 7, 2025  
-**Feature:** Pre-Order Support for Out-of-Stock Products
-
----
-
-## 🎯 Overview
-
-The pre-order system allows customers to place orders for products that are currently out of stock. The system automatically detects when ordered items have no available inventory and marks them as pre-orders.
-
-### Key Features
-
-- ✅ **Automatic Detection**: Orders with out-of-stock items are automatically flagged as pre-orders
-- ✅ **Price Display**: Out-of-stock products show "TBA" instead of price
-- ✅ **Stock Monitoring**: ERP tracks when pre-ordered items become available
-- ✅ **Fulfillment Ready**: Dashboard shows pre-orders ready to process
-- ✅ **Guest Support**: Both guest and registered customers can place pre-orders
+## Overview
+The pre-order system allows customers to place orders for products that are currently out of stock or don't have batches assigned yet. This is essential for managing customer demand before inventory arrives.
 
 ---
 
-## 📱 Frontend Changes
+## Key Features
 
-### Catalog API Changes
+### 1. Optional Batch Assignment
+- Orders can be created **without** specifying `batch_id` for items
+- When `batch_id` is null, the item is automatically marked as a pre-order
+- Stock validation is **skipped** for pre-order items
+- Batches can be assigned later when inventory arrives
 
-**Endpoint:** `GET /api/catalog/products`
+### 2. Automatic Pre-Order Detection
+- **Order-level**: An order is marked `is_preorder: true` if ANY item lacks a batch
+- **Item-level**: Each item has `is_preorder: true/false` based on batch presence
+- No need to manually specify pre-order status
 
-**New Query Parameters:**
+### 3. Financial Tracking
+- **COGS**: Set to `0` for pre-order items (updated when batch assigned)
+- **Tax**: Calculated from `unit_price` if no batch provided
+- **Revenue**: Tracked immediately upon payment
+- **Tax Liability**: Recorded at time of sale
 
-```javascript
-{
-  in_stock: null,        // null = all products, true = in stock only, false = out of stock only
-  preorder_only: false   // true = only pre-order items
-}
+---
+
+## API Changes
+
+### Creating Orders with Pre-Orders
+
+#### Endpoint
+```
+POST /api/orders
 ```
 
-**Updated Response:**
-
+#### Request Body
 ```json
 {
-  "id": 123,
-  "name": "Premium T-Shirt",
-  "selling_price": null,              // null if no stock
-  "price_display": "TBA",             // "TBA" or "1500.00 BDT"
-  "stock_quantity": 0,
-  "in_stock": false,
-  "available_for_preorder": true,     // NEW: Indicates item can be pre-ordered
-  "images": [...]
+  "order_type": "counter|social_commerce|ecommerce",
+  "customer_id": 1,
+  "store_id": 1,
+  "items": [
+    {
+      "product_id": 10,
+      "batch_id": null,           // ← NULL for pre-order items
+      "quantity": 5,
+      "unit_price": 1000,         // Required when batch_id is null
+      "discount_amount": 0
+    },
+    {
+      "product_id": 15,
+      "batch_id": 25,              // ← Has batch, regular order
+      "quantity": 2,
+      "unit_price": 500,
+      "discount_amount": 0
+    }
+  ],
+  "discount_amount": 0,
+  "shipping_amount": 0,
+  "notes": "Mixed order with pre-order items"
 }
 ```
 
-### UI Examples
+#### Response
+```json
+{
+  "success": true,
+  "message": "Order created successfully",
+  "data": {
+    "order": {
+      "id": 100,
+      "order_number": "ORD-20251208-0100",
+      "customer_id": 1,
+      "store_id": 1,
+      "order_type": "counter",
+      "status": "pending",
+      "payment_status": "pending",
+      "is_preorder": true,        // ← TRUE because item 1 has no batch
+      "subtotal": 5500,
+      "tax_amount": 0,
+      "total_amount": 5500,
+      "items": [
+        {
+          "id": 200,
+          "product_id": 10,
+          "product_batch_id": null,  // ← No batch
+          "is_preorder": true,       // ← Pre-order item
+          "quantity": 5,
+          "unit_price": 1000,
+          "total_amount": 5000,
+          "cogs": 0                  // ← COGS is 0 until batch assigned
+        },
+        {
+          "id": 201,
+          "product_id": 15,
+          "product_batch_id": 25,    // ← Has batch
+          "is_preorder": false,      // ← Regular item
+          "quantity": 2,
+          "unit_price": 500,
+          "total_amount": 1000,
+          "cogs": 600                // ← COGS calculated from batch
+        }
+      ]
+    }
+  }
+}
+```
 
-#### Product Card (Out of Stock)
+---
 
+## Validation Rules
+
+### Order Items
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `product_id` | integer | ✅ Yes | Must exist in products table |
+| `batch_id` | integer | ❌ No | Nullable for pre-orders |
+| `quantity` | integer | ✅ Yes | Must be > 0 |
+| `unit_price` | decimal | ✅ Yes | Required when batch_id is null |
+| `discount_amount` | decimal | ❌ No | Default: 0 |
+| `barcode` | string | ❌ No | Only validated if batch exists |
+
+### Important Notes
+- **`batch_id`**: Can be `null` or omitted for pre-orders
+- **`unit_price`**: Must be provided when creating pre-orders (since no batch price available)
+- **Stock validation**: Only performed when `batch_id` is provided
+- **Barcode validation**: Only performed when both `batch_id` and `barcode` are provided
+
+---
+
+## Frontend Implementation Guide
+
+### 1. Product Selection UI
+
+#### Show Batch Availability
+```javascript
+// Check if product has available batches
+if (product.batches && product.batches.length > 0) {
+  // Show batch selection dropdown
+  showBatchSelector(product.batches);
+} else {
+  // Show "Pre-order" badge
+  showPreOrderBadge();
+  // Allow order without batch selection
+}
+```
+
+#### Batch Selector Component
 ```jsx
-function ProductCard({ product }) {
+function BatchSelector({ product, selectedBatch, onChange }) {
+  const hasBatches = product.batches?.length > 0;
+  
+  if (!hasBatches) {
+    return (
+      <div className="pre-order-badge">
+        <Icon name="clock" />
+        Pre-order (No stock available)
+      </div>
+    );
+  }
+  
   return (
-    <div className="product-card">
-      <img src={product.images[0].url} alt={product.name} />
-      <h3>{product.name}</h3>
-      
-      {product.in_stock ? (
-        <p className="price">{product.price_display}</p>
-      ) : (
-        <div>
-          <p className="price tba">Price: TBA</p>
-          <span className="badge preorder">Pre-Order Available</span>
-        </div>
-      )}
-      
-      <button disabled={!product.in_stock && !product.available_for_preorder}>
-        {product.in_stock ? 'Add to Cart' : 'Pre-Order Now'}
-      </button>
-    </div>
+    <select onChange={(e) => onChange(e.target.value)}>
+      <option value="">Select batch (or pre-order)</option>
+      {product.batches.map(batch => (
+        <option key={batch.id} value={batch.id}>
+          Batch #{batch.id} - {batch.quantity} available - ৳{batch.selling_price}
+        </option>
+      ))}
+    </select>
   );
 }
 ```
 
-#### Filter Options
+### 2. Creating Pre-Orders
 
-```jsx
-<select onChange={(e) => setInStock(e.target.value)}>
-  <option value="">All Products</option>
-  <option value="true">In Stock Only</option>
-  <option value="false">Out of Stock / Pre-Order</option>
-</select>
-```
-
----
-
-## 🛒 Guest Checkout (Supports Pre-Orders)
-
-**Endpoint:** `POST /api/guest-checkout`
-
-**No Changes Required** - The existing guest checkout API automatically handles pre-orders!
-
-### How It Works
-
-1. Customer adds out-of-stock items to cart
-2. Submits order via `/api/guest-checkout`
-3. System automatically:
-   - Detects out-of-stock items
-   - Marks order as `is_preorder: true`
-   - Adds note: "This order contains out-of-stock items..."
-   - Sets status to `pending_assignment`
-
-### Response Example
-
-```json
-{
-  "success": true,
-  "data": {
-    "order": {
-      "order_number": "ORD-2025-001234",
-      "is_preorder": true,
-      "preorder_notes": "This order contains out-of-stock items and will be fulfilled when stock becomes available.",
-      "status": "pending_assignment",
-      "total_amount": 3210.00
-    },
-    "message_to_customer": "Thank you for your pre-order! We'll contact you when stock arrives."
-  }
-}
-```
-
----
-
-## 🏢 ERP Pre-Order Management
-
-### 1. List All Pre-Orders
-
-**Endpoint:** `GET /api/pre-orders`
-
-**Query Parameters:**
-
+#### Example: Add to Cart
 ```javascript
-{
-  has_stock: false,     // Filter by stock availability
-  status: 'pending_assignment',
-  date_from: '2025-01-01',
-  date_to: '2025-12-31',
-  search: 'ORD-2025',   // Search order number or customer
-  per_page: 20
+function addToCart(product, quantity, selectedBatchId = null) {
+  const cartItem = {
+    product_id: product.id,
+    batch_id: selectedBatchId, // Can be null for pre-orders
+    quantity: quantity,
+    unit_price: selectedBatchId 
+      ? product.batches.find(b => b.id === selectedBatchId).selling_price
+      : product.base_price || 0, // Use product base price for pre-orders
+    discount_amount: 0
+  };
+  
+  // If no batch, show pre-order indicator
+  if (!selectedBatchId) {
+    cartItem.is_preorder = true;
+  }
+  
+  dispatch(addItemToCart(cartItem));
 }
 ```
 
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "orders": [
-      {
-        "order_id": 789,
-        "order_number": "ORD-2025-001234",
-        "customer": {
-          "id": 456,
-          "name": "John Doe",
-          "phone": "01712345678"
-        },
-        "is_preorder": true,
-        "stock_available_at": null,
-        "all_items_in_stock": false,
-        "items": [
-          {
-            "product_name": "Premium T-Shirt",
-            "quantity_ordered": 2,
-            "available_stock": 0,
-            "has_sufficient_stock": false,
-            "stock_shortage": 2
-          }
-        ],
-        "total_amount": 3210.00,
-        "created_at": "2025-12-06T10:30:00Z"
-      }
-    ],
-    "pagination": {
-      "current_page": 1,
-      "per_page": 20,
-      "total": 15,
-      "last_page": 1
+#### Example: Submit Order
+```javascript
+async function submitOrder(cart, customer, storeId) {
+  const orderData = {
+    order_type: 'counter', // or 'social_commerce', 'ecommerce'
+    customer_id: customer.id,
+    store_id: storeId,
+    items: cart.items.map(item => ({
+      product_id: item.product_id,
+      batch_id: item.batch_id, // null for pre-orders
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      discount_amount: item.discount_amount || 0
+    })),
+    discount_amount: cart.discount || 0,
+    shipping_amount: cart.shipping || 0,
+    notes: cart.notes || ''
+  };
+  
+  try {
+    const response = await api.post('/api/orders', orderData);
+    
+    // Check if order contains pre-orders
+    if (response.data.order.is_preorder) {
+      showNotification('Order created with pre-order items. Stock will be allocated when available.');
     }
+    
+    return response.data;
+  } catch (error) {
+    handleError(error);
   }
 }
 ```
 
----
+### 3. Displaying Orders
 
-### 2. Get Pre-Orders Ready to Fulfill
-
-**Endpoint:** `GET /api/pre-orders/ready-to-fulfill`
-
-Returns pre-orders where **ALL items now have sufficient stock**.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "total_ready": 5,
-    "orders": [
-      {
-        "order_id": 789,
-        "order_number": "ORD-2025-001234",
-        "all_items_in_stock": true,
-        "items": [
-          {
-            "product_name": "Premium T-Shirt",
-            "quantity_ordered": 2,
-            "available_stock": 10,
-            "has_sufficient_stock": true,
-            "stock_shortage": 0
-          }
-        ]
-      }
-    ]
-  },
-  "message": "Found 5 pre-orders ready to fulfill"
-}
-```
-
----
-
-### 3. Mark Pre-Order as Stock Available
-
-**Endpoint:** `POST /api/pre-orders/{id}/mark-stock-available`
-
-Verifies stock and marks order ready for store assignment.
-
-**Success Response:**
-
-```json
-{
-  "success": true,
-  "message": "Pre-order marked as stock available. Ready for store assignment.",
-  "data": {
-    "order_id": 789,
-    "stock_available_at": "2025-12-07T14:30:00Z",
-    "all_items_in_stock": true
-  }
-}
-```
-
-**Error Response (Insufficient Stock):**
-
-```json
-{
-  "success": false,
-  "message": "Cannot mark as stock available. Some items are still out of stock.",
-  "missing_stock": [
-    {
-      "product": "Premium T-Shirt",
-      "required": 2,
-      "available": 1,
-      "shortage": 1
-    }
-  ]
-}
-```
-
----
-
-### 4. Pre-Order Statistics
-
-**Endpoint:** `GET /api/pre-orders/statistics`
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "total_preorders": 45,
-    "awaiting_stock": 30,
-    "ready_to_fulfill": 15,
-    "pending_assignment": 12,
-    "total_value": 156780.00
-  }
-}
-```
-
----
-
-### 5. Trending Pre-Order Products
-
-**Endpoint:** `GET /api/pre-orders/trending-products`
-
-Shows which products are most frequently pre-ordered (helps with inventory planning).
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": 123,
-      "name": "Premium T-Shirt",
-      "sku": "TS-001",
-      "total_preordered": 45,
-      "order_count": 15
-    }
-  ],
-  "message": "Top 10 products by pre-order volume"
-}
-```
-
----
-
-## 🎨 ERP Dashboard UI
-
-### Pre-Order Widget
-
+#### Order List Item
 ```jsx
-function PreOrderDashboard() {
-  const [stats, setStats] = useState(null);
-  const [readyOrders, setReadyOrders] = useState([]);
-
-  useEffect(() => {
-    // Fetch statistics
-    fetch('/api/pre-orders/statistics')
-      .then(res => res.json())
-      .then(data => setStats(data.data));
-
-    // Fetch ready-to-fulfill orders
-    fetch('/api/pre-orders/ready-to-fulfill')
-      .then(res => res.json())
-      .then(data => setReadyOrders(data.data.orders));
-  }, []);
-
+function OrderListItem({ order }) {
   return (
-    <div className="preorder-dashboard">
-      <h2>Pre-Order Management</h2>
-      
-      <div className="stats-grid">
-        <div className="stat-card">
-          <h3>{stats?.total_preorders}</h3>
-          <p>Total Pre-Orders</p>
-        </div>
-        <div className="stat-card warning">
-          <h3>{stats?.awaiting_stock}</h3>
-          <p>Awaiting Stock</p>
-        </div>
-        <div className="stat-card success">
-          <h3>{stats?.ready_to_fulfill}</h3>
-          <p>Ready to Fulfill</p>
-        </div>
-        <div className="stat-card">
-          <h3>{stats?.total_value?.toLocaleString()} BDT</h3>
-          <p>Total Value</p>
-        </div>
+    <div className="order-item">
+      <div className="order-header">
+        <span className="order-number">{order.order_number}</span>
+        {order.is_preorder && (
+          <span className="badge badge-warning">
+            Pre-order
+          </span>
+        )}
+        <span className={`badge badge-${order.status}`}>
+          {order.status}
+        </span>
       </div>
-
-      <div className="ready-orders">
-        <h3>Ready to Fulfill ({readyOrders.length})</h3>
-        {readyOrders.map(order => (
-          <div key={order.order_id} className="order-card">
-            <div>
-              <strong>{order.order_number}</strong>
-              <p>{order.customer.name} - {order.customer.phone}</p>
-            </div>
-            <button onClick={() => markStockAvailable(order.order_id)}>
-              Mark Stock Available
-            </button>
+      
+      <div className="order-items">
+        {order.items.map(item => (
+          <div key={item.id} className="order-item-row">
+            <span>{item.product_name}</span>
+            <span>x{item.quantity}</span>
+            {item.is_preorder && (
+              <span className="badge badge-sm badge-warning">
+                Pre-order
+              </span>
+            )}
+            {!item.product_batch_id && (
+              <span className="text-muted">
+                Batch pending
+              </span>
+            )}
           </div>
         ))}
       </div>
     </div>
   );
 }
+```
 
-function markStockAvailable(orderId) {
-  fetch(`/api/pre-orders/${orderId}/mark-stock-available`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` }
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.success) {
-      alert('Pre-order ready for store assignment!');
-      // Redirect to order management
-      window.location.href = '/order-management/pending-assignment';
-    } else {
-      alert(data.message);
-    }
-  });
+### 4. Order Details View
+
+```jsx
+function OrderDetails({ order }) {
+  const hasPreOrderItems = order.items.some(item => item.is_preorder);
+  
+  return (
+    <div className="order-details">
+      <div className="order-header">
+        <h2>Order #{order.order_number}</h2>
+        {order.is_preorder && (
+          <div className="alert alert-warning">
+            <Icon name="info" />
+            This order contains pre-order items. Stock will be allocated when inventory arrives.
+          </div>
+        )}
+      </div>
+      
+      <table className="items-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Batch</th>
+            <th>Quantity</th>
+            <th>Unit Price</th>
+            <th>Total</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {order.items.map(item => (
+            <tr key={item.id}>
+              <td>{item.product_name}</td>
+              <td>
+                {item.product_batch_id 
+                  ? `Batch #${item.product_batch_id}` 
+                  : <span className="text-warning">Not assigned</span>
+                }
+              </td>
+              <td>{item.quantity}</td>
+              <td>৳{item.unit_price}</td>
+              <td>৳{item.total_amount}</td>
+              <td>
+                {item.is_preorder && (
+                  <span className="badge badge-warning">Pre-order</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 ```
 
 ---
 
-## 🔄 Workflow
+## Business Logic
 
-### For Customers (Frontend)
+### When to Use Pre-Orders
 
-1. Browse products
-2. See "TBA" price for out-of-stock items
-3. Add to cart/pre-order
-4. Complete checkout (COD or online payment)
-5. Receive confirmation: "We'll contact you when stock arrives"
+1. **Out of Stock**: Product exists but no inventory available
+2. **Future Stock**: Product will arrive soon, accept orders now
+3. **Custom Orders**: Made-to-order or custom products
+4. **Seasonal Items**: Pre-season orders before stock arrives
 
-### For ERP (Backend Team)
+### Pre-Order Workflow
 
-1. View pre-orders dashboard
-2. Filter: "Awaiting Stock" vs "Ready to Fulfill"
-3. When stock arrives, system auto-detects
-4. Click "Mark Stock Available" to verify
-5. Order moves to "Pending Assignment"
-6. Assign to store for fulfillment
-7. Store fulfills order normally
+```
+1. Customer orders product without batch
+   ↓
+2. Order created with is_preorder = true
+   ↓
+3. Payment processed (if paid)
+   ↓
+4. Finance records revenue immediately
+   ↓
+5. Inventory team notified of pre-order demand
+   ↓
+6. When stock arrives:
+   - Create batch
+   - Assign batch to pre-order items
+   - Update COGS
+   - Process fulfillment
+   ↓
+7. Ship to customer
+```
+
+### Stock Allocation Priority
+
+When new inventory arrives, prioritize:
+1. **Pre-orders** (oldest first)
+2. **Regular pending orders**
+3. **Available for new orders**
 
 ---
 
-## 📊 Database Changes
+## Edge Cases & Handling
 
-### `orders` Table (Updated)
+### Mixed Orders (Pre-order + Regular)
+- **Supported**: ✅ Yes
+- **Behavior**: Order marked as `is_preorder: true`
+- **Fulfillment**: Regular items can ship immediately, pre-order items wait for stock
+- **Frontend**: Show mixed status clearly
 
-```sql
-ALTER TABLE orders
-ADD COLUMN is_preorder BOOLEAN DEFAULT FALSE,
-ADD COLUMN stock_available_at TIMESTAMP NULL,
-ADD COLUMN preorder_notes TEXT NULL,
-ADD INDEX idx_preorder_status (is_preorder, status);
+### Pricing
+- **With Batch**: Use `batch.selling_price` (includes tax)
+- **Without Batch**: Use provided `unit_price` (should include tax)
+- **Tax Calculation**: Automatic based on price (inclusive tax system)
+
+### Payment
+- **Allowed**: ✅ Yes, can pay for pre-orders
+- **Recommendation**: Accept partial payment or full payment upfront
+- **Refunds**: Standard refund process applies if pre-order cancelled
+
+### Cancellation
+- **Before Batch Assigned**: Easy cancellation, no stock impact
+- **After Batch Assigned**: Standard cancellation process
+
+---
+
+## API Response Fields Reference
+
+### Order Object
+```typescript
+interface Order {
+  id: number;
+  order_number: string;
+  customer_id: number;
+  store_id: number;
+  order_type: 'counter' | 'social_commerce' | 'ecommerce';
+  status: 'pending' | 'confirmed' | 'processing' | 'completed' | 'cancelled';
+  payment_status: 'pending' | 'partial' | 'paid' | 'refunded';
+  fulfillment_status: 'pending_fulfillment' | 'fulfilled' | null;
+  is_preorder: boolean;          // NEW: True if any item has no batch
+  subtotal: number;
+  tax_amount: number;
+  discount_amount: number;
+  shipping_amount: number;
+  total_amount: number;
+  outstanding_amount: number;
+  items: OrderItem[];
+  created_at: string;
+  updated_at: string;
+}
 ```
 
-### Order Model Changes
-
-```php
-// Added to fillable
-'is_preorder',
-'stock_available_at',
-'preorder_notes',
-
-// Added to casts
-'is_preorder' => 'boolean',
-'stock_available_at' => 'datetime',
+### OrderItem Object
+```typescript
+interface OrderItem {
+  id: number;
+  order_id: number;
+  product_id: number;
+  product_batch_id: number | null;  // NULL for pre-orders
+  product_name: string;
+  product_sku: string;
+  quantity: number;
+  unit_price: number;
+  discount_amount: number;
+  tax_amount: number;
+  total_amount: number;
+  cogs: number;                     // 0 for pre-orders until batch assigned
+  is_preorder: boolean;             // NEW: True if no batch
+  created_at: string;
+  updated_at: string;
+}
 ```
 
 ---
 
-## ✅ Testing Checklist
+## Testing Checklist
 
-### Frontend
+### Frontend Testing
 
-- [ ] Products with no stock show "TBA" price
-- [ ] Products with no stock show "Pre-Order Available" badge
-- [ ] Filter: "Out of Stock / Pre-Order" works
-- [ ] Guest checkout accepts out-of-stock items
-- [ ] Checkout shows "Pre-order" confirmation message
+- [ ] Can add product without selecting batch
+- [ ] Pre-order badge displays correctly
+- [ ] Can submit order with null batch_id
+- [ ] Order list shows pre-order indicator
+- [ ] Order details shows batch status
+- [ ] Mixed orders display correctly
+- [ ] Payment works for pre-orders
+- [ ] Error handling for invalid requests
 
-### ERP
-
-- [ ] Pre-orders list loads correctly
-- [ ] Filter by "has_stock" works
-- [ ] Statistics dashboard shows accurate counts
-- [ ] "Ready to Fulfill" shows only orders with stock
-- [ ] "Mark Stock Available" verifies stock correctly
-- [ ] Trending products shows pre-order demand
-
----
-
-## 🚀 Example API Calls
-
-### Get All Products (Including Out of Stock)
+### Backend Testing
 
 ```bash
-curl -X GET "https://api.yoursite.com/api/catalog/products?in_stock="
-```
+# Test 1: Create pre-order
+POST /api/orders
+{
+  "order_type": "counter",
+  "customer_id": 1,
+  "store_id": 1,
+  "items": [{
+    "product_id": 1,
+    "batch_id": null,
+    "quantity": 5,
+    "unit_price": 1000
+  }]
+}
+# Expected: Order created with is_preorder=true, item.is_preorder=true
 
-### Get Only Out-of-Stock Products
-
-```bash
-curl -X GET "https://api.yoursite.com/api/catalog/products?in_stock=false"
-```
-
-### Place Pre-Order (Guest Checkout)
-
-```bash
-curl -X POST "https://api.yoursite.com/api/guest-checkout" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "phone": "01712345678",
-    "items": [
-      {"product_id": 123, "quantity": 2}
-    ],
-    "payment_method": "cod",
-    "delivery_address": {
-      "full_name": "John Doe",
-      "address_line_1": "123 Main St",
-      "city": "Dhaka",
-      "postal_code": "1212"
+# Test 2: Create mixed order
+POST /api/orders
+{
+  "order_type": "counter",
+  "customer_id": 1,
+  "store_id": 1,
+  "items": [
+    {
+      "product_id": 1,
+      "batch_id": null,
+      "quantity": 5,
+      "unit_price": 1000
+    },
+    {
+      "product_id": 2,
+      "batch_id": 10,
+      "quantity": 2,
+      "unit_price": 500
     }
-  }'
-```
+  ]
+}
+# Expected: Order with is_preorder=true, first item is_preorder=true, second item is_preorder=false
 
-### Get Pre-Orders Ready to Fulfill (ERP)
+# Test 3: Verify stock not checked for pre-orders
+POST /api/orders
+{
+  "items": [{
+    "product_id": 99,
+    "batch_id": null,
+    "quantity": 1000000
+  }]
+}
+# Expected: Success (no stock validation)
 
-```bash
-curl -X GET "https://api.yoursite.com/api/pre-orders/ready-to-fulfill" \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
-### Mark Pre-Order as Stock Available (ERP)
-
-```bash
-curl -X POST "https://api.yoursite.com/api/pre-orders/789/mark-stock-available" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+# Test 4: Verify barcode ignored for pre-orders
+POST /api/orders
+{
+  "items": [{
+    "product_id": 1,
+    "batch_id": null,
+    "barcode": "INVALID_BARCODE",
+    "quantity": 5,
+    "unit_price": 1000
+  }]
+}
+# Expected: Success (barcode not validated without batch)
 ```
 
 ---
 
-## 💡 Pro Tips
+## Migration Notes
 
-### For Frontend Team
+### Database Changes
+- ✅ `order_items.product_batch_id` already nullable
+- ✅ Foreign key set to `ON DELETE SET NULL`
+- ✅ No migration needed
 
-1. **Cache catalog data** but refresh every 5 minutes to catch stock updates
-2. **Show pre-order badge** prominently - it drives sales!
-3. **Notify customers** when pre-ordered items are back in stock (future feature)
-4. **Allow wishlist** for out-of-stock items
-
-### For ERP Team
-
-1. **Check "Ready to Fulfill" daily** to process pre-orders quickly
-2. **Use "Trending Products"** to prioritize restocking
-3. **Filter by date** to find old pre-orders
-4. **Contact customers** when marking stock available
+### Backward Compatibility
+- ✅ Existing orders unaffected
+- ✅ All existing orders have batches
+- ✅ Frontend can be updated gradually
 
 ---
 
-## 📞 Support
+## Common Issues & Solutions
 
-**Questions?** Contact backend team or check the main API documentation.
+### Issue 1: "batch_id is required"
+**Cause**: Old frontend sending requests to updated backend  
+**Solution**: Update frontend to allow null batch_id
 
-**Frontend Team:** You can now show ALL products (in-stock + out-of-stock) and let customers pre-order! 🎉
+### Issue 2: Unit price missing for pre-orders
+**Cause**: Frontend not sending unit_price when batch_id is null  
+**Solution**: Always send unit_price, use product base price or manual entry
 
-**ERP Team:** Pre-orders are automatically tracked. Just check the dashboard daily! 📊
+### Issue 3: COGS showing as 0
+**Expected**: COGS is 0 for pre-orders until batch assigned  
+**Solution**: Display "Pending" instead of 0 in reports
+
+### Issue 4: Can't fulfill pre-order
+**Cause**: No batch assigned yet  
+**Solution**: Assign batch to order items when stock arrives, then fulfill
 
 ---
 
-**Happy Coding!** 🚀
+## Contact & Support
+
+For questions or issues:
+- **Backend Team**: [Add contact]
+- **API Documentation**: `/api/documentation`
+- **Issue Tracker**: [Add link]
+
+Last Updated: December 8, 2025
