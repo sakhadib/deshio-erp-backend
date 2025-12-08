@@ -668,6 +668,7 @@ class Order extends Model
     // Calculation methods
     public function calculateTotals()
     {
+        // Subtotal now includes tax (prices are inclusive)
         $subtotal = $this->items->sum('total_amount');
         $taxAmount = $this->items->sum('tax_amount');
         $discountAmount = $this->items->sum('discount_amount');
@@ -676,8 +677,9 @@ class Order extends Model
         $this->tax_amount = $taxAmount;
         $this->discount_amount = $discountAmount;
 
-        // Calculate total with proper decimal precision
-        $this->total_amount = (float) bcadd(bcsub(bcadd($subtotal, $taxAmount, 2), $discountAmount, 2), $this->shipping_amount, 2);
+        // Tax is already included in subtotal, so don't add it again
+        // Total = subtotal - discount + shipping
+        $this->attributes['total_amount'] = bcadd(bcsub($subtotal, $discountAmount, 2), $this->shipping_amount, 2);
 
         $this->save();
 

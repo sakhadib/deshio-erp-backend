@@ -119,7 +119,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'category_id' => 'required|exists:categories,id',
             'vendor_id' => 'required|exists:vendors,id',
-            'brand' => 'required|string|max:255',
+            'brand' => 'nullable|string|max:255',
             'sku' => 'required|string', // SKU not unique - supports variations
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -188,7 +188,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'category_id' => 'sometimes|exists:categories,id',
             'vendor_id' => 'sometimes|exists:vendors,id',
-            'brand' => 'sometimes|string|max:255',
+            'brand' => 'nullable|string|max:255',
             'sku' => 'sometimes|string', // SKU not unique - supports variations
             'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',

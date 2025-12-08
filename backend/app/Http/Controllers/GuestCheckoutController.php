@@ -71,6 +71,7 @@ class GuestCheckoutController extends Controller
 
                 // Step 2: Validate products and calculate totals
                 $subtotal = 0;
+                $taxAmount = 0;
                 $orderItems = [];
                 $hasOutOfStockItems = false;
 
@@ -109,7 +110,16 @@ class GuestCheckoutController extends Controller
                     }
                     
                     $itemTotal = $unitPrice * $item['quantity'];
+                    
+                    // Extract tax from inclusive price using batch tax_percentage
+                    $batch = $inStockBatch ?? $anyBatch;
+                    $taxPercentage = $batch ? ($batch->tax_percentage ?? 0) : 0;
+                    $itemTax = $taxPercentage > 0 
+                        ? round($itemTotal - ($itemTotal / (1 + ($taxPercentage / 100))), 2)
+                        : 0;
+                    
                     $subtotal += $itemTotal;
+                    $taxAmount += $itemTax;
 
                     $orderItems[] = [
                         'product_id' => $product->id,
@@ -117,6 +127,7 @@ class GuestCheckoutController extends Controller
                         'product_sku' => $product->sku,
                         'quantity' => $item['quantity'],
                         'unit_price' => $unitPrice,
+                        'tax_amount' => $itemTax,
                         'total_amount' => $itemTotal,
                         'variant_options' => $item['variant_options'] ?? null,
                         'is_preorder_item' => !$inStockBatch || $inStockBatch->quantity < $item['quantity'],
@@ -125,8 +136,8 @@ class GuestCheckoutController extends Controller
 
                 // Step 3: Calculate charges
                 $deliveryCharge = $this->calculateDeliveryCharge($request->input('delivery_address.city'));
-                $taxAmount = $subtotal * 0.05; // 5% tax
-                $totalAmount = $subtotal + $deliveryCharge + $taxAmount;
+                // Tax is already extracted from item prices (inclusive)
+                $totalAmount = $subtotal + $deliveryCharge;
 
                 // Step 4: Prepare delivery address
                 $deliveryAddress = [

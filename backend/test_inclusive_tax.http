@@ -1,0 +1,284 @@
+### Inclusive Tax System - Complete Workflow Test
+### Testing: Product Create → Batch Create → Order Purchase → Verify Accounting
+
+@baseUrl = http://localhost:8000/api
+@token = YOUR_JWT_TOKEN_HERE
+
+### Step 1: Login as Employee (Get Token)
+POST {{baseUrl}}/employee/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "password"
+}
+
+### Step 2: Create a Test Product
+POST {{baseUrl}}/products
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Tax Test Product",
+  "sku": "TAX-TEST-001",
+  "description": "Product for testing inclusive tax system",
+  "category_id": 1,
+  "is_active": true
+}
+
+### Step 3: Create Batch with 2% Tax (Inclusive)
+# Sell Price: 1000 BDT (includes 2% tax)
+# Expected base_price: 980.39 BDT
+# Expected tax_amount: 19.61 BDT
+POST {{baseUrl}}/batches
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "product_id": 1,
+  "store_id": 1,
+  "quantity": 100,
+  "cost_price": 800,
+  "sell_price": 1000,
+  "tax_percentage": 2.0,
+  "skip_barcode_generation": false
+}
+
+### Step 4: Create Batch with 5% Tax (Inclusive)
+# Sell Price: 500 BDT (includes 5% tax)
+# Expected base_price: 476.19 BDT
+# Expected tax_amount: 23.81 BDT
+POST {{baseUrl}}/batches
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "product_id": 2,
+  "store_id": 1,
+  "quantity": 50,
+  "cost_price": 300,
+  "sell_price": 500,
+  "tax_percentage": 5.0,
+  "skip_barcode_generation": true
+}
+
+### Step 5: Verify Batch Calculations
+# Check that base_price and tax_amount are calculated correctly
+GET {{baseUrl}}/batches/1
+Authorization: Bearer {{token}}
+
+###
+GET {{baseUrl}}/batches/2
+Authorization: Bearer {{token}}
+
+### Step 6: Create Counter Sale Order (Multiple Items)
+# Item 1: Product 1, qty=5, unit_price=1000 (2% tax)
+#   - Subtotal: 5000 BDT (includes tax)
+#   - Tax extracted: 98.05 BDT
+# Item 2: Product 2, qty=3, unit_price=500 (5% tax)
+#   - Subtotal: 1500 BDT (includes tax)
+#   - Tax extracted: 71.43 BDT
+# Expected:
+#   - Order Subtotal: 6500 BDT (includes tax)
+#   - Total Tax: 169.48 BDT
+#   - Order Total: 6500 BDT
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "customer_id": 1,
+  "store_id": 1,
+  "order_type": "counter",
+  "items": [
+    {
+      "product_id": 1,
+      "batch_id": 1,
+      "quantity": 5,
+      "unit_price": 1000,
+      "discount_amount": 0
+    },
+    {
+      "product_id": 2,
+      "batch_id": 2,
+      "quantity": 3,
+      "unit_price": 500,
+      "discount_amount": 0
+    }
+  ],
+  "payment": {
+    "payment_method_id": 1,
+    "amount": 6500
+  }
+}
+
+### Step 7: Verify Order Details
+# Check order totals and tax calculation
+GET {{baseUrl}}/orders/1
+Authorization: Bearer {{token}}
+
+### Step 8: Check Accounting Transactions
+# Verify that revenue and tax are recorded separately
+GET {{baseUrl}}/transactions?order_id=1
+Authorization: Bearer {{token}}
+
+### Step 9: Guest Checkout Test
+POST {{baseUrl}}/guest/checkout
+Content-Type: application/json
+
+{
+  "phone": "+8801712345678",
+  "email": "guest@test.com",
+  "items": [
+    {
+      "product_id": 1,
+      "quantity": 2
+    }
+  ],
+  "delivery_address": {
+    "full_name": "Test Guest",
+    "phone": "+8801712345678",
+    "address_line_1": "123 Test Street",
+    "city": "Dhaka",
+    "postal_code": "1200",
+    "country": "Bangladesh"
+  }
+}
+
+### Step 10: E-commerce Customer Login
+POST {{baseUrl}}/customer/auth/login
+Content-Type: application/json
+
+{
+  "email": "customer@example.com",
+  "password": "password"
+}
+
+### Step 11: Add to Cart (E-commerce)
+POST {{baseUrl}}/cart/add
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "product_id": 1,
+  "quantity": 3
+}
+
+### Step 12: View Cart
+GET {{baseUrl}}/cart
+Authorization: Bearer {{token}}
+
+### Step 13: E-commerce Checkout
+POST {{baseUrl}}/ecommerce/checkout
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "shipping_address_id": 1,
+  "payment_method": "cod"
+}
+
+### Step 14: Verify Profit Margin Calculation
+# Should use base_price (excluding tax) for profit calculation
+GET {{baseUrl}}/batches/1/profit
+Authorization: Bearer {{token}}
+
+### Step 15: Financial Reports
+# Check tax collection report
+GET {{baseUrl}}/reports/tax-summary?start_date=2025-12-01&end_date=2025-12-31
+Authorization: Bearer {{token}}
+
+### Step 16: Check Product Batch Inventory Value
+# Verify inventory valuation uses correct prices
+GET {{baseUrl}}/reports/inventory-value?store_id=1
+Authorization: Bearer {{token}}
+
+### ========================================
+### VERIFICATION CHECKLIST
+### ========================================
+
+### ✓ Batch Creation:
+# - base_price = sell_price / (1 + tax_percentage/100)
+# - tax_amount = sell_price - base_price
+# - Batch 1: sell=1000, tax=2% → base=980.39, tax=19.61
+# - Batch 2: sell=500, tax=5% → base=476.19, tax=23.81
+
+### ✓ Order Item Calculation:
+# - unit_price is inclusive (from batch sell_price)
+# - tax_amount extracted per item
+# - total_amount = unit_price × quantity (includes tax)
+
+### ✓ Order Total Calculation:
+# - subtotal = sum of item totals (includes tax)
+# - tax_amount = sum of extracted tax
+# - total_amount = subtotal - discount + shipping (NO TAX ADDED)
+
+### ✓ Profit Margin:
+# - Uses base_price (excluding tax) vs cost_price
+# - Batch 1: (980.39 - 800) / 800 = 22.55%
+# - NOT using sell_price: (1000 - 800) / 800 = 25% ❌
+
+### ✓ Accounting:
+# - Revenue = base_price × quantity
+# - Tax Liability = tax_amount × quantity
+# - Customer Paid = sell_price × quantity
+
+### ========================================
+### EXPECTED RESULTS - Order Example
+### ========================================
+# Item 1: Product 1, qty=5
+#   - Unit Price: 1000.00 BDT (inclusive)
+#   - Tax per unit: 19.61 BDT
+#   - Item Total: 5000.00 BDT
+#   - Item Tax: 98.05 BDT
+#   - Base Revenue: 4901.95 BDT
+
+# Item 2: Product 2, qty=3
+#   - Unit Price: 500.00 BDT (inclusive)
+#   - Tax per unit: 23.81 BDT
+#   - Item Total: 1500.00 BDT
+#   - Item Tax: 71.43 BDT
+#   - Base Revenue: 1428.57 BDT
+
+# Order Totals:
+#   - Subtotal: 6500.00 BDT (includes tax)
+#   - Tax Amount: 169.48 BDT
+#   - Discount: 0.00 BDT
+#   - Shipping: 0.00 BDT
+#   - Total Amount: 6500.00 BDT ✓
+
+# Accounting Entries:
+#   - Cash/Revenue: 6500.00 BDT (debit)
+#   - Revenue: 6330.52 BDT (credit) ← base revenue
+#   - Tax Liability: 169.48 BDT (credit)
+#   - COGS: (800×5 + 300×3) = 4900.00 BDT
+#   - Gross Profit: 6330.52 - 4900 = 1430.52 BDT
+
+### ========================================
+### DEBUGGING QUERIES (if issues found)
+### ========================================
+
+### Check all batches with tax fields
+GET {{baseUrl}}/batches?include_tax_fields=true
+Authorization: Bearer {{token}}
+
+### Check specific order items with tax breakdown
+GET {{baseUrl}}/orders/1/items?include_tax_breakdown=true
+Authorization: Bearer {{token}}
+
+### Check accounting transactions for order
+GET {{baseUrl}}/accounting/transactions?order_id=1&type=order_sale
+Authorization: Bearer {{token}}
+
+### Recalculate order totals (if needed)
+POST {{baseUrl}}/orders/1/recalculate
+Authorization: Bearer {{token}}
+
+### Update existing batch with tax (migration helper)
+PATCH {{baseUrl}}/batches/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "tax_percentage": 2.0
+}

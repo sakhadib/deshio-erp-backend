@@ -16,6 +16,9 @@ class ProductBatch extends Model
         'quantity',
         'cost_price',
         'sell_price',
+        'tax_percentage',
+        'base_price',
+        'tax_amount',
         'availability',
         'manufactured_date',
         'expiry_date',
@@ -29,6 +32,9 @@ class ProductBatch extends Model
         'quantity' => 'integer',
         'cost_price' => 'decimal:2',
         'sell_price' => 'decimal:2',
+        'tax_percentage' => 'decimal:2',
+        'base_price' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
         'availability' => 'boolean',
         'manufactured_date' => 'date',
         'expiry_date' => 'date',
@@ -42,6 +48,28 @@ class ProductBatch extends Model
         static::creating(function ($batch) {
             if (empty($batch->batch_number)) {
                 $batch->batch_number = static::generateBatchNumber();
+            }
+            
+            // Calculate base_price and tax_amount from inclusive sell_price
+            if ($batch->sell_price > 0 && $batch->tax_percentage > 0) {
+                $batch->base_price = round($batch->sell_price / (1 + ($batch->tax_percentage / 100)), 2);
+                $batch->tax_amount = round($batch->sell_price - $batch->base_price, 2);
+            } elseif ($batch->sell_price > 0) {
+                $batch->base_price = $batch->sell_price;
+                $batch->tax_amount = 0;
+            }
+        });
+
+        static::updating(function ($batch) {
+            // Recalculate base_price and tax_amount if sell_price or tax_percentage changed
+            if ($batch->isDirty(['sell_price', 'tax_percentage'])) {
+                if ($batch->sell_price > 0 && $batch->tax_percentage > 0) {
+                    $batch->base_price = round($batch->sell_price / (1 + ($batch->tax_percentage / 100)), 2);
+                    $batch->tax_amount = round($batch->sell_price - $batch->base_price, 2);
+                } elseif ($batch->sell_price > 0) {
+                    $batch->base_price = $batch->sell_price;
+                    $batch->tax_amount = 0;
+                }
             }
         });
     }
@@ -133,7 +161,9 @@ class ProductBatch extends Model
             return 0;
         }
 
-        return round((($this->sell_price - $this->cost_price) / $this->cost_price) * 100, 2);
+        // Use base_price (excluding tax) for profit calculation
+        $priceForProfit = $this->base_price ?? $this->sell_price;
+        return round((($priceForProfit - $this->cost_price) / $this->cost_price) * 100, 2);
     }
 
     public function getTotalValue()

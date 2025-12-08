@@ -230,12 +230,25 @@ class EcommerceOrderController extends Controller
                 }
 
                 // Calculate totals using unit_price from cart
-                $subtotal = $cartItems->sum(function($item) {
-                    return $item->unit_price * $item->quantity;
-                });
+                $subtotal = 0;
+                $taxAmount = 0;
+                
+                foreach ($cartItems as $item) {
+                    $itemTotal = $item->unit_price * $item->quantity;
+                    $subtotal += $itemTotal;
+                    
+                    // Extract tax from inclusive price using batch tax_percentage
+                    $batch = ProductBatch::where('product_id', $item->product_id)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    $taxPercentage = $batch ? ($batch->tax_percentage ?? 0) : 0;
+                    $itemTax = $taxPercentage > 0 
+                        ? round($itemTotal - ($itemTotal / (1 + ($taxPercentage / 100))), 2)
+                        : 0;
+                    $taxAmount += $itemTax;
+                }
 
                 $deliveryCharge = $this->calculateDeliveryCharge($shippingAddress);
-                $taxAmount = $subtotal * 0.05; // 5% tax
                 
                 // Apply coupon discount if provided
                 $discountAmount = 0;
@@ -243,7 +256,8 @@ class EcommerceOrderController extends Controller
                     $discountAmount = $this->applyCoupon($request->coupon_code, $subtotal);
                 }
                 
-                $totalAmount = $subtotal + $deliveryCharge + $taxAmount - $discountAmount;
+                // Tax is already extracted from item prices (inclusive)
+                $totalAmount = $subtotal + $deliveryCharge - $discountAmount;
 
                 // Create order - NO STORE ASSIGNED YET
                 $order = Order::create([
@@ -272,6 +286,16 @@ class EcommerceOrderController extends Controller
 
                 // Create order items without batch/barcode (will be assigned during fulfillment)
                 foreach ($cartItems as $cartItem) {
+                    // Calculate tax for this item
+                    $batch = ProductBatch::where('product_id', $cartItem->product_id)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    $taxPercentage = $batch ? ($batch->tax_percentage ?? 0) : 0;
+                    $itemTotal = $cartItem->unit_price * $cartItem->quantity;
+                    $itemTax = $taxPercentage > 0 
+                        ? round($itemTotal - ($itemTotal / (1 + ($taxPercentage / 100))), 2)
+                        : 0;
+                    
                     OrderItem::create([
                         'order_id' => $order->id,
                         'product_id' => $cartItem->product_id,
@@ -279,9 +303,9 @@ class EcommerceOrderController extends Controller
                         'product_sku' => $cartItem->product->sku,
                         'quantity' => $cartItem->quantity,
                         'unit_price' => $cartItem->unit_price,
-                        'tax_amount' => 0, // Can be calculated per item if needed
+                        'tax_amount' => $itemTax,
                         'discount_amount' => 0,
-                        'total_amount' => $cartItem->unit_price * $cartItem->quantity,
+                        'total_amount' => $itemTotal,
                         'notes' => $cartItem->notes,
                     ]);
                 }

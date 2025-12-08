@@ -178,6 +178,7 @@ class Transaction extends Model
         $transactionDate = $payment->completed_at ?? $payment->processed_at ?? now();
         $cashAccountId = static::getCashAccountId($payment->store_id);
         $salesRevenueAccountId = static::getSalesRevenueAccountId();
+        $taxLiabilityAccountId = static::getTaxLiabilityAccountId();
 
         $metadata = [
             'payment_method' => $payment->paymentMethod->name ?? 'Unknown',
@@ -185,8 +186,13 @@ class Transaction extends Model
             'customer_name' => $payment->customer->name ?? null,
         ];
 
-        // DOUBLE-ENTRY BOOKKEEPING:
-        // 1. Debit Cash Account (Asset increases - money coming in)
+        // Get tax amount from order (inclusive tax system)
+        $order = $payment->order;
+        $taxAmount = $order ? (float)$order->tax_amount : 0;
+        $revenueAmount = $payment->amount - $taxAmount;
+
+        // DOUBLE-ENTRY BOOKKEEPING WITH INCLUSIVE TAX:
+        // 1. Debit Cash Account (Asset increases - full amount including tax)
         $debitTransaction = static::create([
             'transaction_date' => $transactionDate,
             'amount' => $payment->amount,
@@ -197,24 +203,47 @@ class Transaction extends Model
             'description' => "Order Payment - {$payment->payment_number}",
             'store_id' => $payment->store_id,
             'created_by' => $payment->processed_by,
-            'metadata' => $metadata,
+            'metadata' => array_merge($metadata, [
+                'includes_tax' => $taxAmount > 0,
+                'tax_amount' => $taxAmount,
+            ]),
             'status' => $status,
         ]);
 
-        // 2. Credit Sales Revenue Account (Income increases - revenue earned)
+        // 2. Credit Sales Revenue Account (Income - excluding tax)
         static::create([
             'transaction_date' => $transactionDate,
-            'amount' => $payment->amount,
+            'amount' => $revenueAmount,
             'type' => 'Credit',
             'account_id' => $salesRevenueAccountId,
             'reference_type' => OrderPayment::class,
             'reference_id' => $payment->id,
-            'description' => "Order Payment - {$payment->payment_number}",
+            'description' => "Order Revenue (excl. tax) - {$payment->payment_number}",
             'store_id' => $payment->store_id,
             'created_by' => $payment->processed_by,
             'metadata' => $metadata,
             'status' => $status,
         ]);
+
+        // 3. Credit Tax Liability Account (Liability - tax collected)
+        if ($taxAmount > 0) {
+            static::create([
+                'transaction_date' => $transactionDate,
+                'amount' => $taxAmount,
+                'type' => 'Credit',
+                'account_id' => $taxLiabilityAccountId,
+                'reference_type' => OrderPayment::class,
+                'reference_id' => $payment->id,
+                'description' => "Sales Tax Collected - {$payment->payment_number}",
+                'store_id' => $payment->store_id,
+                'created_by' => $payment->processed_by,
+                'metadata' => array_merge($metadata, [
+                    'tax_type' => 'sales_tax',
+                    'order_subtotal' => $order->subtotal ?? 0,
+                ]),
+                'status' => $status,
+            ]);
+        }
 
         return $debitTransaction;
     }
@@ -536,6 +565,34 @@ class Transaction extends Model
         // If not found, use cash account as fallback (not ideal but safe)
         if (!$account) {
             return static::getCashAccountId();
+        }
+        
+        return $account->id;
+    }
+
+    public static function getTaxLiabilityAccountId(): ?int
+    {
+        // Get tax liability account from database
+        $account = Account::where('type', 'liability')
+            ->where(function ($q) {
+                $instance = new static;
+                $instance->whereLike($q, 'name', 'Tax');
+                $instance->orWhereLike($q, 'name', 'VAT');
+                $instance->orWhereLike($q, 'name', 'Sales Tax');
+                $q->orWhere('sub_type', 'tax_payable');
+            })
+            ->where('is_active', true)
+            ->first();
+        
+        // If not found, create a default tax liability account
+        if (!$account) {
+            $account = Account::create([
+                'name' => 'Tax Payable',
+                'type' => 'liability',
+                'sub_type' => 'tax_payable',
+                'description' => 'Sales tax collected from customers',
+                'is_active' => true,
+            ]);
         }
         
         return $account->id;

@@ -164,6 +164,7 @@ class ProductBatchController extends Controller
             'quantity' => 'required|integer|min:1|max:10000',  // Max 10k units per batch for performance
             'cost_price' => 'required|numeric|min:0',
             'sell_price' => 'required|numeric|min:0',
+            'tax_percentage' => 'nullable|numeric|min:0|max:100',
             'manufactured_date' => 'nullable|date',
             'expiry_date' => 'nullable|date|after:manufactured_date',
             'skip_barcode_generation' => 'boolean',
@@ -196,6 +197,7 @@ class ProductBatchController extends Controller
                 'quantity' => $request->quantity,
                 'cost_price' => $request->cost_price,
                 'sell_price' => $request->sell_price,
+                'tax_percentage' => $request->input('tax_percentage', 0),
                 'availability' => true,
                 'manufactured_date' => $request->manufactured_date,
                 'expiry_date' => $request->expiry_date,

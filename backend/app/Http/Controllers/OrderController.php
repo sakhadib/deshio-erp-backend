@@ -386,10 +386,17 @@ class OrderController extends Controller
                 $quantity = $itemData['quantity'];
                 $unitPrice = $itemData['unit_price'];
                 $discount = $itemData['discount_amount'] ?? 0;
-                $tax = $itemData['tax_amount'] ?? 0;
+                
+                // Calculate tax from inclusive unit_price using batch tax_percentage
+                $taxPercentage = $batch->tax_percentage ?? 0;
+                $basePrice = $taxPercentage > 0 
+                    ? round($unitPrice / (1 + ($taxPercentage / 100)), 2)
+                    : $unitPrice;
+                $taxPerUnit = round($unitPrice - $basePrice, 2);
+                $tax = $taxPerUnit * $quantity;
                 
                 $itemSubtotal = $quantity * $unitPrice;
-                $itemTotal = $itemSubtotal - $discount + $tax;
+                $itemTotal = $itemSubtotal - $discount;
 
                 // Calculate COGS from batch cost price
                 $cogs = round(($batch->cost_price ?? 0) * $quantity, 2);
@@ -422,12 +429,12 @@ class OrderController extends Controller
                 $taxTotal += $tax;
             }
 
-            // Calculate order totals
+            // Calculate order totals - tax is now included in subtotal (inclusive pricing)
             $order->update([
                 'subtotal' => $subtotal,
                 'tax_amount' => $taxTotal,
-                'total_amount' => $subtotal + $taxTotal - ($request->discount_amount ?? 0) + ($request->shipping_amount ?? 0),
-                'outstanding_amount' => $subtotal + $taxTotal - ($request->discount_amount ?? 0) + ($request->shipping_amount ?? 0),
+                'total_amount' => $subtotal - ($request->discount_amount ?? 0) + ($request->shipping_amount ?? 0),
+                'outstanding_amount' => $subtotal - ($request->discount_amount ?? 0) + ($request->shipping_amount ?? 0),
             ]);
 
             // Setup installment plan if requested
