@@ -49,7 +49,7 @@ class StoreFulfillmentController extends Controller
                     'items.product.images',
                     'items.product.barcodes' => function($query) use ($employee) {
                         $query->where('current_store_id', $employee->store_id)
-                              ->where('status', 'shop');
+                              ->where('current_status', 'in_shop');
                     },
                 ])
                 ->orderBy('created_at', 'asc')
@@ -131,7 +131,7 @@ class StoreFulfillmentController extends Controller
                     'items.product.images',
                     'items.product.barcodes' => function($query) use ($employee) {
                         $query->where('current_store_id', $employee->store_id)
-                              ->where('status', 'shop');
+                              ->where('current_status', 'in_shop');
                     },
                     'items.barcode', // Already scanned barcode
                 ])
