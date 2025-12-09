@@ -133,8 +133,8 @@ class ProductController extends Controller
             // Create product
             $product = Product::create([
                 'category_id' => $validated['category_id'],
-                'vendor_id' => $validated['vendor_id'],
-                'brand' => $validated['brand'],
+                'vendor_id' => $validated['vendor_id'] ?? null,
+                'brand' => $validated['brand'] ?? null,
                 'sku' => $validated['sku'],
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
