@@ -455,6 +455,91 @@ class EcommerceOrderController extends Controller
     }
 
     /**
+     * Update order details (customer-side, limited fields)
+     * 
+     * PUT/PATCH /api/customer/orders/{orderNumber}
+     * 
+     * Customers can only update:
+     * - Shipping address (before fulfillment)
+     * - Notes/delivery instructions
+     * 
+     * Cannot update after order is fulfilled/shipped
+     */
+    public function update(Request $request, $orderNumber): JsonResponse
+    {
+        try {
+            $customerId = auth('customer')->id();
+            
+            $order = Order::where('customer_id', $customerId)
+                ->where('order_number', $orderNumber)
+                ->firstOrFail();
+
+            // Only allow updates for pending/confirmed/assigned orders
+            if (!in_array($order->status, ['pending', 'confirmed', 'assigned_to_store', 'picking'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot update order in current status: ' . $order->status,
+                    'hint' => 'Orders can only be updated before fulfillment begins',
+                ], 400);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'shipping_address' => 'nullable|array',
+                'shipping_address.address_line1' => 'required_with:shipping_address|string',
+                'shipping_address.address_line2' => 'nullable|string',
+                'shipping_address.city' => 'required_with:shipping_address|string',
+                'shipping_address.state' => 'nullable|string',
+                'shipping_address.postal_code' => 'nullable|string',
+                'shipping_address.country' => 'required_with:shipping_address|string',
+                'notes' => 'nullable|string|max:500',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            // Update shipping address
+            if ($request->has('shipping_address')) {
+                $order->shipping_address = json_encode($request->shipping_address);
+            }
+
+            // Update notes
+            if ($request->has('notes')) {
+                $order->notes = $request->notes;
+            }
+
+            $order->save();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order updated successfully',
+                'data' => $order->load(['items.product', 'customer']),
+            ]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update order',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Track order
      */
     public function track($orderNumber): JsonResponse

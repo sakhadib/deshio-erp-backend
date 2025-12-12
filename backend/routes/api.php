@@ -212,6 +212,10 @@ Route::middleware('auth:customer')->prefix('customer')->group(function () {
         // Get order details
         Route::get('/{orderNumber}', [\App\Http\Controllers\EcommerceOrderController::class, 'show']);
         
+        // Update order (limited fields)
+        Route::put('/{orderNumber}', [\App\Http\Controllers\EcommerceOrderController::class, 'update']);
+        Route::patch('/{orderNumber}', [\App\Http\Controllers\EcommerceOrderController::class, 'update']);
+        
         // Cancel order
         Route::post('/{orderNumber}/cancel', [\App\Http\Controllers\EcommerceOrderController::class, 'cancel']);
         
@@ -883,6 +887,10 @@ Route::middleware('auth:api')->group(function () {
         // Order operations
         Route::prefix('{id}')->group(function () {
             Route::get('/', [OrderController::class, 'show']);
+            
+            // Update order (employee side)
+            Route::put('/', [OrderController::class, 'update']);
+            Route::patch('/', [OrderController::class, 'update']);
             
             // Item management (before completion)
             Route::post('/items', [OrderController::class, 'addItem']);

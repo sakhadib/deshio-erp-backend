@@ -512,6 +512,138 @@ class OrderController extends Controller
     }
 
     /**
+     * Update order details (before completion/fulfillment)
+     * 
+     * PATCH /api/orders/{id}
+     * 
+     * Allowed updates:
+     * - Customer information (name, phone, address)
+     * - Shipping address
+     * - Discount amount
+     * - Shipping amount
+     * - Notes
+     * 
+     * Cannot update:
+     * - Items (use addItem/updateItem/removeItem)
+     * - Status/payment after fulfillment
+     * - Order type
+     */
+    public function update(Request $request, $id)
+    {
+        $order = Order::with('items')->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found'
+            ], 404);
+        }
+
+        // Only allow updates for pending/confirmed orders
+        if (!in_array($order->status, ['pending', 'confirmed', 'assigned_to_store', 'picking'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot update order in current status: ' . $order->status
+            ], 400);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'customer_name' => 'nullable|string|max:255',
+            'customer_phone' => 'nullable|string|max:20',
+            'customer_email' => 'nullable|email',
+            'customer_address' => 'nullable|string',
+            'shipping_address' => 'nullable|array',
+            'shipping_address.address_line1' => 'required_with:shipping_address|string',
+            'shipping_address.address_line2' => 'nullable|string',
+            'shipping_address.city' => 'required_with:shipping_address|string',
+            'shipping_address.state' => 'nullable|string',
+            'shipping_address.postal_code' => 'nullable|string',
+            'shipping_address.country' => 'required_with:shipping_address|string',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'shipping_amount' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Update customer information if provided
+            if ($request->has('customer_name') || $request->has('customer_phone') || 
+                $request->has('customer_email') || $request->has('customer_address')) {
+                
+                $customer = $order->customer;
+                if ($customer && $customer->phone !== 'WALK-IN') {
+                    if ($request->filled('customer_name')) {
+                        $customer->name = $request->customer_name;
+                    }
+                    if ($request->filled('customer_phone')) {
+                        $customer->phone = $request->customer_phone;
+                    }
+                    if ($request->filled('customer_email')) {
+                        $customer->email = $request->customer_email;
+                    }
+                    if ($request->filled('customer_address')) {
+                        $customer->address = $request->customer_address;
+                    }
+                    $customer->save();
+                }
+            }
+
+            // Update order fields
+            if ($request->has('shipping_address')) {
+                $order->shipping_address = json_encode($request->shipping_address);
+            }
+
+            if ($request->has('discount_amount')) {
+                $oldDiscount = $order->discount_amount;
+                $order->discount_amount = $request->discount_amount;
+                
+                // Recalculate totals
+                $order->total_amount = $order->subtotal - $request->discount_amount + $order->shipping_amount;
+                $order->outstanding_amount = $order->total_amount - $order->paid_amount;
+            }
+
+            if ($request->has('shipping_amount')) {
+                $oldShipping = $order->shipping_amount;
+                $order->shipping_amount = $request->shipping_amount;
+                
+                // Recalculate totals
+                $order->total_amount = $order->subtotal - $order->discount_amount + $request->shipping_amount;
+                $order->outstanding_amount = $order->total_amount - $order->paid_amount;
+            }
+
+            if ($request->has('notes')) {
+                $order->notes = $request->notes;
+            }
+
+            $order->save();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order updated successfully',
+                'data' => $order->load(['customer', 'items.product', 'payments'])
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update order',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Add item to existing order (before completion)
      * 
      * UPDATED: Now requires barcode scanning for individual unit tracking
