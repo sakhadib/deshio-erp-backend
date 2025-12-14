@@ -37,12 +37,27 @@ class Account extends Model
                 $parent = static::find($account->parent_id);
                 if ($parent) {
                     $account->level = $parent->level + 1;
-                    $account->path = $parent->path ? $parent->path . '/' . $account->id : $account->id;
+                    // Path will be set in created event since we need the ID
                 }
             } else {
                 $account->level = 1;
-                $account->path = $account->id;
+                // Path will be set in created event since we need the ID
             }
+        });
+
+        static::created(function ($account) {
+            // Set path after the account has an ID
+            if ($account->parent_id) {
+                $parent = static::find($account->parent_id);
+                if ($parent) {
+                    $account->path = $parent->path ? $parent->path . '/' . $account->id : (string)$account->id;
+                } else {
+                    $account->path = (string)$account->id;
+                }
+            } else {
+                $account->path = (string)$account->id;
+            }
+            $account->saveQuietly(); // Use saveQuietly to avoid triggering events again
         });
 
         static::updating(function ($account) {

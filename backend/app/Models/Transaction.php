@@ -186,17 +186,28 @@ class Transaction extends Model
             'customer_name' => $payment->customer->name ?? null,
         ];
 
-        // Get tax amount from order (inclusive tax system)
+        // Calculate proportional tax for this payment (inclusive tax system)
         $order = $payment->order;
-        $taxAmount = $order ? (float)$order->tax_amount : 0;
-        $revenueAmount = $payment->amount - $taxAmount;
+        $paymentAmount = (float)$payment->amount;
+        
+        // Calculate tax proportion based on order total
+        if ($order && $order->total_amount > 0) {
+            // Tax ratio = order tax / order total
+            $taxRatio = (float)$order->tax_amount / (float)$order->total_amount;
+            // Apply ratio to payment amount to get proportional tax
+            $taxAmount = round($paymentAmount * $taxRatio, 2);
+        } else {
+            $taxAmount = 0;
+        }
+        
+        $revenueAmount = $paymentAmount - $taxAmount;
 
         // DOUBLE-ENTRY BOOKKEEPING WITH INCLUSIVE TAX:
         // 1. Debit Cash Account (Asset increases - full amount including tax)
         $debitTransaction = static::create([
             'transaction_date' => $transactionDate,
-            'amount' => $payment->amount,
-            'type' => 'Debit',
+            'amount' => $paymentAmount,
+            'type' => 'debit',
             'account_id' => $cashAccountId,
             'reference_type' => OrderPayment::class,
             'reference_id' => $payment->id,
@@ -214,7 +225,7 @@ class Transaction extends Model
         static::create([
             'transaction_date' => $transactionDate,
             'amount' => $revenueAmount,
-            'type' => 'Credit',
+            'type' => 'credit',
             'account_id' => $salesRevenueAccountId,
             'reference_type' => OrderPayment::class,
             'reference_id' => $payment->id,
@@ -230,7 +241,7 @@ class Transaction extends Model
             static::create([
                 'transaction_date' => $transactionDate,
                 'amount' => $taxAmount,
-                'type' => 'Credit',
+                'type' => 'credit',
                 'account_id' => $taxLiabilityAccountId,
                 'reference_type' => OrderPayment::class,
                 'reference_id' => $payment->id,
@@ -266,7 +277,7 @@ class Transaction extends Model
         $debitTransaction = static::create([
             'transaction_date' => $transactionDate,
             'amount' => $payment->amount,
-            'type' => 'Debit',
+            'type' => 'debit',
             'account_id' => $cashAccountId,
             'reference_type' => ServiceOrderPayment::class,
             'reference_id' => $payment->id,
@@ -281,7 +292,7 @@ class Transaction extends Model
         static::create([
             'transaction_date' => $transactionDate,
             'amount' => $payment->amount,
-            'type' => 'Credit',
+            'type' => 'credit',
             'account_id' => $serviceRevenueAccountId,
             'reference_type' => ServiceOrderPayment::class,
             'reference_id' => $payment->id,
@@ -314,7 +325,7 @@ class Transaction extends Model
         $creditTransaction = static::create([
             'transaction_date' => $transactionDate,
             'amount' => $refund->refund_amount,
-            'type' => 'Credit',
+            'type' => 'credit',
             'account_id' => $cashAccountId,
             'reference_type' => Refund::class,
             'reference_id' => $refund->id,
@@ -329,7 +340,7 @@ class Transaction extends Model
         static::create([
             'transaction_date' => $transactionDate,
             'amount' => $refund->refund_amount,
-            'type' => 'Debit',
+            'type' => 'debit',
             'account_id' => $salesRevenueAccountId,
             'reference_type' => Refund::class,
             'reference_id' => $refund->id,
@@ -435,7 +446,7 @@ class Transaction extends Model
         $debitTransaction = static::create([
             'transaction_date' => $transactionDate,
             'amount' => $totalCOGS,
-            'type' => 'Debit',
+            'type' => 'debit',
             'account_id' => $cogsAccountId,
             'reference_type' => Order::class,
             'reference_id' => $order->id,
@@ -450,7 +461,7 @@ class Transaction extends Model
         static::create([
             'transaction_date' => $transactionDate,
             'amount' => $totalCOGS,
-            'type' => 'Credit',
+            'type' => 'credit',
             'account_id' => $inventoryAccountId,
             'reference_type' => Order::class,
             'reference_id' => $order->id,
@@ -579,7 +590,6 @@ class Transaction extends Model
                 $instance->whereLike($q, 'name', 'Tax');
                 $instance->orWhereLike($q, 'name', 'VAT');
                 $instance->orWhereLike($q, 'name', 'Sales Tax');
-                $q->orWhere('sub_type', 'tax_payable');
             })
             ->where('is_active', true)
             ->first();
@@ -587,9 +597,10 @@ class Transaction extends Model
         // If not found, create a default tax liability account
         if (!$account) {
             $account = Account::create([
+                'account_code' => '2002',
                 'name' => 'Tax Payable',
                 'type' => 'liability',
-                'sub_type' => 'tax_payable',
+                'sub_type' => 'current_liability',
                 'description' => 'Sales tax collected from customers',
                 'is_active' => true,
             ]);

@@ -50,28 +50,66 @@ class ProductBatch extends Model
                 $batch->batch_number = static::generateBatchNumber();
             }
             
-            // Calculate base_price and tax_amount from inclusive sell_price
-            if ($batch->sell_price > 0 && $batch->tax_percentage > 0) {
-                $batch->base_price = round($batch->sell_price / (1 + ($batch->tax_percentage / 100)), 2);
-                $batch->tax_amount = round($batch->sell_price - $batch->base_price, 2);
-            } elseif ($batch->sell_price > 0) {
-                $batch->base_price = $batch->sell_price;
-                $batch->tax_amount = 0;
-            }
+            // Calculate tax based on TAX_MODE
+            static::calculateTaxFields($batch);
         });
 
         static::updating(function ($batch) {
             // Recalculate base_price and tax_amount if sell_price or tax_percentage changed
             if ($batch->isDirty(['sell_price', 'tax_percentage'])) {
-                if ($batch->sell_price > 0 && $batch->tax_percentage > 0) {
-                    $batch->base_price = round($batch->sell_price / (1 + ($batch->tax_percentage / 100)), 2);
-                    $batch->tax_amount = round($batch->sell_price - $batch->base_price, 2);
-                } elseif ($batch->sell_price > 0) {
-                    $batch->base_price = $batch->sell_price;
-                    $batch->tax_amount = 0;
-                }
+                static::calculateTaxFields($batch);
             }
         });
+    }
+
+    /**
+     * Calculate tax fields based on TAX_MODE configuration
+     */
+    protected static function calculateTaxFields($batch): void
+    {
+        if ($batch->sell_price <= 0) {
+            $batch->base_price = 0;
+            $batch->tax_amount = 0;
+            return;
+        }
+
+        $taxMode = config('app.tax_mode', 'inclusive');
+
+        if ($taxMode === 'inclusive') {
+            // Inclusive: sell_price includes tax (price = base + tax)
+            // Extract base and tax from sell_price
+            if ($batch->tax_percentage > 0) {
+                $batch->base_price = round($batch->sell_price / (1 + ($batch->tax_percentage / 100)), 2);
+                $batch->tax_amount = round($batch->sell_price - $batch->base_price, 2);
+            } else {
+                $batch->base_price = $batch->sell_price;
+                $batch->tax_amount = 0;
+            }
+        } else {
+            // Exclusive: sell_price is the base, tax is added on top (total = price + tax)
+            $batch->base_price = $batch->sell_price;
+            if ($batch->tax_percentage > 0) {
+                $batch->tax_amount = round($batch->sell_price * ($batch->tax_percentage / 100), 2);
+            } else {
+                $batch->tax_amount = 0;
+            }
+        }
+    }
+
+    /**
+     * Get the total price (base + tax) for this batch
+     * In inclusive mode, this equals sell_price
+     * In exclusive mode, this is sell_price + tax_amount
+     */
+    public function getTotalPriceAttribute(): float
+    {
+        $taxMode = config('app.tax_mode', 'inclusive');
+        
+        if ($taxMode === 'inclusive') {
+            return (float) $this->sell_price;
+        } else {
+            return (float) ($this->sell_price + $this->tax_amount);
+        }
     }
 
     public function product(): BelongsTo

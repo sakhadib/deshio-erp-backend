@@ -668,7 +668,8 @@ class Order extends Model
     // Calculation methods
     public function calculateTotals()
     {
-        // Subtotal now includes tax (prices are inclusive)
+        $taxMode = config('app.tax_mode', 'inclusive');
+        
         $subtotal = $this->items->sum('total_amount');
         $taxAmount = $this->items->sum('tax_amount');
         $discountAmount = $this->items->sum('discount_amount');
@@ -677,9 +678,16 @@ class Order extends Model
         $this->tax_amount = $taxAmount;
         $this->discount_amount = $discountAmount;
 
-        // Tax is already included in subtotal, so don't add it again
-        // Total = subtotal - discount + shipping
-        $this->attributes['total_amount'] = bcadd(bcsub($subtotal, $discountAmount, 2), $this->shipping_amount, 2);
+        if ($taxMode === 'inclusive') {
+            // Inclusive: Tax is already included in subtotal
+            // Total = subtotal - discount + shipping
+            $this->attributes['total_amount'] = bcadd(bcsub($subtotal, $discountAmount, 2), $this->shipping_amount, 2);
+        } else {
+            // Exclusive: Tax is calculated on top of subtotal
+            // Total = subtotal + tax - discount + shipping
+            $totalBeforeShipping = bcadd(bcsub($subtotal, $discountAmount, 2), $taxAmount, 2);
+            $this->attributes['total_amount'] = bcadd($totalBeforeShipping, $this->shipping_amount, 2);
+        }
 
         $this->save();
 

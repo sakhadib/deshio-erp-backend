@@ -45,6 +45,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Tax Calculation Mode
+    |--------------------------------------------------------------------------
+    |
+    | Determines how tax is calculated throughout the system:
+    | - 'inclusive': Tax is included in selling price (price = base + tax)
+    | - 'exclusive': Tax is added on top of selling price (total = price + tax)
+    |
+    */
+
+    'tax_mode' => env('TAX_MODE', 'inclusive'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |

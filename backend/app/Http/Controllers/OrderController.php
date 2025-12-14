@@ -408,14 +408,13 @@ class OrderController extends Controller
                 $unitPrice = $itemData['unit_price'];
                 $discount = $itemData['discount_amount'] ?? 0;
                 
-                // Calculate tax from inclusive unit_price using batch tax_percentage (if batch exists)
+                // Calculate tax using the helper method (respects TAX_MODE)
                 $taxPercentage = $batch?->tax_percentage ?? 0;
-                $basePrice = $taxPercentage > 0 
-                    ? round($unitPrice / (1 + ($taxPercentage / 100)), 2)
-                    : $unitPrice;
-                $taxPerUnit = round($unitPrice - $basePrice, 2);
-                $tax = $taxPerUnit * $quantity;
+                $taxCalculation = $this->calculateTax($unitPrice, $quantity, $taxPercentage);
+                $tax = $taxCalculation['total_tax'];
                 
+                // For inclusive mode: subtotal includes tax
+                // For exclusive mode: subtotal is base, tax added separately
                 $itemSubtotal = $quantity * $unitPrice;
                 $itemTotal = $itemSubtotal - $discount;
 
@@ -451,12 +450,24 @@ class OrderController extends Controller
                 $taxTotal += $tax;
             }
 
-            // Calculate order totals - tax is now included in subtotal (inclusive pricing)
+            // Calculate order totals based on tax mode
+            $taxMode = config('app.tax_mode', 'inclusive');
+            $orderDiscount = $request->discount_amount ?? 0;
+            $shippingAmount = $request->shipping_amount ?? 0;
+            
+            if ($taxMode === 'inclusive') {
+                // Inclusive: tax already in subtotal
+                $totalAmount = $subtotal - $orderDiscount + $shippingAmount;
+            } else {
+                // Exclusive: add tax to subtotal
+                $totalAmount = $subtotal + $taxTotal - $orderDiscount + $shippingAmount;
+            }
+
             $order->update([
                 'subtotal' => $subtotal,
                 'tax_amount' => $taxTotal,
-                'total_amount' => $subtotal - ($request->discount_amount ?? 0) + ($request->shipping_amount ?? 0),
-                'outstanding_amount' => $subtotal - ($request->discount_amount ?? 0) + ($request->shipping_amount ?? 0),
+                'total_amount' => $totalAmount,
+                'outstanding_amount' => $totalAmount,
                 'is_preorder' => $hasPreOrderItems,  // Mark order as pre-order if any items lack batches
             ]);
 
@@ -738,6 +749,11 @@ class OrderController extends Controller
 
                 // Use provided price or batch price
                 $unitPrice = $request->unit_price ?? $batch->sell_price;
+                $discount = $request->discount_amount ?? 0;
+
+                // Calculate tax using the helper method (respects TAX_MODE)
+                $taxPercentage = $batch->tax_percentage ?? 0;
+                $taxCalculation = $this->calculateTax($unitPrice, 1, $taxPercentage);
 
                 // Create order item with barcode tracking
                 $orderItem = OrderItem::create([
@@ -749,14 +765,11 @@ class OrderController extends Controller
                     'product_sku' => $product->sku,
                     'quantity' => 1,  // Always 1 per barcode
                     'unit_price' => $unitPrice,
-                    'discount_amount' => $request->discount_amount ?? 0,
-                    'tax_amount' => $request->tax_amount ?? 0,
+                    'discount_amount' => $discount,
+                    'tax_amount' => $taxCalculation['total_tax'],
                     'cogs' => round(($batch->cost_price ?? 0) * 1, 2),
+                    'total_amount' => $unitPrice - $discount,  // For inclusive, total = unitPrice - discount
                 ]);
-
-                // Calculate total for this item
-                $orderItem->total_amount = ($unitPrice - ($request->discount_amount ?? 0)) + ($request->tax_amount ?? 0);
-                $orderItem->save();
 
                 $addedItems[] = $orderItem;
             }
@@ -1587,5 +1600,42 @@ class OrderController extends Controller
                 'message' => 'Fulfillment failed: ' . $e->getMessage()
             ], 422);
         }
+    }
+
+    /**
+     * Calculate tax based on TAX_MODE configuration
+     * 
+     * @param float $unitPrice The price per unit
+     * @param int $quantity Number of units
+     * @param float $taxPercentage Tax percentage
+     * @return array ['base_price' => float, 'tax_per_unit' => float, 'total_tax' => float]
+     */
+    private function calculateTax(float $unitPrice, int $quantity, float $taxPercentage): array
+    {
+        $taxMode = config('app.tax_mode', 'inclusive');
+
+        if ($taxPercentage <= 0) {
+            return [
+                'base_price' => $unitPrice,
+                'tax_per_unit' => 0,
+                'total_tax' => 0,
+            ];
+        }
+
+        if ($taxMode === 'inclusive') {
+            // Inclusive: unitPrice includes tax, extract base and tax
+            $basePrice = round($unitPrice / (1 + ($taxPercentage / 100)), 2);
+            $taxPerUnit = round($unitPrice - $basePrice, 2);
+        } else {
+            // Exclusive: unitPrice is the base, tax is added on top
+            $basePrice = $unitPrice;
+            $taxPerUnit = round($unitPrice * ($taxPercentage / 100), 2);
+        }
+
+        return [
+            'base_price' => $basePrice,
+            'tax_per_unit' => $taxPerUnit,
+            'total_tax' => $taxPerUnit * $quantity,
+        ];
     }
 }
