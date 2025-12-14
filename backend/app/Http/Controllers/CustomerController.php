@@ -547,4 +547,97 @@ class CustomerController extends Controller
             'data' => $customers
         ]);
     }
+
+    /**
+     * 🔍 Find customer by phone (for Social Commerce, POS, etc.)
+     * Returns success:true and data:null if not found (no 404).
+     */
+    public function findByPhone(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'phone' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $phone = $request->get('phone');
+        $cleanPhone = preg_replace('/\D+/', '', $phone);
+
+        // Try both cleaned and raw (in case stored format differs)
+        $customer = Customer::where('phone', $cleanPhone)
+            ->orWhere('phone', $phone)
+            ->first();
+
+        if (!$customer) {
+            return response()->json([
+                'success' => true,
+                'data'    => null,
+            ]);
+        }
+
+        $customer->load(['createdBy', 'assignedEmployee']);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $customer,
+        ]);
+    }
+
+    /**
+     * 🧾 Get short last order summary for a customer
+     * - When ordered last (date)
+     * - Short item summary (e.g. "Black Hoodie M + 2 more item(s)")
+     */
+    public function getLastOrderSummary($id)
+    {
+        $customer = Customer::findOrFail($id);
+
+        $lastOrder = $customer->orders()
+            ->with(['items.product'])
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (!$lastOrder) {
+            return response()->json([
+                'success' => true,
+                'data'    => null,
+            ]);
+        }
+
+        $items = $lastOrder->items ?? collect();
+        $firstItem = $items->first();
+        $itemCount = $items->sum('quantity');
+
+        $productName = null;
+        if ($firstItem) {
+            // Support both product_name column or related product->name
+            if (isset($firstItem->product_name)) {
+                $productName = $firstItem->product_name;
+            } elseif (method_exists($firstItem, 'product') || $firstItem->relationLoaded('product')) {
+                $productName = $firstItem->product?->name;
+            }
+        }
+
+        $summaryText = null;
+        if ($productName) {
+            $summaryText = $itemCount > 1
+                ? $productName . ' + ' . ($itemCount - 1) . ' more item(s)'
+                : $productName;
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'order_date'   => $lastOrder->created_at->format('Y-m-d'),
+                'order_number' => $lastOrder->order_number,
+                'total_amount' => $lastOrder->total_amount,
+                'summary_text' => $summaryText,
+            ],
+        ]);
+    }
 }

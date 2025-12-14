@@ -466,6 +466,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/segments', [CustomerController::class, 'getSegments']);
         Route::get('/search', [CustomerController::class, 'search']);
         
+        // Phone lookup
+        Route::get('/by-phone', [CustomerController::class, 'findByPhone']);
+        
         // Create customer
         Route::post('/', [CustomerController::class, 'store']);
         
@@ -486,6 +489,9 @@ Route::middleware('auth:api')->group(function () {
             Route::get('/analytics', [CustomerController::class, 'getAnalytics']);
             Route::post('/notes', [CustomerController::class, 'addNote']);
             Route::post('/assign-employee', [CustomerController::class, 'assignEmployee']);
+            
+            // Last order summary
+            Route::get('/last-order-summary', [CustomerController::class, 'getLastOrderSummary']);
         });
     });
 
