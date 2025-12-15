@@ -8,6 +8,7 @@ use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\VendorPaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductSearchController;
+use App\Http\Controllers\ContactMessageController;
 use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\ProductBatchController;
 use App\Http\Controllers\ProductBarcodeController;
@@ -1329,4 +1330,26 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/auto-cleanup', [RecycleBinController::class, 'autoCleanup']);
     });
 
+    // ============================================
+    // CONTACT MESSAGES MANAGEMENT
+    // Admin routes for managing contact form submissions
+    // ============================================
+    
+    Route::prefix('contact-messages')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ContactMessageController::class, 'index']);
+        Route::get('/statistics', [\App\Http\Controllers\ContactMessageController::class, 'getStatistics']);
+        Route::get('/by-phone', [\App\Http\Controllers\ContactMessageController::class, 'getByPhone']);
+        Route::post('/bulk-update-status', [\App\Http\Controllers\ContactMessageController::class, 'bulkUpdateStatus']);
+        Route::get('/{id}', [\App\Http\Controllers\ContactMessageController::class, 'show']);
+        Route::put('/{id}', [\App\Http\Controllers\ContactMessageController::class, 'update']);
+        Route::delete('/{id}', [\App\Http\Controllers\ContactMessageController::class, 'destroy']);
+    });
+
 }); // End of auth:api middleware group
+
+// ============================================
+// CONTACT FORM PUBLIC SUBMISSION
+// Allow visitors to submit contact messages without authentication
+// ============================================
+
+Route::post('/contact-messages', [\App\Http\Controllers\ContactMessageController::class, 'store']);
