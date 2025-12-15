@@ -657,13 +657,23 @@ class OrderController extends Controller
     /**
      * Add item to existing order (before completion)
      * 
-     * UPDATED: Now requires barcode scanning for individual unit tracking
+     * UPDATED: Supports both barcode scanning (for counter orders) and product selection (for social/ecommerce)
      * 
      * POST /api/orders/{id}/items
-     * Body: {
+     * Body for COUNTER orders (barcode scanning):
+     * {
      *   "barcode": "789012345023"  // Scan individual unit barcode
      *   OR
      *   "barcodes": ["789012345023", "789012345024"]  // Multiple units
+     * }
+     * 
+     * Body for SOCIAL_COMMERCE/ECOMMERCE orders (product selection):
+     * {
+     *   "product_id": 1,
+     *   "batch_id": 5,  // Optional - will use oldest batch if not provided
+     *   "quantity": 2,
+     *   "unit_price": 750.00,  // Optional - will use batch price
+     *   "discount_amount": 0
      * }
      */
     public function addItem(Request $request, $id)
@@ -685,13 +695,27 @@ class OrderController extends Controller
             ], 422);
         }
 
-        // NEW: Support both single barcode and array of barcodes
+        // NEW: Support BOTH barcode scanning AND product/batch selection
+        // Counter orders: use barcodes
+        // Social/Ecommerce orders: use product_id + batch_id + quantity
         $validator = Validator::make($request->all(), [
-            'barcode' => 'required_without:barcodes|string|exists:product_barcodes,barcode',
-            'barcodes' => 'required_without:barcode|array|min:1',
+            // Barcode scanning (for counter orders)
+            'barcode' => 'nullable|string|exists:product_barcodes,barcode',
+            'barcodes' => 'nullable|array|min:1',
             'barcodes.*' => 'string|exists:product_barcodes,barcode',
+            
+            // Product selection (for social_commerce/ecommerce orders)
+            'product_id' => 'nullable|exists:products,id',
+            'batch_id' => 'nullable|exists:product_batches,id',
+            'quantity' => 'required_with:product_id|integer|min:1',
+            
             'unit_price' => 'nullable|numeric|min:0',  // Optional, use batch price if not provided
             'discount_amount' => 'nullable|numeric|min:0',
+        ], [
+            'barcode.exists' => 'Invalid barcode',
+            'product_id.exists' => 'Product not found',
+            'batch_id.exists' => 'Batch not found',
+            'quantity.required_with' => 'Quantity is required when adding by product',
         ]);
 
         if ($validator->fails()) {
@@ -702,75 +726,172 @@ class OrderController extends Controller
             ], 422);
         }
 
-        // Normalize to array
-        $barcodesToAdd = $request->has('barcodes') 
-            ? $request->barcodes 
-            : [$request->barcode];
+        // Validate that at least one method is provided
+        $hasBarcode = $request->filled('barcode') || $request->filled('barcodes');
+        $hasProduct = $request->filled('product_id');
+        
+        if (!$hasBarcode && !$hasProduct) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please provide either barcode(s) or product_id to add item'
+            ], 422);
+        }
+
+        if ($hasBarcode && $hasProduct) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot provide both barcode and product_id. Choose one method.'
+            ], 422);
+        }
 
         DB::beginTransaction();
         try {
             $addedItems = [];
             
-            foreach ($barcodesToAdd as $barcodeValue) {
-                $barcode = \App\Models\ProductBarcode::where('barcode', $barcodeValue)
-                    ->with(['product', 'batch'])
-                    ->first();
+            // METHOD 1: Add by barcode (counter orders)
+            if ($hasBarcode) {
+                // Normalize to array
+                $barcodesToAdd = $request->has('barcodes') 
+                    ? $request->barcodes 
+                    : [$request->barcode];
+                
+                foreach ($barcodesToAdd as $barcodeValue) {
+                    $barcode = \App\Models\ProductBarcode::where('barcode', $barcodeValue)
+                        ->with(['product', 'batch'])
+                        ->first();
 
-                if (!$barcode) {
-                    throw new \Exception("Barcode {$barcodeValue} not found");
+                    if (!$barcode) {
+                        throw new \Exception("Barcode {$barcodeValue} not found");
+                    }
+
+                    // Validate barcode is active and not defective
+                    if (!$barcode->is_active) {
+                        throw new \Exception("Barcode {$barcodeValue} is not available (inactive)");
+                    }
+
+                    if ($barcode->is_defective) {
+                        throw new \Exception("Barcode {$barcodeValue} is marked as defective");
+                    }
+
+                    // Validate batch exists and has stock
+                    if (!$barcode->batch) {
+                        throw new \Exception("Barcode {$barcodeValue} is not associated with any batch");
+                    }
+
+                    $batch = $barcode->batch;
+                    $product = $barcode->product;
+
+                    // Validate batch has stock
+                    if ($batch->quantity < 1) {
+                        throw new \Exception("Product batch {$batch->batch_number} has no stock available");
+                    }
+
+                    // Validate store
+                    if ($batch->store_id != $order->store_id) {
+                        throw new \Exception("Product from batch {$batch->batch_number} not available at this store");
+                    }
+
+                    // Use provided price or batch price
+                    $unitPrice = $request->unit_price ?? $batch->sell_price;
+                    $discount = $request->discount_amount ?? 0;
+
+                    // Calculate tax using the helper method (respects TAX_MODE)
+                    $taxPercentage = $batch->tax_percentage ?? 0;
+                    $taxCalculation = $this->calculateTax($unitPrice, 1, $taxPercentage);
+
+                    // Create order item with barcode tracking
+                    $orderItem = OrderItem::create([
+                        'order_id' => $order->id,
+                        'product_id' => $product->id,
+                        'product_batch_id' => $batch->id,
+                        'product_barcode_id' => $barcode->id,  // NEW: Track specific barcode
+                        'product_name' => $product->name,
+                        'product_sku' => $product->sku,
+                        'quantity' => 1,  // Always 1 per barcode
+                        'unit_price' => $unitPrice,
+                        'discount_amount' => $discount,
+                        'tax_amount' => $taxCalculation['total_tax'],
+                        'cogs' => round(($batch->cost_price ?? 0) * 1, 2),
+                        'total_amount' => $unitPrice - $discount,  // For inclusive, total = unitPrice - discount
+                    ]);
+
+                    $addedItems[] = $orderItem;
                 }
-
-                // Validate barcode is active and not defective
-                if (!$barcode->is_active) {
-                    throw new \Exception("Barcode {$barcodeValue} is not available (inactive)");
+            }
+            
+            // METHOD 2: Add by product_id (social_commerce/ecommerce orders)
+            if ($hasProduct) {
+                $product = Product::findOrFail($request->product_id);
+                $quantity = $request->quantity;
+                
+                // If batch_id provided, use it. Otherwise, find oldest batch with stock at this store
+                if ($request->filled('batch_id')) {
+                    $batch = ProductBatch::findOrFail($request->batch_id);
+                    
+                    // Validate batch belongs to this store
+                    if ($batch->store_id != $order->store_id) {
+                        throw new \Exception("Selected batch is not available at order's store");
+                    }
+                    
+                    // Validate batch has sufficient stock
+                    if ($batch->quantity < $quantity) {
+                        throw new \Exception("Insufficient stock in selected batch. Available: {$batch->quantity}");
+                    }
+                } else {
+                    // Auto-select oldest batch with sufficient stock (FIFO)
+                    $batch = ProductBatch::where('product_id', $product->id)
+                        ->where('store_id', $order->store_id)
+                        ->where('quantity', '>=', $quantity)
+                        ->where('expiry_date', '>', now())  // Not expired
+                        ->orderBy('expiry_date', 'asc')  // FIFO
+                        ->first();
+                    
+                    if (!$batch) {
+                        throw new \Exception("No batch available with sufficient stock ({$quantity} units) at this store");
+                    }
                 }
-
-                if ($barcode->is_defective) {
-                    throw new \Exception("Barcode {$barcodeValue} is marked as defective");
-                }
-
-                // Validate batch exists and has stock
-                if (!$barcode->batch) {
-                    throw new \Exception("Barcode {$barcodeValue} is not associated with any batch");
-                }
-
-                $batch = $barcode->batch;
-                $product = $barcode->product;
-
-                // Validate batch has stock
-                if ($batch->quantity < 1) {
-                    throw new \Exception("Product batch {$batch->batch_number} has no stock available");
-                }
-
-                // Validate store
-                if ($batch->store_id != $order->store_id) {
-                    throw new \Exception("Product from batch {$batch->batch_number} not available at this store");
-                }
-
+                
                 // Use provided price or batch price
                 $unitPrice = $request->unit_price ?? $batch->sell_price;
                 $discount = $request->discount_amount ?? 0;
-
+                
                 // Calculate tax using the helper method (respects TAX_MODE)
                 $taxPercentage = $batch->tax_percentage ?? 0;
-                $taxCalculation = $this->calculateTax($unitPrice, 1, $taxPercentage);
-
-                // Create order item with barcode tracking
-                $orderItem = OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $product->id,
-                    'product_batch_id' => $batch->id,
-                    'product_barcode_id' => $barcode->id,  // NEW: Track specific barcode
-                    'product_name' => $product->name,
-                    'product_sku' => $product->sku,
-                    'quantity' => 1,  // Always 1 per barcode
-                    'unit_price' => $unitPrice,
-                    'discount_amount' => $discount,
-                    'tax_amount' => $taxCalculation['total_tax'],
-                    'cogs' => round(($batch->cost_price ?? 0) * 1, 2),
-                    'total_amount' => $unitPrice - $discount,  // For inclusive, total = unitPrice - discount
-                ]);
-
+                $taxCalculation = $this->calculateTax($unitPrice, $quantity, $taxPercentage);
+                
+                // Check if this product already exists in the order
+                $existingItem = OrderItem::where('order_id', $order->id)
+                    ->where('product_id', $product->id)
+                    ->where('product_batch_id', $batch->id)
+                    ->first();
+                
+                if ($existingItem) {
+                    // Update existing item quantity
+                    $existingItem->quantity += $quantity;
+                    $existingItem->tax_amount = $this->calculateTax($existingItem->unit_price, $existingItem->quantity, $taxPercentage)['total_tax'];
+                    $existingItem->total_amount = ($existingItem->unit_price * $existingItem->quantity) - $existingItem->discount_amount;
+                    $existingItem->cogs = round(($batch->cost_price ?? 0) * $existingItem->quantity, 2);
+                    $existingItem->save();
+                    
+                    $orderItem = $existingItem;
+                } else {
+                    // Create new order item (without barcode - will be assigned during fulfillment)
+                    $orderItem = OrderItem::create([
+                        'order_id' => $order->id,
+                        'product_id' => $product->id,
+                        'product_batch_id' => $batch->id,
+                        'product_barcode_id' => null,  // No barcode yet - assigned during fulfillment
+                        'product_name' => $product->name,
+                        'product_sku' => $product->sku,
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                        'discount_amount' => $discount,
+                        'tax_amount' => $taxCalculation['total_tax'],
+                        'cogs' => round(($batch->cost_price ?? 0) * $quantity, 2),
+                        'total_amount' => ($unitPrice * $quantity) - $discount,
+                    ]);
+                }
+                
                 $addedItems[] = $orderItem;
             }
 
