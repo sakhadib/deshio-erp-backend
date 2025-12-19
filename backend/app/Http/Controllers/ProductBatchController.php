@@ -636,4 +636,101 @@ class ProductBatchController extends Controller
 
         return $response;
     }
+
+    /**
+     * Update selling price for all batches of a specific product
+     * 
+     * POST /api/products/{product_id}/batches/update-price
+     * 
+     * Request body:
+     * {
+     *   "sell_price": 4000.00
+     * }
+     * 
+     * @param Request $request
+     * @param int $productId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateAllBatchPrices(Request $request, $productId)
+    {
+        $validator = Validator::make($request->all(), [
+            'sell_price' => 'required|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Verify product exists
+            $product = Product::find($productId);
+            if (!$product) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Product not found',
+                ], 404);
+            }
+
+            $newSellPrice = $request->sell_price;
+
+            // Get all batches for this product
+            $batches = ProductBatch::where('product_id', $productId)->get();
+
+            if ($batches->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No batches found for this product',
+                ], 404);
+            }
+
+            // Store old prices for response
+            $updates = [];
+            
+            DB::beginTransaction();
+            try {
+                foreach ($batches as $batch) {
+                    $oldPrice = $batch->sell_price;
+                    $batch->sell_price = $newSellPrice;
+                    $batch->save();
+
+                    $updates[] = [
+                        'batch_id' => $batch->id,
+                        'batch_number' => $batch->batch_number,
+                        'store' => $batch->store->name ?? 'N/A',
+                        'old_price' => number_format((float)$oldPrice, 2),
+                        'new_price' => number_format((float)$newSellPrice, 2),
+                    ];
+                }
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Successfully updated selling price for all batches',
+                    'data' => [
+                        'product_id' => $product->id,
+                        'product_name' => $product->name,
+                        'product_sku' => $product->sku,
+                        'new_sell_price' => number_format((float)$newSellPrice, 2),
+                        'batches_updated' => count($updates),
+                        'updates' => $updates,
+                    ],
+                ], 200);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update batch prices: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }

@@ -1123,6 +1123,9 @@ Route::middleware('auth:api')->group(function () {
         });
     });
 
+    // Update all batch prices for a product
+    Route::post('/products/{product_id}/batches/update-price', [ProductBatchController::class, 'updateAllBatchPrices']);
+
     // Product Barcode Management Routes
     Route::prefix('barcodes')->group(function () {
         Route::get('/', [ProductBarcodeController::class, 'index']);
