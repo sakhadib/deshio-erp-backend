@@ -267,9 +267,11 @@ These endpoints are called by SSLCommerz after payment completion. **Do not call
 
 **Endpoint:** `POST /api/sslcommerz/success`
 
-**Called By:** SSLCommerz (server-to-server)
+**Called By:** Customer redirect/POST-back from SSLCommerz
 
-**Description:** SSLCommerz calls this endpoint when payment is successful.
+**Content-Type:** `application/x-www-form-urlencoded` (form data, not JSON)
+
+**Description:** SSLCommerz redirects the customer to this endpoint when payment is successful. **Note:** This endpoint currently returns JSON. For better UX, configure SSLCommerz return URLs to point to your frontend pages (e.g., `/payment/success`) or modify this endpoint to redirect to frontend.
 
 #### Request (from SSLCommerz)
 ```json
@@ -310,9 +312,11 @@ These endpoints are called by SSLCommerz after payment completion. **Do not call
 
 **Endpoint:** `POST /api/sslcommerz/failure`
 
-**Called By:** SSLCommerz (server-to-server)
+**Called By:** Customer redirect/POST-back from SSLCommerz
 
-**Description:** SSLCommerz calls this endpoint when payment fails.
+**Content-Type:** `application/x-www-form-urlencoded` (form data, not JSON)
+
+**Description:** SSLCommerz redirects the customer to this endpoint when payment fails. **Note:** This endpoint currently returns JSON. For better UX, configure SSLCommerz return URLs to point to your frontend pages (e.g., `/payment/failure`) or modify this endpoint to redirect to frontend. **Security Note:** This endpoint does NOT verify hash - hash verification should be added before updating order status.
 
 #### Request (from SSLCommerz)
 ```json
@@ -338,9 +342,11 @@ These endpoints are called by SSLCommerz after payment completion. **Do not call
 
 **Endpoint:** `POST /api/sslcommerz/cancel`
 
-**Called By:** SSLCommerz (server-to-server)
+**Called By:** Customer redirect/POST-back from SSLCommerz
 
-**Description:** SSLCommerz calls this endpoint when customer cancels payment.
+**Content-Type:** `application/x-www-form-urlencoded` (form data, not JSON)
+
+**Description:** SSLCommerz redirects the customer to this endpoint when they cancel payment. **Note:** This endpoint currently returns JSON. For better UX, configure SSLCommerz return URLs to point to your frontend pages (e.g., `/payment/cancel`) or modify this endpoint to redirect to frontend. **Security Note:** This endpoint does NOT verify hash - hash verification should be added before updating order status.
 
 #### Request (from SSLCommerz)
 ```json
@@ -365,9 +371,11 @@ These endpoints are called by SSLCommerz after payment completion. **Do not call
 
 **Endpoint:** `POST /api/sslcommerz/ipn`
 
-**Called By:** SSLCommerz (server-to-server)
+**Called By:** SSLCommerz (server-to-server) - **MOST RELIABLE**
 
-**Description:** SSLCommerz sends instant payment notification for real-time payment updates. This is the most reliable callback.
+**Content-Type:** `application/x-www-form-urlencoded` (form data, not JSON)
+
+**Description:** SSLCommerz sends instant payment notification for real-time payment updates. This is the most reliable callback as it's server-to-server and not dependent on customer's browser. **Always rely on IPN for critical payment confirmation.** **Security Note:** This endpoint verifies hash but does NOT validate payment amount against order total - amount validation should be added.
 
 #### Request (from SSLCommerz)
 Same structure as success callback.
@@ -399,12 +407,12 @@ const shippingAddress = await getCustomerAddress(addressId);
 async function checkout() {
   try {
     const orderData = {
-      customer_id: currentCustomerId,
       payment_method: 'sslcommerz', // Important!
       shipping_address_id: selectedAddressId,
       billing_address_id: selectedAddressId,
       notes: deliveryInstructions
     };
+    // Note: customer_id is NOT needed - it's automatically retrieved from JWT token
 
     const response = await fetch('/api/customer/orders/create-from-cart', {
       method: 'POST',
@@ -620,11 +628,14 @@ php artisan sslcommerz:test
 ```javascript
 async function createOrder(orderData) {
   try {
-    const response = await fetch('/api/ecommerce/orders', {
+    // Use the correct endpoint based on your use case:
+    // - For customer with auth: '/api/customer/orders/create-from-cart'
+    // - For guest checkout: '/api/guest-checkout'
+    const response = await fetch('/api/customer/orders/create-from-cart', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}` // Required for customer endpoint
       },
       body: JSON.stringify(orderData)
     });
@@ -677,24 +688,42 @@ async function createOrder(orderData) {
    - Never calculate payment amount in frontend
    - Backend always determines final amount
 
-### Backend Security (Already Implemented)
+### Backend Security - Current Implementation Status
 
-1. **Hash Verification:**
-   ```php
-   Sslcommerz::verifyHash($request->all())
-   ```
+#### ✅ Implemented:
 
-2. **Payment Validation:**
-   ```php
-   Sslcommerz::validatePayment($data, $valId, $amount)
-   ```
+**1. Hash Verification (Partial)**
+```php
+Sslcommerz::verifyHash($request->all())
+```
+- ✅ Implemented in: `success` callback
+- ✅ Implemented in: `ipn` callback
+- ❌ **NOT implemented** in: `failure` and `cancel` callbacks
 
-3. **Amount Verification:**
-   ```php
-   if ($order->total_amount != $request->input('amount')) {
-       abort(400, 'Amount mismatch');
-   }
-   ```
+**2. Payment Validation (Partial)**
+```php
+Sslcommerz::validatePayment($data, $valId, $amount)
+```
+- ✅ Implemented in: `success` callback
+- ❌ **NOT implemented** in: `ipn` callback (should be added)
+
+#### ❌ NOT Implemented (Recommended):
+
+**3. Amount Verification**
+```php
+// RECOMMENDED: Add this to all callbacks
+if ($order->total_amount != $request->input('amount')) {
+    abort(400, 'Amount mismatch');
+}
+```
+- ❌ Currently NOT checked in any callback
+- ⚠️ **Security Risk:** Order can be marked as paid with wrong amount
+
+**⚠️ Security Recommendations Before Production:**
+1. Add hash verification to `failure` and `cancel` callbacks
+2. Add payment validation to `ipn` callback
+3. Add amount verification to all callbacks
+4. Configure IP whitelisting in SSLCommerz merchant panel
 
 ---
 
@@ -726,14 +755,20 @@ Configure IPN URL in SSLCommerz merchant panel:
 IPN URL: https://your-domain.com/api/sslcommerz/ipn
 ```
 
-### IPN vs Redirect Callbacks
+### Callback Types: IPN vs Customer Redirects
 
-| Method | Reliability | Use Case |
-|--------|-------------|----------|
-| **IPN** | High (server-to-server) | Primary payment confirmation |
-| **Redirect Callbacks** | Medium (can be blocked) | Customer notification |
+| Callback | Type | Reliability | Content-Type | Use Case |
+|----------|------|-------------|--------------|----------|
+| **IPN** | Server-to-server | ✅ **High** (most reliable) | form-urlencoded | Primary payment confirmation |
+| **success** | Customer redirect | ⚠️ Medium (browser-dependent) | form-urlencoded | Customer UX |
+| **failure** | Customer redirect | ⚠️ Medium (browser-dependent) | form-urlencoded | Customer notification |
+| **cancel** | Customer redirect | ⚠️ Medium (browser-dependent) | form-urlencoded | Customer notification |
 
-**Best Practice:** Always rely on IPN for payment confirmation, use redirects only for customer experience.
+**Important Notes:**
+- SSLCommerz posts all callbacks as `application/x-www-form-urlencoded` (form data), not JSON
+- Current API callbacks return JSON responses - customers will see blank JSON page
+- **Recommended:** Configure SSLCommerz return URLs to frontend pages (`/payment/success`, `/payment/failure`, `/payment/cancel`), OR modify backend callbacks to redirect to frontend
+- **Best Practice:** Always rely on IPN for payment confirmation, use redirects only for customer experience
 
 ---
 
