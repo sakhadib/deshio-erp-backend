@@ -47,16 +47,17 @@ Authorization: Bearer YOUR_JWT_TOKEN
 
 ### 1. Create E-commerce Order with SSLCommerz Payment
 
-**Endpoint:** `POST /api/ecommerce/orders`
+**Endpoint:** `POST /api/customer/orders/create-from-cart`
 
 **Authentication:** Required (Customer JWT)
 
-**Description:** Creates an order and initiates SSLCommerz payment session. Returns payment gateway URL for customer redirect.
+**Description:** Creates an order from customer's cart and initiates SSLCommerz payment session. Returns payment gateway URL for customer redirect.
+
+**Note:** This endpoint creates order from items already in the customer's cart. Add items to cart first using cart endpoints.
 
 #### Request Body
 ```json
 {
-  "customer_id": 1,
   "payment_method": "sslcommerz",
   "shipping_address_id": 5,
   "billing_address_id": 5,
@@ -71,13 +72,12 @@ Authorization: Bearer YOUR_JWT_TOKEN
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `customer_id` | integer | Yes | Customer ID from customers table |
-| `payment_method` | string | Yes | Must be `"sslcommerz"` for SSLCommerz payments |
-| `shipping_address_id` | integer | Yes | ID of shipping address |
-| `billing_address_id` | integer | Yes | ID of billing address |
-| `notes` | string | No | Special delivery instructions |
-| `delivery_preference` | string | No | `"standard"` or `"express"` |
-| `scheduled_delivery_date` | date | No | Format: `YYYY-MM-DD` |
+| `payment_method` | string | Yes | Must be `"sslcommerz"` for SSLCommerz payments. Options: `cash`, `card`, `bank_transfer`, `digital_wallet`, `cod`, `sslcommerz` |
+| `shipping_address_id` | integer | Yes | ID of shipping address from customer_addresses table |
+| `billing_address_id` | integer | No | ID of billing address. If not provided, uses shipping address |
+| `notes` | string | No | Special delivery instructions (max 500 characters) |
+| `delivery_preference` | string | No | `"standard"`, `"express"`, or `"scheduled"` |
+| `scheduled_delivery_date` | date | No | Format: `YYYY-MM-DD` (must be after today) |
 | `coupon_code` | string | No | Discount coupon code |
 
 #### Success Response (201 Created)
@@ -92,6 +92,8 @@ Authorization: Bearer YOUR_JWT_TOKEN
       "customer_id": 1,
       "store_id": null,
       "order_type": "ecommerce",
+      "is_preorder": false,
+      "preorder_notes": null,
       "status": "pending_assignment",
       "payment_status": "unpaid",
       "payment_method": "sslcommerz",
@@ -101,16 +103,32 @@ Authorization: Bearer YOUR_JWT_TOKEN
       "shipping_amount": "120.00",
       "total_amount": "2770.00",
       "shipping_address": {
-        "id": 5,
-        "full_address": "123 Main Street, Gulshan, Dhaka",
-        "phone": "01712345678"
+        "full_name": "John Doe",
+        "phone": "01712345678",
+        "address_line_1": "123 Main Street",
+        "address_line_2": "Apartment 4B",
+        "city": "Dhaka",
+        "state": "Dhaka",
+        "postal_code": "1212",
+        "country": "Bangladesh",
+        "full_address": "123 Main Street, Apartment 4B, Dhaka, Dhaka - 1212, Bangladesh"
       },
       "billing_address": {
-        "id": 5,
-        "full_address": "123 Main Street, Gulshan, Dhaka",
-        "phone": "01712345678"
+        "full_name": "John Doe",
+        "phone": "01712345678",
+        "address_line_1": "123 Main Street",
+        "city": "Dhaka",
+        "postal_code": "1212",
+        "country": "Bangladesh"
       },
-      "created_at": "2024-12-19T10:30:00.000000Z"
+      "notes": "Please deliver before 5 PM",
+      "metadata": {
+        "delivery_preference": "express",
+        "scheduled_delivery_date": "2024-12-25",
+        "coupon_code": "SAVE10"
+      },
+      "created_at": "2024-12-19T10:30:00.000000Z",
+      "updated_at": "2024-12-19T10:30:00.000000Z"
     },
     "payment_url": "https://pay.sslcommerz.com/ddc256474a8bbfaf063f17ad6870765caba8f9f2",
     "transaction_id": "TXN-123-1734605400"
@@ -123,7 +141,7 @@ Authorization: Bearer YOUR_JWT_TOKEN
 // Create order with SSLCommerz payment
 async function createOrderWithSSLCommerz(orderData) {
   try {
-    const response = await fetch('/api/ecommerce/orders', {
+    const response = await fetch('/api/customer/orders/create-from-cart', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -163,28 +181,24 @@ async function createOrderWithSSLCommerz(orderData) {
 
 ### 2. Create Guest Order with SSLCommerz Payment
 
-**Endpoint:** `POST /api/guest/checkout`
+**Endpoint:** `POST /api/guest-checkout`
 
 **Authentication:** Not Required
 
-**Description:** Creates an order for guest customers (without account) and initiates SSLCommerz payment session.
+**Description:** Creates an order for guest customers (without account) and initiates SSLCommerz payment session. Customer is identified by phone number.
 
 #### Request Body
 ```json
 {
+  "phone": "01712345678",
   "customer_name": "John Doe",
   "customer_email": "john@example.com",
-  "customer_phone": "01712345678",
   "payment_method": "sslcommerz",
-  "shipping_address": {
-    "full_address": "123 Main Street, Gulshan",
-    "city": "Dhaka",
-    "state": "Dhaka",
-    "postal_code": "1212",
-    "country": "Bangladesh"
-  },
-  "billing_address": {
-    "full_address": "123 Main Street, Gulshan",
+  "delivery_address": {
+    "full_name": "John Doe",
+    "phone": "01712345678",
+    "address_line_1": "123 Main Street",
+    "address_line_2": "Apartment 4B",
     "city": "Dhaka",
     "state": "Dhaka",
     "postal_code": "1212",
@@ -194,7 +208,7 @@ async function createOrderWithSSLCommerz(orderData) {
     {
       "product_id": 45,
       "quantity": 2,
-      "unit_price": "1250.00"
+      "variant_options": null
     }
   ],
   "notes": "Leave package at door"
@@ -205,36 +219,43 @@ async function createOrderWithSSLCommerz(orderData) {
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `customer_name` | string | Yes | Guest customer name |
-| `customer_email` | string | Yes | Valid email address |
-| `customer_phone` | string | Yes | Phone number (11 digits) |
-| `payment_method` | string | Yes | Must be `"sslcommerz"` |
-| `shipping_address` | object | Yes | Shipping address details |
-| `billing_address` | object | Yes | Billing address details |
-| `items` | array | Yes | Array of order items |
-| `notes` | string | No | Special instructions |
+| `phone` | string | Yes | Customer phone number (10-20 characters, numbers and +/-/space/() allowed) |
+| `customer_name` | string | No | Guest customer name (max 255 characters) |
+| `customer_email` | string | No | Valid email address (max 255 characters) |
+| `payment_method` | string | Yes | `"cod"`, `"sslcommerz"`, or `"cash"` |
+| `delivery_address` | object | Yes | Delivery address details |
+| `delivery_address.full_name` | string | Yes | Recipient full name (max 255 characters) |
+| `delivery_address.phone` | string | No | Recipient phone number (max 20 characters) |
+| `delivery_address.address_line_1` | string | Yes | Primary address line (max 255 characters) |
+| `delivery_address.address_line_2` | string | No | Secondary address line (max 255 characters) |
+| `delivery_address.city` | string | Yes | City name (max 100 characters) |
+| `delivery_address.state` | string | No | State/Division name (max 100 characters) |
+| `delivery_address.postal_code` | string | Yes | Postal/ZIP code (max 20 characters) |
+| `delivery_address.country` | string | No | Country name (max 100 characters, defaults to Bangladesh) |
+| `items` | array | Yes | Array of order items (minimum 1 item) |
+| `items[].product_id` | integer | Yes | Product ID (must exist in products table) |
+| `items[].quantity` | integer | Yes | Quantity (minimum 1) |
+| `items[].variant_options` | object/null | No | Product variant options if applicable |
+| `notes` | string | No | Special delivery instructions (max 500 characters) |
 
 #### Success Response (201 Created)
 ```json
 {
   "success": true,
-  "message": "Order placed successfully. Redirecting to payment.",
+  "message": "Order created. Redirecting to payment gateway.",
   "data": {
-    "order": {
-      "id": 124,
-      "order_number": "ORD-2024-001235",
-      "customer_name": "John Doe",
-      "customer_email": "john@example.com",
-      "customer_phone": "01712345678",
-      "status": "pending_assignment",
-      "payment_status": "unpaid",
-      "total_amount": "2770.00"
-    },
+    "order_number": "ORD-2024-001235",
+    "order_id": 124,
+    "customer_id": 56,
+    "customer_phone": "01712345678",
     "payment_url": "https://pay.sslcommerz.com/abc123def456...",
-    "transaction_id": "TXN-124-1734605500"
+    "transaction_id": "TXN-124-1734605500",
+    "total_amount": "2770.00"
   }
 }
 ```
+
+**Note:** The system automatically creates or finds a customer record based on the phone number. The `customer_id` in the response is the ID of the found/created customer record.
 
 ---
 
@@ -385,7 +406,7 @@ async function checkout() {
       notes: deliveryInstructions
     };
 
-    const response = await fetch('/api/ecommerce/orders', {
+    const response = await fetch('/api/customer/orders/create-from-cart', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -487,15 +508,15 @@ function handlePaymentCancel() {
 
 ### Check Order Payment Status
 
-**Endpoint:** `GET /api/orders/{order_id}`
+**Endpoint:** `GET /api/customer/orders/{order_number}`
 
-**Authentication:** Required
+**Authentication:** Required (Customer JWT)
 
-**Description:** Fetch order details to verify payment status after returning from gateway.
+**Description:** Fetch order details to verify payment status after returning from gateway. Uses order number (e.g., "ORD-2024-001234"), not order ID.
 
 #### Request
 ```http
-GET /api/orders/123
+GET /api/customer/orders/ORD-2024-001234
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
