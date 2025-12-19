@@ -600,7 +600,11 @@ class ShipmentController extends Controller
     public function getPathaoCities()
     {
         try {
-            $cities = PathaoCourier::area()->city();
+            $response = PathaoCourier::area()->city();
+            
+            // Convert stdClass to array and extract data
+            $responseArray = json_decode(json_encode($response), true);
+            $cities = $responseArray['data'] ?? [];
             
             return response()->json([
                 'success' => true,
@@ -617,7 +621,11 @@ class ShipmentController extends Controller
     public function getPathaoZones($cityId)
     {
         try {
-            $zones = PathaoCourier::area()->zone($cityId);
+            $response = PathaoCourier::area()->zone($cityId);
+            
+            // Convert stdClass to array and extract data
+            $responseArray = json_decode(json_encode($response), true);
+            $zones = $responseArray['data'] ?? [];
             
             return response()->json([
                 'success' => true,
@@ -634,7 +642,11 @@ class ShipmentController extends Controller
     public function getPathaoAreas($zoneId)
     {
         try {
-            $areas = PathaoCourier::area()->area($zoneId);
+            $response = PathaoCourier::area()->area($zoneId);
+            
+            // Convert stdClass to array and extract data
+            $responseArray = json_decode(json_encode($response), true);
+            $areas = $responseArray['data'] ?? [];
             
             return response()->json([
                 'success' => true,
@@ -656,7 +668,11 @@ class ShipmentController extends Controller
     public function getPathaoStores()
     {
         try {
-            $stores = PathaoCourier::store()->list();
+            $response = PathaoCourier::store()->list();
+            
+            // Convert stdClass to array and extract data
+            $responseArray = json_decode(json_encode($response), true);
+            $stores = $responseArray['data'] ?? [];
             
             return response()->json([
                 'success' => true,

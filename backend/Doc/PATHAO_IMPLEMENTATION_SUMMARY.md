@@ -6,8 +6,40 @@
 - ✅ Installed `codeboxr/pathao-courier` via Composer
 - ✅ Published configuration file to `config/pathao.php`
 - ✅ Configured environment variables for Pathao API
+- ✅ **Fixed authentication** - Added username/password OAuth2 support
+- ✅ **Fixed response parsing** - Properly extracts data arrays from Pathao responses
+- ✅ **Diagnostic command** - `php artisan pathao:test` to verify connection
 
-### 2. ShipmentController Created
+### 2. Configuration & Authentication
+
+**Environment Variables Required:**
+```env
+PATHAO_BASE_URL=https://api-hermes.pathao.com
+PATHAO_CLIENT_ID=your_client_id
+PATHAO_CLIENT_SECRET=your_client_secret
+PATHAO_USERNAME=your_merchant_email    # ⚠️ REQUIRED
+PATHAO_PASSWORD=your_merchant_password # ⚠️ REQUIRED
+PATHAO_STORE_ID=your_store_id
+PATHAO_SANDBOX=false
+```
+
+**Authentication Method:**
+- Uses **OAuth2 Password Grant** authentication
+- Requires both client credentials AND merchant username/password
+- Token auto-caches for 50 minutes and refreshes automatically
+
+**Diagnostic Command:**
+```bash
+php artisan pathao:test
+```
+
+Tests:
+- ✅ Configuration check
+- ✅ Authentication with Pathao API
+- ✅ Cities list endpoint
+- ✅ Stores list endpoint
+
+### 3. ShipmentController Created
 **File:** `app/Http/Controllers/ShipmentController.php`
 
 **18 Endpoints Implemented:**
@@ -199,6 +231,50 @@ $cod_amount = $order->total_amount - $order->paid_amount
 // If order fully paid
 $cod_amount = 0
 ```
+
+### Response Parsing
+**Fixed in ShipmentController:**
+```php
+// Convert Pathao stdClass responses to arrays
+$response = PathaoCourier::area()->city();
+$responseArray = json_decode(json_encode($response), true);
+$cities = $responseArray['data'] ?? [];
+```
+
+**All Pathao endpoints now properly extract data arrays:**
+- `getPathaoCities()` - Returns clean city array
+- `getPathaoZones()` - Returns clean zone array
+- `getPathaoAreas()` - Returns clean area array
+- `getPathaoStores()` - Returns clean store array
+
+---
+
+## 🔧 Troubleshooting
+
+### Issue: "Failed to fetch cities" or "Unauthenticated"
+**Cause:** Missing username/password in configuration
+
+**Solution:**
+1. Get credentials from Pathao merchant portal (https://merchant.pathao.com)
+2. Add to `.env`:
+   ```env
+   PATHAO_USERNAME=your_merchant_email
+   PATHAO_PASSWORD=your_merchant_password
+   ```
+3. Test: `php artisan pathao:test`
+
+### Issue: Empty response or "data" nested incorrectly
+**Cause:** Response parsing issue (already fixed)
+
+**Solution:** Update to latest ShipmentController code - responses now properly parsed
+
+### Issue: "Store ID not found"
+**Cause:** No store created in Pathao
+
+**Solution:**
+1. Create store: `POST /api/shipments/pathao/stores`
+2. Get store ID from response
+3. Add to `.env`: `PATHAO_STORE_ID=329652`
 
 ### Status Synchronization
 ```php

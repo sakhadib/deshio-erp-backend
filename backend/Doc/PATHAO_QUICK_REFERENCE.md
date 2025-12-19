@@ -1,5 +1,30 @@
 # Pathao Courier - Quick Reference Guide
 
+## ⚙️ Configuration
+
+### Required Environment Variables
+```env
+PATHAO_CLIENT_ID=your_client_id
+PATHAO_CLIENT_SECRET=your_client_secret
+PATHAO_USERNAME=your_merchant_email     # ⚠️ REQUIRED!
+PATHAO_PASSWORD=your_merchant_password  # ⚠️ REQUIRED!
+PATHAO_STORE_ID=your_store_id
+```
+
+### Test Connection
+```bash
+php artisan pathao:test
+```
+
+**Expected Output:**
+```
+✓ Authentication successful!
+✓ Successfully fetched 64 cities!
+✓ Successfully fetched 3 stores!
+```
+
+---
+
 ## 🎯 When to Create Shipments
 
 | Sales Channel | Customer Wants | Create Shipment? | Send to Pathao |
@@ -110,10 +135,15 @@ POST /api/shipments/bulk-sync-pathao-status
 GET /api/shipments/pathao/cities
 
 Response:
-[
-  {"city_id": 1, "city_name": "Dhaka"},
-  {"city_id": 2, "city_name": "Chittagong"}
-]
+{
+  "success": true,
+  "data": [
+    {"city_id": 1, "city_name": "Dhaka"},
+    {"city_id": 2, "city_name": "Chittagong"},
+    {"city_id": 3, "city_name": "Sylhet"}
+    // ... 64 cities total
+  ]
+}
 ```
 
 ### Step 2: Get Zones for City
@@ -121,10 +151,13 @@ Response:
 GET /api/shipments/pathao/zones/1
 
 Response:
-[
-  {"zone_id": 10, "zone_name": "Gulshan"},
-  {"zone_id": 12, "zone_name": "Banani"}
-]
+{
+  "success": true,
+  "data": [
+    {"zone_id": 10, "zone_name": "Gulshan"},
+    {"zone_id": 12, "zone_name": "Banani"}
+  ]
+}
 ```
 
 ### Step 3: Get Areas for Zone
@@ -132,10 +165,13 @@ Response:
 GET /api/shipments/pathao/areas/10
 
 Response:
-[
-  {"area_id": 52, "area_name": "Gulshan-2"},
-  {"area_id": 53, "area_name": "Gulshan-1"}
-]
+{
+  "success": true,
+  "data": [
+    {"area_id": 52, "area_name": "Gulshan-2"},
+    {"area_id": 53, "area_name": "Gulshan-1"}
+  ]
+}
 ```
 
 ### Use in Order

@@ -9,6 +9,71 @@ This system integrates **Pathao Courier** for seamless delivery management acros
 3. **Social Commerce / Phone Orders** - Create shipment, send to Pathao when ready
 4. **E-commerce** - Create shipment, send to Pathao when ready
 
+## Prerequisites & Setup
+
+### 1. Configuration Required
+
+Add these to your `.env` file:
+
+```env
+PATHAO_BASE_URL=https://api-hermes.pathao.com
+PATHAO_CLIENT_ID=your_client_id
+PATHAO_CLIENT_SECRET=your_client_secret
+PATHAO_USERNAME=your_merchant_email     # ⚠️ REQUIRED!
+PATHAO_PASSWORD=your_merchant_password  # ⚠️ REQUIRED!
+PATHAO_STORE_ID=your_store_id
+PATHAO_SANDBOX=false
+```
+
+**Where to get credentials:**
+1. Login to Pathao merchant portal: https://merchant.pathao.com
+2. Go to Settings → API Settings
+3. Copy Client ID, Client Secret, Username, and Password
+4. Create a store to get Store ID
+
+### 2. Test Connection
+
+Run the diagnostic command to verify everything is working:
+
+```bash
+php artisan pathao:test
+```
+
+**Expected Output:**
+```
+=== Pathao API Connection Test ===
+
+✓ Authentication successful!
+✓ Successfully fetched 64 cities!
+✓ Successfully fetched 3 stores!
+
+=== Test Complete ===
+✓ Pathao API connection is working!
+```
+
+**If authentication fails:**
+- Double-check username and password in `.env`
+- Ensure no extra spaces in credentials
+- Try resetting password in Pathao merchant portal
+
+### 3. API Response Format
+
+All Pathao location endpoints return clean arrays:
+
+```json
+{
+  "success": true,
+  "data": [
+    {"city_id": 1, "city_name": "Dhaka"},
+    {"city_id": 2, "city_name": "Chittagong"}
+  ]
+}
+```
+
+**Note:** Responses are automatically parsed from Pathao's stdClass objects to arrays.
+
+---
+
 ## Key Features
 
 ✅ **Manual vs Automatic Pathao Submission** - Create shipments first, send to Pathao when ready  
@@ -17,6 +82,7 @@ This system integrates **Pathao Courier** for seamless delivery management acros
 ✅ **Delivery Type Support** - Normal (48hrs) or Express (12hrs)  
 ✅ **COD Integration** - Cash on Delivery amount tracking  
 ✅ **Area Lookup** - Get Pathao cities, zones, and areas  
+✅ **Diagnostic Tool** - Test connection with `php artisan pathao:test`
 
 ---
 
