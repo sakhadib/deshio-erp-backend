@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\AutoLogsActivity;
 
 class ProductBarcode extends Model
 {
-    use HasFactory;
+    use HasFactory, AutoLogsActivity;
 
     protected $fillable = [
         'product_id',

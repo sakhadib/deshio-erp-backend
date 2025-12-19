@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\AutoLogsActivity;
 
 class Store extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, AutoLogsActivity;
 
     protected $fillable = [
         'name',

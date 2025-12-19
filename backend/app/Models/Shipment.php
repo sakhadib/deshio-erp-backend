@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Services\PathaoService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Traits\AutoLogsActivity;
 
 class Shipment extends Model
 {
-    use HasFactory;
+    use HasFactory, AutoLogsActivity;
 
     protected $fillable = [
         'shipment_number',

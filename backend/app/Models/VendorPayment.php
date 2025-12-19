@@ -9,10 +9,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
+use App\Traits\AutoLogsActivity;
 
 class VendorPayment extends Model
 {
-    use HasFactory, SoftDeletes, DatabaseAgnosticSearch;
+    use HasFactory, SoftDeletes, DatabaseAgnosticSearch, AutoLogsActivity;
 
     protected $fillable = [
         'payment_number',

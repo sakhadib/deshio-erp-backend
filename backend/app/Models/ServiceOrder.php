@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use App\Traits\AutoLogsActivity;
 
 class ServiceOrder extends Model
 {
-    use HasFactory;
+    use HasFactory, AutoLogsActivity;
 
     protected $fillable = [
         'service_order_number',

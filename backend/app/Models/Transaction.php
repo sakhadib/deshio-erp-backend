@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Str;
+use App\Traits\AutoLogsActivity;
 
 class Transaction extends Model
 {
-    use HasFactory, DatabaseAgnosticSearch;
+    use HasFactory, DatabaseAgnosticSearch, AutoLogsActivity;
 
     protected $fillable = [
         'transaction_number',

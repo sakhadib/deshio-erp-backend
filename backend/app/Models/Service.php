@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use App\Traits\AutoLogsActivity;
 
 class Service extends Model
 {
-    use HasFactory;
+    use HasFactory, AutoLogsActivity;
 
     protected $fillable = [
         'service_code',

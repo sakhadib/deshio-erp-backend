@@ -9,6 +9,7 @@ use App\Http\Controllers\VendorPaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductSearchController;
 use App\Http\Controllers\ContactMessageController;
+use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\ProductBatchController;
 use App\Http\Controllers\ProductBarcodeController;
@@ -1343,6 +1344,33 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{id}', [\App\Http\Controllers\ContactMessageController::class, 'show']);
         Route::put('/{id}', [\App\Http\Controllers\ContactMessageController::class, 'update']);
         Route::delete('/{id}', [\App\Http\Controllers\ContactMessageController::class, 'destroy']);
+    });
+
+    // ============================================
+    // ACTIVITY LOGS
+    // System-wide activity logging with WHO, WHEN, WHAT tracking
+    // ============================================
+    
+    Route::prefix('activity-logs')->group(function () {
+        // List with filtering
+        Route::get('/', [ActivityLogController::class, 'index']);
+        
+        // Statistics
+        Route::get('/statistics', [ActivityLogController::class, 'getStatistics']);
+        
+        // Filter options
+        Route::get('/models', [ActivityLogController::class, 'getAvailableModels']);
+        Route::get('/users', [ActivityLogController::class, 'getAvailableUsers']);
+        
+        // Export
+        Route::get('/export/csv', [ActivityLogController::class, 'exportCsv']);
+        Route::get('/export/excel', [ActivityLogController::class, 'exportExcel']);
+        
+        // Model-specific logs
+        Route::get('/model/{model}/{id}', [ActivityLogController::class, 'getModelLogs']);
+        
+        // Single log details
+        Route::get('/{id}', [ActivityLogController::class, 'show']);
     });
 
 }); // End of auth:api middleware group
