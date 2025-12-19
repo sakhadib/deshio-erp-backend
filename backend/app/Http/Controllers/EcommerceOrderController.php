@@ -216,17 +216,32 @@ class EcommerceOrderController extends Controller
             DB::beginTransaction();
 
             try {
-                // Check if any items are out of stock (pre-order detection)
-                $hasOutOfStockItems = false;
+                // IMPORTANT: eCommerce orders MUST have stock available
+                // Pre-orders are ONLY allowed from dedicated pre-order panel
+                // Validate stock availability for all cart items
+                $outOfStockItems = [];
                 foreach ($cartItems as $cartItem) {
                     $availableStock = ProductBatch::where('product_id', $cartItem->product_id)
                         ->where('quantity', '>', 0)
                         ->sum('quantity');
                     
                     if ($availableStock < $cartItem->quantity) {
-                        $hasOutOfStockItems = true;
-                        break;
+                        $outOfStockItems[] = [
+                            'product_name' => $cartItem->product->name,
+                            'requested' => $cartItem->quantity,
+                            'available' => $availableStock,
+                        ];
                     }
+                }
+
+                // Reject order if any item is out of stock
+                if (!empty($outOfStockItems)) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Insufficient stock for some items in your cart',
+                        'out_of_stock_items' => $outOfStockItems,
+                    ], 400);
                 }
 
                 // Calculate totals using unit_price from cart
@@ -260,13 +275,15 @@ class EcommerceOrderController extends Controller
                 $totalAmount = $subtotal + $deliveryCharge - $discountAmount;
 
                 // Create order - NO STORE ASSIGNED YET
+                // Note: is_preorder is always FALSE for eCommerce orders
+                // Pre-orders only allowed from dedicated pre-order panel
                 $order = Order::create([
                     'customer_id' => $customerId,
                     'store_id' => null, // Will be assigned later by employee
                     'order_type' => 'ecommerce',
-                    'is_preorder' => $hasOutOfStockItems,
-                    'preorder_notes' => $hasOutOfStockItems ? 'This order contains out-of-stock items and will be fulfilled when stock becomes available.' : null,
-                    'status' => 'pending_assignment',
+                    'is_preorder' => false, // eCommerce orders are NOT pre-orders
+                    'preorder_notes' => null,
+                    'status' => 'pending',
                     'payment_status' => in_array($request->payment_method, ['cod', 'cash']) ? 'pending' : 'unpaid',
                     'payment_method' => $request->payment_method,
                     'subtotal' => $subtotal,
@@ -308,6 +325,24 @@ class EcommerceOrderController extends Controller
                         'total_amount' => $itemTotal,
                         'notes' => $cartItem->notes,
                     ]);
+
+                    // Deduct stock immediately (FIFO - First In, First Out)
+                    // Requirement: "jokhon ee order entry hobe shathe shathe stock hold/minus hobe"
+                    $remainingQty = $cartItem->quantity;
+                    $batches = ProductBatch::where('product_id', $cartItem->product_id)
+                        ->where('quantity', '>', 0)
+                        ->orderBy('created_at', 'asc') // FIFO
+                        ->get();
+                    
+                    foreach ($batches as $batch) {
+                        if ($remainingQty <= 0) break;
+                        
+                        $deductQty = min($batch->quantity, $remainingQty);
+                        $batch->quantity -= $deductQty;
+                        $batch->save();
+                        
+                        $remainingQty -= $deductQty;
+                    }
                 }
 
                 // Clear cart

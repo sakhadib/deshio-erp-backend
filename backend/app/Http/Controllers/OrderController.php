@@ -448,6 +448,14 @@ class OrderController extends Controller
 
                 $subtotal += $itemSubtotal;
                 $taxTotal += $tax;
+
+                // IMPORTANT: Deduct stock immediately for all order types (counter, social_commerce, ecommerce)
+                // Requirement: "jokhon ee POS a entry hobe, stock minus hobe"
+                // Only deduct if batch exists (not for pre-orders)
+                if ($batch) {
+                    $batch->quantity -= $quantity;
+                    $batch->save();
+                }
             }
 
             // Calculate order totals based on tax mode

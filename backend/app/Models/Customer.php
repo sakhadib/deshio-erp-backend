@@ -100,6 +100,11 @@ class Customer extends Authenticatable implements JWTSubject
         return $this->hasMany(OrderPayment::class);
     }
 
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(CustomerAddress::class);
+    }
+
     public function activeOrders()
     {
         return $this->orders()->where('status', '!=', 'cancelled');

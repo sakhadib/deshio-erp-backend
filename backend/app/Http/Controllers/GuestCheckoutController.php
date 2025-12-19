@@ -73,7 +73,7 @@ class GuestCheckoutController extends Controller
                 $subtotal = 0;
                 $taxAmount = 0;
                 $orderItems = [];
-                $hasOutOfStockItems = false;
+                $outOfStockItems = [];
 
                 foreach ($request->items as $item) {
                     $product = Product::find($item['product_id']);
@@ -86,27 +86,42 @@ class GuestCheckoutController extends Controller
                         ], 404);
                     }
 
-                    // Get latest batch for price (check both in-stock and any batch)
+                    // Get latest batch for price and stock validation
                     $inStockBatch = ProductBatch::where('product_id', $product->id)
                         ->where('quantity', '>', 0)
                         ->orderBy('created_at', 'desc')
                         ->first();
                     
-                    // If no in-stock batch, get the latest batch for reference price
+                    // Calculate total available stock for this product
+                    $totalAvailableStock = ProductBatch::where('product_id', $product->id)
+                        ->where('quantity', '>', 0)
+                        ->sum('quantity');
+                    
+                    // IMPORTANT: Guest checkout (eCommerce) MUST have stock available
+                    // Reject if insufficient stock
+                    if ($totalAvailableStock < $item['quantity']) {
+                        $outOfStockItems[] = [
+                            'product_id' => $product->id,
+                            'product_name' => $product->name,
+                            'requested' => $item['quantity'],
+                            'available' => $totalAvailableStock,
+                        ];
+                    }
+                    
+                    // If no in-stock batch at all, use latest batch for reference price
                     $anyBatch = ProductBatch::where('product_id', $product->id)
                         ->orderBy('created_at', 'desc')
                         ->first();
 
-                    $unitPrice = $inStockBatch ? $inStockBatch->unit_price : ($anyBatch ? $anyBatch->unit_price : null);
+                    $unitPrice = $inStockBatch ? $inStockBatch->sell_price : ($anyBatch ? $anyBatch->sell_price : null);
                     
-                    // Mark as pre-order if no stock available
-                    if (!$inStockBatch || $inStockBatch->quantity < $item['quantity']) {
-                        $hasOutOfStockItems = true;
-                    }
-                    
-                    // If price is not available (no batches), set to 0 and mark as TBA
+                    // If price is not available (no batches), reject order
                     if ($unitPrice === null) {
-                        $unitPrice = 0;
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Product {$product->name} has no price information available",
+                        ], 400);
                     }
                     
                     $itemTotal = $unitPrice * $item['quantity'];
@@ -130,8 +145,17 @@ class GuestCheckoutController extends Controller
                         'tax_amount' => $itemTax,
                         'total_amount' => $itemTotal,
                         'variant_options' => $item['variant_options'] ?? null,
-                        'is_preorder_item' => !$inStockBatch || $inStockBatch->quantity < $item['quantity'],
                     ];
+                }
+
+                // Reject order if any item is out of stock
+                if (!empty($outOfStockItems)) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Insufficient stock for some items',
+                        'out_of_stock_items' => $outOfStockItems,
+                    ], 400);
                 }
 
                 // Step 3: Calculate charges
@@ -161,13 +185,15 @@ class GuestCheckoutController extends Controller
                 ];
 
                 // Step 5: Create order
+                // Note: is_preorder is always FALSE for guest checkout (eCommerce)
+                // Pre-orders only allowed from dedicated pre-order panel
                 $order = Order::create([
                     'customer_id' => $customer->id,
                     'store_id' => null, // Will be assigned by employee
                     'order_type' => 'ecommerce',
-                    'is_preorder' => $hasOutOfStockItems,
-                    'preorder_notes' => $hasOutOfStockItems ? 'This order contains out-of-stock items and will be fulfilled when stock becomes available.' : null,
-                    'status' => 'pending_assignment',
+                    'is_preorder' => false, // eCommerce orders are NOT pre-orders
+                    'preorder_notes' => null,
+                    'status' => 'pending',
                     'payment_status' => $request->payment_method === 'cod' ? 'pending' : 'unpaid',
                     'payment_method' => $request->payment_method,
                     'subtotal' => $subtotal,
@@ -198,6 +224,24 @@ class GuestCheckoutController extends Controller
                         'discount_amount' => 0,
                         'total_amount' => $itemData['total_amount'],
                     ]);
+
+                    // Deduct stock immediately (FIFO - First In, First Out)
+                    // Requirement: "jokhon ee order entry hobe shathe shathe stock hold/minus hobe"
+                    $remainingQty = $itemData['quantity'];
+                    $batches = ProductBatch::where('product_id', $itemData['product_id'])
+                        ->where('quantity', '>', 0)
+                        ->orderBy('created_at', 'asc') // FIFO
+                        ->get();
+                    
+                    foreach ($batches as $batch) {
+                        if ($remainingQty <= 0) break;
+                        
+                        $deductQty = min($batch->quantity, $remainingQty);
+                        $batch->quantity -= $deductQty;
+                        $batch->save();
+                        
+                        $remainingQty -= $deductQty;
+                    }
                 }
 
                 // Step 7: Handle payment method
