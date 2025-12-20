@@ -390,8 +390,9 @@ class OrderController extends Controller
                     throw new \Exception("Insufficient stock for {$product->name}. Available: {$batch->quantity}");
                 }
 
-                // Validate batch belongs to the store (only if batch exists)
-                if ($batch && $batch->store_id != $request->store_id) {
+                // Validate batch belongs to the store (only if batch exists AND store_id is provided)
+                // For social_commerce/ecommerce without store_id, skip this validation (store assigned later)
+                if ($batch && $request->store_id && $batch->store_id != $request->store_id) {
                     throw new \Exception("Product batch not available at this store");
                 }
 
