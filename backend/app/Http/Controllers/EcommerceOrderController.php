@@ -354,15 +354,25 @@ class EcommerceOrderController extends Controller
                 if ($request->payment_method === 'sslcommerz') {
                     // Initiate SSLCommerz payment
                     $transactionId = 'TXN-' . $order->id . '-' . time();
+                    $paymentNumber = 'PAY-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
                     
-                    // Create pending payment record
+                    // Create pending payment record with ALL required fields
                     OrderPayment::create([
                         'order_id' => $order->id,
-                        'payment_method_id' => null, // SSLCommerz doesn't use payment_methods table
+                        'payment_method_id' => null, // SSLCommerz doesn't use payment_methods table (nullable)
+                        'customer_id' => $customerId, // REQUIRED
+                        'store_id' => null, // Nullable for ecommerce orders
                         'amount' => $totalAmount,
-                        'transaction_id' => $transactionId,
+                        'fee_amount' => 0, // No fee for now
+                        'net_amount' => $totalAmount,
                         'status' => 'pending',
-                        'payment_date' => now(),
+                        'payment_number' => $paymentNumber, // REQUIRED unique field
+                        'transaction_reference' => $transactionId,
+                        'external_reference' => null, // Will be updated from SSLCommerz callback
+                        'metadata' => [
+                            'payment_method' => 'sslcommerz',
+                            'order_number' => $order->order_number,
+                        ],
                     ]);
 
                     $customer = Customer::find($customerId);
