@@ -269,6 +269,36 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{id}/mark-stock-available', [\App\Http\Controllers\PreOrderController::class, 'markStockAvailable']);
     });
 
+    // Multi-Store Order Management (NEW) - Handle orders across multiple stores
+    Route::prefix('multi-store-orders')->group(function () {
+        // Get orders that need multi-store fulfillment
+        Route::get('/requiring-multi-store', [\App\Http\Controllers\MultiStoreOrderController::class, 'getOrdersRequiringMultiStore']);
+        
+        // Get item-level store availability for an order
+        Route::get('/{orderId}/item-availability', [\App\Http\Controllers\MultiStoreOrderController::class, 'getItemStoreAvailability']);
+        
+        // Auto-assign items to stores based on inventory
+        Route::post('/{orderId}/auto-assign', [\App\Http\Controllers\MultiStoreOrderController::class, 'autoAssignStores']);
+        
+        // Manually assign specific items to specific stores
+        Route::post('/{orderId}/assign-items', [\App\Http\Controllers\MultiStoreOrderController::class, 'assignItemStores']);
+        
+        // Get fulfillment tasks for a specific store
+        Route::get('/stores/{storeId}/fulfillment-tasks', [\App\Http\Controllers\MultiStoreOrderController::class, 'getStoreFulfillmentTasks']);
+    });
+
+    // Multi-Store Shipment Management (NEW) - Handle Pathao shipments for multi-store orders
+    Route::prefix('multi-store-shipments')->group(function () {
+        // Create Pathao shipments for multi-store order (creates one shipment per store)
+        Route::post('/orders/{orderId}/create-shipments', [\App\Http\Controllers\MultiStoreShipmentController::class, 'createMultiStoreShipments']);
+        
+        // Get all shipments for an order
+        Route::get('/orders/{orderId}/shipments', [\App\Http\Controllers\MultiStoreShipmentController::class, 'getOrderShipments']);
+        
+        // Track all shipments for an order
+        Route::get('/orders/{orderId}/track-all', [\App\Http\Controllers\MultiStoreShipmentController::class, 'trackAllShipments']);
+    });
+
     // Order Management (Employee) - Inventory & Assignment
     Route::prefix('order-management')->group(function () {
         // Get orders pending store assignment

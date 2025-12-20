@@ -16,6 +16,7 @@ class OrderItem extends Model
         'product_id',
         'product_batch_id',
         'product_barcode_id',  // NEW: Track individual barcode sold
+        'store_id',  // NEW: Store fulfilling this specific item (multi-store support)
         'product_name',
         'product_sku',
         'quantity',
@@ -76,6 +77,14 @@ class OrderItem extends Model
     public function barcode(): BelongsTo
     {
         return $this->belongsTo(ProductBarcode::class, 'product_barcode_id');
+    }
+
+    /**
+     * NEW: Relationship to the store fulfilling this item
+     */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class, 'store_id');
     }
 
     public function getFormattedOptionsAttribute()

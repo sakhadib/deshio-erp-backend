@@ -32,6 +32,11 @@ class StoreController extends Controller
             'opening_hours.*.close' => 'required_with:opening_hours|string',
         ]);
 
+        // Auto-sync: pathao_key is actually the store ID, keep both columns same
+        if (isset($validated['pathao_key'])) {
+            $validated['pathao_store_id'] = $validated['pathao_key'];
+        }
+
         $store = Store::create($validated);
 
         return response()->json([
@@ -64,6 +69,11 @@ class StoreController extends Controller
             'opening_hours.*.open' => 'required_with:opening_hours|string',
             'opening_hours.*.close' => 'required_with:opening_hours|string',
         ]);
+
+        // Auto-sync: pathao_key is actually the store ID, keep both columns same
+        if (isset($validated['pathao_key'])) {
+            $validated['pathao_store_id'] = $validated['pathao_key'];
+        }
 
         $store->update($validated);
 

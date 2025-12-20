@@ -18,7 +18,7 @@ class Shipment extends Model
         'shipment_number',
         'order_id',
         'customer_id',
-        'store_id',
+        'store_id', // Multi-store: Each shipment belongs to one store
         'pathao_consignment_id',
         'pathao_tracking_number',
         'pathao_status',
@@ -27,6 +27,12 @@ class Shipment extends Model
         'delivery_type',
         'delivery_fee',
         'cod_amount',
+        'carrier_name', // NEW: Pathao, etc.
+        'item_quantity', // NEW: Number of items in this shipment
+        'item_weight', // NEW: Total weight for this shipment
+        'amount_to_collect', // NEW: COD amount for this shipment
+        'recipient_address', // NEW: Recipient full address
+        'metadata', // NEW: Store Pathao store_id, items list, etc.
         'package_weight',
         'package_dimensions',
         'special_instructions',
@@ -54,11 +60,14 @@ class Shipment extends Model
         'pathao_response' => 'array',
         'delivery_fee' => 'decimal:2',
         'cod_amount' => 'decimal:2',
+        'amount_to_collect' => 'decimal:2', // NEW
+        'item_weight' => 'decimal:2', // NEW
         'package_weight' => 'decimal:2',
         'package_dimensions' => 'array',
         'pickup_address' => 'array',
         'delivery_address' => 'array',
         'package_barcodes' => 'array',
+        'metadata' => 'array', // NEW: Store metadata
         'pickup_requested_at' => 'datetime',
         'picked_up_at' => 'datetime',
         'shipped_at' => 'datetime',
@@ -98,6 +107,14 @@ class Shipment extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * Multi-store: Each shipment belongs to one store
+     */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 
     public function store(): BelongsTo

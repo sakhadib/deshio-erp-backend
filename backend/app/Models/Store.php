@@ -16,6 +16,7 @@ class Store extends Model
         'name',
         'address',
         'pathao_key',
+        'pathao_store_id',  // NEW: Pathao Store ID for multi-store shipments
         'is_warehouse',
         'is_online',
         'phone',
