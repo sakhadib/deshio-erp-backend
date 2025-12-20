@@ -473,12 +473,26 @@ class OrderController extends Controller
                 $subtotal += $itemSubtotal;
                 $taxTotal += $tax;
 
-                // IMPORTANT: Deduct stock immediately for all order types (counter, social_commerce, ecommerce)
-                // Requirement: "jokhon ee POS a entry hobe, stock minus hobe"
+                // IMPORTANT: Stock deduction logic based on order type
+                // Counter orders: Deduct immediately (POS requirement: "jokhon ee POS a entry hobe, stock minus hobe")
+                // Social commerce/Ecommerce: Deduct at barcode scanning (when physical item is picked)
                 // Only deduct if batch exists (not for pre-orders)
-                if ($batch) {
+                $shouldDeductNow = $batch && (
+                    $request->order_type === 'counter' ||  // Counter: immediate deduction
+                    ($request->order_type === 'social_commerce' && $request->store_id) ||  // Social with store: immediate
+                    ($request->order_type === 'ecommerce' && $request->store_id)  // Ecommerce with store: immediate
+                );
+                
+                if ($shouldDeductNow) {
                     $batch->quantity -= $quantity;
                     $batch->save();
+                    
+                    \Log::info('Stock deducted at order creation', [
+                        'order_type' => $request->order_type,
+                        'product_id' => $product->id,
+                        'batch_id' => $batch->id,
+                        'quantity' => $quantity,
+                    ]);
                 }
             }
 
