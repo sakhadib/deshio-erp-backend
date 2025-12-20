@@ -351,12 +351,19 @@ class OrderController extends Controller
                 $fulfillmentStatus = 'pending_fulfillment';
             }
 
+            // Determine initial status based on order type and store assignment
+            // Orders without store need assignment first
+            $initialStatus = 'pending';
+            if (in_array($request->order_type, ['social_commerce', 'ecommerce']) && $storeId === null) {
+                $initialStatus = 'pending_assignment'; // Waiting for store assignment
+            }
+
             // Create order
             $order = Order::create([
                 'customer_id' => $customer->id,
                 'store_id' => $storeId,  // Use calculated store_id (null for social_commerce/ecommerce)
                 'order_type' => $request->order_type,
-                'status' => 'pending',
+                'status' => $initialStatus,
                 'payment_status' => 'pending',
                 'fulfillment_status' => $fulfillmentStatus,
                 'discount_amount' => $request->discount_amount ?? 0,

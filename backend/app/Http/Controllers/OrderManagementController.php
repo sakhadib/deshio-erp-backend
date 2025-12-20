@@ -20,6 +20,7 @@ class OrderManagementController extends Controller
 
     /**
      * Get orders pending store assignment
+     * Includes both ecommerce and social_commerce orders
      */
     public function getPendingAssignmentOrders(Request $request): JsonResponse
     {
@@ -27,7 +28,7 @@ class OrderManagementController extends Controller
             $perPage = $request->query('per_page', 15);
             
             $orders = Order::where('status', 'pending_assignment')
-                ->where('order_type', 'ecommerce')
+                ->whereIn('order_type', ['ecommerce', 'social_commerce'])
                 ->with(['customer', 'items.product'])
                 ->orderBy('created_at', 'asc')
                 ->paginate($perPage);
