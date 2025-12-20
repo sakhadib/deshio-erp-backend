@@ -59,10 +59,11 @@ class OrderController extends Controller
             }
         }
 
-        // Filter unassigned e-commerce orders (pending store assignment)
+        // Filter unassigned orders (pending store assignment)
+        // Includes both ecommerce and social_commerce orders
         if ($request->boolean('pending_assignment')) {
             $query->whereNull('store_id')
-                  ->where('order_type', 'ecommerce')
+                  ->whereIn('order_type', ['ecommerce', 'social_commerce'])
                   ->where('status', 'pending_assignment');
         }
 
