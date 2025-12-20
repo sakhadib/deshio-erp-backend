@@ -214,7 +214,7 @@ class OrderController extends Controller
             'customer.phone' => 'required_with:customer|string',
             'customer.email' => 'nullable|email',
             'customer.address' => 'nullable|string',
-            'store_id' => 'required|exists:stores,id',
+            'store_id' => 'nullable|exists:stores,id',  // Required for counter, optional for social_commerce/ecommerce
             'salesman_id' => 'nullable|exists:employees,id',  // Manual salesman entry for POS
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -247,6 +247,28 @@ class OrderController extends Controller
 
         DB::beginTransaction();
         try {
+            // Determine store_id based on order type
+            $storeId = $request->store_id;
+            
+            // For counter/POS orders: require store_id (from employee's store or explicitly provided)
+            if ($request->order_type === 'counter') {
+                if (!$storeId) {
+                    // Get store from authenticated employee
+                    $employee = Auth::user();
+                    if (!$employee || !$employee->store_id) {
+                        throw new \Exception('Counter orders require a store. Employee must be assigned to a store or store_id must be provided.');
+                    }
+                    $storeId = $employee->store_id;
+                }
+            }
+            
+            // For social_commerce and ecommerce: store_id should be NULL (assigned later)
+            // If provided, we'll use it, but it's optional
+            if (in_array($request->order_type, ['social_commerce', 'ecommerce'])) {
+                // Allow store_id to be null - will be assigned during fulfillment
+                $storeId = $storeId ?? null;
+            }
+            
             // Get or create customer
             if ($request->filled('customer_id')) {
                 $customer = Customer::findOrFail($request->customer_id);
@@ -332,7 +354,7 @@ class OrderController extends Controller
             // Create order
             $order = Order::create([
                 'customer_id' => $customer->id,
-                'store_id' => $request->store_id,
+                'store_id' => $storeId,  // Use calculated store_id (null for social_commerce/ecommerce)
                 'order_type' => $request->order_type,
                 'status' => 'pending',
                 'payment_status' => 'pending',
@@ -385,8 +407,9 @@ class OrderController extends Controller
                         throw new \Exception("Barcode {$itemData['barcode']} not found for product {$product->name}");
                     }
                     
-                    if (!$barcode->is_active) {
-                        throw new \Exception("Barcode {$itemData['barcode']} is not active");
+                    // Check if barcode is already sold
+                    if (in_array($barcode->current_status, ['sold', 'with_customer'])) {
+                        throw new \Exception("Barcode {$itemData['barcode']} has already been sold");
                     }
                     
                     if ($barcode->is_defective) {
@@ -772,11 +795,12 @@ class OrderController extends Controller
                         throw new \Exception("Barcode {$barcodeValue} not found");
                     }
 
-                    // Validate barcode is active and not defective
-                    if (!$barcode->is_active) {
-                        throw new \Exception("Barcode {$barcodeValue} is not available (inactive)");
+                    // Validate barcode is available (not already sold/with customer)
+                    if (in_array($barcode->current_status, ['sold', 'with_customer'])) {
+                        throw new \Exception("Barcode {$barcodeValue} has already been sold and is not available");
                     }
 
+                    // Validate barcode is not defective
                     if ($barcode->is_defective) {
                         throw new \Exception("Barcode {$barcodeValue} is marked as defective");
                     }
@@ -1146,19 +1170,21 @@ class OrderController extends Controller
                 if ($item->product_barcode_id && $item->barcode) {
                     $barcode = $item->barcode;
                     
-                    // Validate barcode is still active
-                    if (!$barcode->is_active) {
-                        throw new \Exception("Barcode {$barcode->barcode} for {$item->product_name} is no longer active.");
+                    // Validate barcode is still available (not already sold)
+                    if ($barcode->current_status === 'sold' || $barcode->current_status === 'with_customer') {
+                        throw new \Exception("Barcode {$barcode->barcode} for {$item->product_name} has already been sold.");
                     }
 
-                    // Mark barcode as sold and update location tracking
+                    // Mark barcode as sold but keep it active for history/returns/refunds
+                    // IMPORTANT: is_active stays TRUE to preserve history for returns/refunds/defects
                     $barcode->update([
-                        'is_active' => false,
-                        'current_status' => 'sold',
+                        'is_active' => true, // Keep active for history tracking
+                        'current_status' => 'with_customer', // Tracks lifecycle state
                         'location_updated_at' => now(),
                         'location_metadata' => [
                             'sold_via' => 'order',
                             'order_number' => $order->order_number,
+                            'order_id' => $order->id,
                             'sale_date' => now()->toISOString(),
                             'sold_by' => auth()->id(),
                         ]
@@ -1624,8 +1650,9 @@ class OrderController extends Controller
                         throw new \Exception("Barcode {$barcodeValue} not found for product {$orderItem->product_name} in specified batch");
                     }
 
-                    if (!$barcode->is_active) {
-                        throw new \Exception("Barcode {$barcodeValue} is not active (already sold or deactivated)");
+                    // Check if barcode is already sold
+                    if (in_array($barcode->current_status, ['sold', 'with_customer'])) {
+                        throw new \Exception("Barcode {$barcodeValue} has already been sold");
                     }
 
                     if ($barcode->is_defective) {
