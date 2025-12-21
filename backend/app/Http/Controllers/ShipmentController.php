@@ -250,21 +250,51 @@ class ShipmentController extends Controller
             $store = $shipment->store;
             $deliveryAddress = $shipment->delivery_address;
 
+            // Validate Pathao requirements
+            $validationErrors = [];
+            
+            // Check store has Pathao configuration
+            if (!$store->pathao_store_id) {
+                $validationErrors[] = 'Store not registered with Pathao. Please configure store Pathao details first.';
+            }
+            
+            // Check delivery address has Pathao location IDs
+            if (empty($deliveryAddress['pathao_city_id'])) {
+                $validationErrors[] = 'Delivery address missing Pathao city ID';
+            }
+            if (empty($deliveryAddress['pathao_zone_id'])) {
+                $validationErrors[] = 'Delivery address missing Pathao zone ID';
+            }
+            if (empty($deliveryAddress['pathao_area_id'])) {
+                $validationErrors[] = 'Delivery address missing Pathao area ID';
+            }
+            
+            // If validation errors, throw exception with details
+            if (!empty($validationErrors)) {
+                throw new \Exception('Cannot send to Pathao: ' . implode('; ', $validationErrors));
+            }
+
+            // Calculate total weight from order items
+            $totalWeight = $order->items->sum(function($item) {
+                return ($item->product->weight ?? 0.5) * $item->quantity;
+            });
+            $totalWeight = max($totalWeight, 0.1); // Minimum 0.1kg
+
             // Prepare Pathao order data
             $pathaoData = [
-                'store_id' => $store->pathao_store_id ?? 1,  // Must have Pathao store configured
+                'store_id' => $store->pathao_store_id,
                 'merchant_order_id' => $order->order_number,
                 'recipient_name' => $shipment->recipient_name,
                 'recipient_phone' => $shipment->recipient_phone,
-                'recipient_address' => $deliveryAddress['street'] ?? $deliveryAddress['address'] ?? '',
-                'recipient_city' => $deliveryAddress['pathao_city_id'] ?? 1,  // Must be Pathao city ID
-                'recipient_zone' => $deliveryAddress['pathao_zone_id'] ?? 1,  // Must be Pathao zone ID
-                'recipient_area' => $deliveryAddress['pathao_area_id'] ?? 1,  // Must be Pathao area ID
+                'recipient_address' => $deliveryAddress['street'] ?? $deliveryAddress['address'] ?? $deliveryAddress['address_line_1'] ?? '',
+                'recipient_city' => $deliveryAddress['pathao_city_id'],
+                'recipient_zone' => $deliveryAddress['pathao_zone_id'],
+                'recipient_area' => $deliveryAddress['pathao_area_id'],
                 'delivery_type' => $shipment->delivery_type === 'express' ? 12 : 48,  // 12=express, 48=normal
                 'item_type' => 2,  // 1=document, 2=parcel
                 'special_instruction' => $shipment->special_instructions ?? '',
                 'item_quantity' => $order->items->sum('quantity'),
-                'item_weight' => $shipment->package_weight ?? 1.0,
+                'item_weight' => $totalWeight,
                 'amount_to_collect' => $shipment->cod_amount ?? 0,
                 'item_description' => $shipment->getPackageDescription(),
             ];

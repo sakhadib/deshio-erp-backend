@@ -975,6 +975,25 @@ Route::middleware('auth:api')->group(function () {
         });
     });
 
+    // ============================================
+    // PATHAO STORE MANAGEMENT ROUTES
+    // Configure stores for Pathao courier
+    // ============================================
+    
+    Route::prefix('pathao')->group(function () {
+        // Location lookup (cities/zones/areas)
+        Route::get('/cities', [\App\Http\Controllers\PathaoStoreController::class, 'getCities']);
+        Route::get('/cities/{cityId}/zones', [\App\Http\Controllers\PathaoStoreController::class, 'getZones']);
+        Route::get('/zones/{zoneId}/areas', [\App\Http\Controllers\PathaoStoreController::class, 'getAreas']);
+        
+        // Store registration with Pathao
+        Route::prefix('stores')->group(function () {
+            Route::post('/{storeId}/register', [\App\Http\Controllers\PathaoStoreController::class, 'registerStore']);
+            Route::patch('/{storeId}/config', [\App\Http\Controllers\PathaoStoreController::class, 'updateStoreConfig']);
+            Route::get('/{storeId}/status', [\App\Http\Controllers\PathaoStoreController::class, 'getStoreStatus']);
+        });
+    });
+
     Route::prefix('payments')->group(function () {
         Route::get('/methods', [PaymentController::class, 'getMethodsByCustomerType']);
         Route::get('/overdue', [PaymentController::class, 'getOverduePayments']);
