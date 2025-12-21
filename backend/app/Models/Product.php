@@ -51,6 +51,11 @@ class Product extends Model
         return $this->hasMany(ProductField::class);
     }
 
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
+    }
+
     public function fields()
     {
         return $this->belongsToMany(Field::class, 'product_fields')
