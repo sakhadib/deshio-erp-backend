@@ -39,6 +39,7 @@ class Customer extends Authenticatable implements JWTSubject
         'first_purchase_at',
         'status',
         'notes',
+        'tags',
         'created_by',
         'assigned_employee_id',
     ];
@@ -57,6 +58,7 @@ class Customer extends Authenticatable implements JWTSubject
         'first_purchase_at' => 'datetime',
         'preferences' => 'array',
         'social_profiles' => 'array',
+        'tags' => 'array',
     ];
 
     protected static function boot()
@@ -169,6 +171,40 @@ class Customer extends Authenticatable implements JWTSubject
     public function scopeTopCustomers($query, $limit = 10)
     {
         return $query->orderBy('total_purchases', 'desc')->limit($limit);
+    }
+
+    public function scopeByTag($query, $tag)
+    {
+        // For PostgreSQL: Use JSON operators
+        // For MySQL: Use JSON_CONTAINS
+        $driver = config('database.default');
+        $connection = config("database.connections.{$driver}.driver");
+
+        if ($connection === 'pgsql') {
+            return $query->whereRaw('tags::jsonb @> ?', [json_encode([$tag])]);
+        } else {
+            // MySQL
+            return $query->whereRaw('JSON_CONTAINS(tags, ?)', [json_encode($tag)]);
+        }
+    }
+
+    public function scopeByTags($query, array $tags)
+    {
+        // Filter customers having ANY of the provided tags
+        $driver = config('database.default');
+        $connection = config("database.connections.{$driver}.driver");
+
+        if ($connection === 'pgsql') {
+            return $query->whereRaw('tags::jsonb ?| array[' . implode(',', array_map(fn($t) => "'$t'", $tags)) . ']');
+        } else {
+            // MySQL - check if any tag exists
+            $query->where(function($q) use ($tags) {
+                foreach ($tags as $tag) {
+                    $q->orWhereRaw('JSON_CONTAINS(tags, ?)', [json_encode($tag)]);
+                }
+            });
+            return $query;
+        }
     }
 
     // Type checks
@@ -315,6 +351,51 @@ class Customer extends Authenticatable implements JWTSubject
         $profiles[$platform] = $identifier;
         $this->social_profiles = $profiles;
         $this->save();
+    }
+
+    // Tag management methods
+    public function addTag($tag)
+    {
+        $tags = $this->tags ?? [];
+        if (!in_array($tag, $tags)) {
+            $tags[] = $tag;
+            $this->tags = $tags;
+            $this->save();
+        }
+        return $this;
+    }
+
+    public function removeTag($tag)
+    {
+        $tags = $this->tags ?? [];
+        $tags = array_values(array_filter($tags, fn($t) => $t !== $tag));
+        $this->tags = $tags;
+        $this->save();
+        return $this;
+    }
+
+    public function setTags(array $tags)
+    {
+        $this->tags = array_values(array_unique($tags));
+        $this->save();
+        return $this;
+    }
+
+    public function hasTag($tag): bool
+    {
+        return in_array($tag, $this->tags ?? []);
+    }
+
+    public function hasAnyTag(array $tags): bool
+    {
+        $customerTags = $this->tags ?? [];
+        return count(array_intersect($customerTags, $tags)) > 0;
+    }
+
+    public function hasAllTags(array $tags): bool
+    {
+        $customerTags = $this->tags ?? [];
+        return count(array_diff($tags, $customerTags)) === 0;
     }
 
     public function getSocialProfile($platform)

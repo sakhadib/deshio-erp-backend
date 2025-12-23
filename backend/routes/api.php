@@ -524,7 +524,15 @@ Route::middleware('auth:api')->group(function () {
             
             // Last order summary
             Route::get('/last-order-summary', [CustomerController::class, 'getLastOrderSummary']);
+            
+            // Tag management
+            Route::post('/tags', [CustomerController::class, 'addTags']);
+            Route::delete('/tags', [CustomerController::class, 'removeTags']);
+            Route::put('/tags', [CustomerController::class, 'setTags']);
         });
+        
+        // Get all unique tags
+        Route::get('/tags/all', [CustomerController::class, 'getAllTags']);
     });
 
     // ============================================

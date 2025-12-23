@@ -52,6 +52,19 @@ class CustomerController extends Controller
             $query->where('gender', $request->gender);
         }
 
+        // Filter by tags (single tag)
+        if ($request->has('tag')) {
+            $query->byTag($request->tag);
+        }
+
+        // Filter by multiple tags (comma-separated or array)
+        if ($request->has('tags')) {
+            $tags = is_array($request->tags) 
+                ? $request->tags 
+                : explode(',', $request->tags);
+            $query->byTags(array_map('trim', $tags));
+        }
+
         // Date range filter
         if ($request->has('date_from')) {
             $query->whereDate('created_at', '>=', $request->date_from);
@@ -93,6 +106,8 @@ class CustomerController extends Controller
             'social_profiles' => 'nullable|array',
             'status' => 'nullable|in:active,inactive,blocked',
             'notes' => 'nullable|string',
+            'tags' => 'nullable|array',
+            'tags.*' => 'string|max:50',
             'assigned_employee_id' => 'nullable|exists:employees,id',
         ]);
 
@@ -638,6 +653,140 @@ class CustomerController extends Controller
                 'total_amount' => $lastOrder->total_amount,
                 'summary_text' => $summaryText,
             ],
+        ]);
+    }
+
+    /**
+     * Add tags to a customer
+     */
+    public function addTags(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'tags' => 'required|array|min:1',
+            'tags.*' => 'required|string|max:50',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $customer = Customer::findOrFail($id);
+        
+        // Add each tag (addTag() method prevents duplicates)
+        foreach ($request->tags as $tag) {
+            $customer->addTag($tag);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tags added successfully',
+            'data' => [
+                'id' => $customer->id,
+                'tags' => $customer->fresh()->tags
+            ]
+        ]);
+    }
+
+    /**
+     * Remove tags from a customer
+     */
+    public function removeTags(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'tags' => 'required|array|min:1',
+            'tags.*' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $customer = Customer::findOrFail($id);
+        
+        foreach ($request->tags as $tag) {
+            $customer->removeTag($tag);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tags removed successfully',
+            'data' => [
+                'id' => $customer->id,
+                'tags' => $customer->fresh()->tags
+            ]
+        ]);
+    }
+
+    /**
+     * Replace all tags for a customer
+     */
+    public function setTags(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'tags' => 'required|array',
+            'tags.*' => 'required|string|max:50',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $customer = Customer::findOrFail($id);
+        $customer->setTags($request->tags);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tags updated successfully',
+            'data' => [
+                'id' => $customer->id,
+                'tags' => $customer->fresh()->tags
+            ]
+        ]);
+    }
+
+    /**
+     * Get all unique tags used across customers
+     */
+    public function getAllTags()
+    {
+        // Get all unique tags from all customers
+        $driver = config('database.default');
+        $connection = config("database.connections.{$driver}.driver");
+        
+        if ($connection === 'pgsql') {
+            // PostgreSQL: Use jsonb_array_elements_text
+            $tags = \DB::select("
+                SELECT DISTINCT jsonb_array_elements_text(tags) as tag 
+                FROM customers 
+                WHERE tags IS NOT NULL 
+                ORDER BY tag
+            ");
+            $uniqueTags = array_column($tags, 'tag');
+        } else {
+            // MySQL: Fetch all tags and process in PHP
+            $customers = Customer::whereNotNull('tags')->get(['tags']);
+            $allTags = [];
+            foreach ($customers as $customer) {
+                if ($customer->tags) {
+                    $allTags = array_merge($allTags, $customer->tags);
+                }
+            }
+            $uniqueTags = array_values(array_unique($allTags));
+            sort($uniqueTags);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $uniqueTags
         ]);
     }
 }
