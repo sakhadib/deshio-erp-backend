@@ -1425,6 +1425,33 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{id}', [ActivityLogController::class, 'show']);
     });
 
+    // ============================================
+    // BUSINESS HISTORY / AUDIT TRAILS
+    // Specialized history APIs for critical business operations
+    // Shows WHO, WHEN, WHAT with before/after data
+    // ============================================
+    
+    Route::prefix('business-history')->group(function () {
+        // Product Dispatch History
+        Route::get('/product-dispatches', [\App\Http\Controllers\BusinessHistoryController::class, 'getProductDispatchHistory']);
+        
+        // Order History (comprehensive - includes order, items, customer)
+        Route::get('/orders', [\App\Http\Controllers\BusinessHistoryController::class, 'getOrderHistory']);
+        Route::get('/orders/{orderId}/comprehensive', [\App\Http\Controllers\BusinessHistoryController::class, 'getOrderComprehensiveHistory']);
+        
+        // Purchase Order History
+        Route::get('/purchase-orders', [\App\Http\Controllers\BusinessHistoryController::class, 'getPurchaseOrderHistory']);
+        
+        // Store Assignment History
+        Route::get('/store-assignments', [\App\Http\Controllers\BusinessHistoryController::class, 'getStoreAssignmentHistory']);
+        
+        // Product History (including defective product marking)
+        Route::get('/products', [\App\Http\Controllers\BusinessHistoryController::class, 'getProductHistory']);
+        
+        // Statistics
+        Route::get('/statistics', [\App\Http\Controllers\BusinessHistoryController::class, 'getHistoryStatistics']);
+    });
+
 }); // End of auth:api middleware group
 
 // ============================================

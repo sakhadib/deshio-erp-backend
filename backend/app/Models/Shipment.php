@@ -112,10 +112,10 @@ class Shipment extends Model
     /**
      * Multi-store: Each shipment belongs to one store
      */
-    public function store(): BelongsTo
-    {
-        return $this->belongsTo(Store::class);
-    }
+    // public function store(): BelongsTo
+    // {
+    //     return $this->belongsTo(Store::class);
+    // }
 
     public function store(): BelongsTo
     {
