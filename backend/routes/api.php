@@ -1460,6 +1460,22 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/statistics', [\App\Http\Controllers\BusinessHistoryController::class, 'getHistoryStatistics']);
     });
 
+    // ============================================
+    // LOOKUP APIs
+    // Comprehensive lookup for product lifecycle, order details, and batch tracking
+    // ============================================
+    
+    Route::prefix('lookup')->group(function () {
+        // Product Lookup - Complete lifecycle by barcode
+        Route::get('/product', [\App\Http\Controllers\LookupController::class, 'productLookup']);
+        
+        // Order Lookup - Complete order details with barcodes
+        Route::get('/order/{orderId}', [\App\Http\Controllers\LookupController::class, 'orderLookup']);
+        
+        // Batch Lookup - All barcodes and history for a batch
+        Route::get('/batch/{batchId}', [\App\Http\Controllers\LookupController::class, 'batchLookup']);
+    });
+
 }); // End of auth:api middleware group
 
 // ============================================
