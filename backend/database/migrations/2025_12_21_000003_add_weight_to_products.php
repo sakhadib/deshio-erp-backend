@@ -16,7 +16,7 @@ return new class extends Migration
     {
         Schema::table('products', function (Blueprint $table) {
             // Product weight in kg (nullable, defaults to 0.5kg if not specified)
-            $table->decimal('weight', 8, 2)->nullable()->default(0.5)->after('is_active');
+            $table->decimal('weight', 8, 2)->nullable()->default(0.5)->after('description');
             
             $table->index('weight');
         });
