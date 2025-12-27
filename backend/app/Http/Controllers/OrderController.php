@@ -605,7 +605,7 @@ class OrderController extends Controller
         }
 
         // Only allow updates for pending/confirmed orders
-        if (!in_array($order->status, ['pending', 'confirmed', 'assigned_to_store', 'picking'])) {
+        if (!in_array($order->status, ['pending', 'pending_assignment', 'confirmed', 'assigned_to_store', 'picking'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Cannot update order in current status: ' . $order->status
@@ -742,7 +742,7 @@ class OrderController extends Controller
         }
 
         // Can only add items to pending orders
-        if (!in_array($order->status, ['pending', 'confirmed'])) {
+        if (!in_array($order->status, ['pending', 'pending_assignment', 'confirmed'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Cannot add items to ' . $order->status . ' orders'
@@ -999,7 +999,7 @@ class OrderController extends Controller
             ], 404);
         }
 
-        if (!in_array($order->status, ['pending', 'confirmed'])) {
+        if (!in_array($order->status, ['pending', 'pending_assignment', 'confirmed'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Cannot update items in ' . $order->status . ' orders'
@@ -1093,7 +1093,7 @@ class OrderController extends Controller
             ], 404);
         }
 
-        if (!in_array($order->status, ['pending', 'confirmed'])) {
+        if (!in_array($order->status, ['pending', 'pending_assignment', 'confirmed'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Cannot remove items from ' . $order->status . ' orders'
@@ -1159,10 +1159,10 @@ class OrderController extends Controller
             ], 404);
         }
 
-        if ($order->status !== 'pending') {
+        if (!in_array($order->status, ['pending', 'pending_assignment'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only pending orders can be completed'
+                'message' => 'Only pending or pending_assignment orders can be completed'
             ], 422);
         }
 
