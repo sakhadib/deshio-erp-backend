@@ -648,6 +648,9 @@ Route::middleware('auth:api')->group(function () {
     // ============================================
     
     Route::prefix('dashboard')->group(function () {
+        // Comprehensive stores summary
+        Route::get('/stores-summary', [DashboardController::class, 'allStoresSummary']);
+        
         // Today's key metrics
         Route::get('/today-metrics', [DashboardController::class, 'todayMetrics']);
         

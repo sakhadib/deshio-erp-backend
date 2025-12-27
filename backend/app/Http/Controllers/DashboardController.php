@@ -18,6 +18,245 @@ use Carbon\Carbon;
 class DashboardController extends Controller
 {
     use DatabaseAgnosticSearch;
+    
+    /**
+     * Get comprehensive summary for all stores
+     * 
+     * GET /api/dashboard/stores-summary?period=today|week|month|year&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD
+     * 
+     * Returns comprehensive metrics for each store including:
+     * - Sales performance (total, orders, avg order value)
+     * - Inventory levels (total value, low stock count)
+     * - Order status breakdown
+     * - Payment status breakdown
+     * - Top products per store
+     * - Returns & refunds
+     * - Profit margins
+     */
+    public function allStoresSummary(Request $request)
+    {
+        try {
+            // Determine date range
+            $period = $request->input('period', 'today');
+            $dateFrom = $request->input('date_from');
+            $dateTo = $request->input('date_to');
+
+            if ($dateFrom && $dateTo) {
+                $startDate = Carbon::parse($dateFrom)->startOfDay();
+                $endDate = Carbon::parse($dateTo)->endOfDay();
+            } else {
+                switch ($period) {
+                    case 'week':
+                        $startDate = Carbon::now()->startOfWeek();
+                        $endDate = Carbon::now()->endOfWeek();
+                        break;
+                    case 'month':
+                        $startDate = Carbon::now()->startOfMonth();
+                        $endDate = Carbon::now()->endOfMonth();
+                        break;
+                    case 'year':
+                        $startDate = Carbon::now()->startOfYear();
+                        $endDate = Carbon::now()->endOfYear();
+                        break;
+                    case 'today':
+                    default:
+                        $startDate = Carbon::today();
+                        $endDate = Carbon::now()->endOfDay();
+                        break;
+                }
+            }
+
+            // Get all stores
+            $stores = Store::all();
+            
+            $storesSummary = [];
+            $overallTotals = [
+                'total_sales' => 0,
+                'total_orders' => 0,
+                'total_inventory_value' => 0,
+                'total_profit' => 0,
+                'total_returns' => 0,
+            ];
+
+            foreach ($stores as $store) {
+                $summary = $this->getStoreSummary($store, $startDate, $endDate);
+                $storesSummary[] = $summary;
+                
+                // Accumulate overall totals
+                $overallTotals['total_sales'] += $summary['sales']['total_sales'];
+                $overallTotals['total_orders'] += $summary['sales']['total_orders'];
+                $overallTotals['total_inventory_value'] += $summary['inventory']['total_value'];
+                $overallTotals['total_profit'] += $summary['performance']['gross_profit'];
+                $overallTotals['total_returns'] += $summary['returns']['total_returns'];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'period' => [
+                        'type' => $period,
+                        'start_date' => $startDate->format('Y-m-d'),
+                        'end_date' => $endDate->format('Y-m-d'),
+                    ],
+                    'overall_totals' => $overallTotals,
+                    'stores' => $storesSummary,
+                    'store_count' => count($storesSummary),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching stores summary',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Helper: Get comprehensive summary for a single store
+     */
+    private function getStoreSummary($store, $startDate, $endDate)
+    {
+        // 1. SALES METRICS
+        $orders = Order::where('store_id', $store->id)
+            ->whereBetween('order_date', [$startDate, $endDate])
+            ->whereNotIn('status', ['cancelled'])
+            ->get();
+
+        $totalSales = $orders->sum('total_amount');
+        $totalOrders = $orders->count();
+        $avgOrderValue = $totalOrders > 0 ? $totalSales / $totalOrders : 0;
+        $paidAmount = $orders->sum('paid_amount');
+        $outstandingAmount = $orders->sum('outstanding_amount');
+
+        // Orders by status
+        $ordersByStatus = $orders->groupBy('status')->map->count();
+        
+        // Orders by payment status
+        $ordersByPaymentStatus = $orders->groupBy('payment_status')->map->count();
+        
+        // Orders by type (counter, ecommerce, social_commerce)
+        $ordersByType = $orders->groupBy('order_type')->map->count();
+
+        // 2. PROFIT CALCULATIONS
+        $orderIds = $orders->pluck('id');
+        $orderItems = OrderItem::whereIn('order_id', $orderIds)
+            ->with('batch')
+            ->get();
+
+        $cogs = $orderItems->sum(function ($item) {
+            if (!is_null($item->cogs)) {
+                return (float) $item->cogs;
+            }
+            return ($item->batch ? ($item->batch->cost_price ?? 0) : 0) * $item->quantity;
+        });
+
+        $grossProfit = $totalSales - $cogs;
+        $grossMarginPercentage = $totalSales > 0 ? ($grossProfit / $totalSales) * 100 : 0;
+
+        // Expenses for this store
+        $expenses = Expense::where('store_id', $store->id)
+            ->whereBetween('expense_date', [$startDate, $endDate])
+            ->whereNotIn('status', ['cancelled', 'rejected'])
+            ->sum('total_amount');
+
+        $netProfit = $grossProfit - $expenses;
+        $netMarginPercentage = $totalSales > 0 ? ($netProfit / $totalSales) * 100 : 0;
+
+        // 3. INVENTORY METRICS
+        $inventory = MasterInventory::where('store_id', $store->id)
+            ->with('product', 'batch')
+            ->get();
+
+        $totalInventoryValue = $inventory->sum(function ($item) {
+            $sellPrice = $item->batch ? ($item->batch->selling_price ?? 0) : 0;
+            return $sellPrice * $item->quantity;
+        });
+
+        $lowStockCount = $inventory->where('quantity', '<', 10)->count();
+        $outOfStockCount = $inventory->where('quantity', '<=', 0)->count();
+        $totalProducts = $inventory->count();
+
+        // 4. TOP PRODUCTS (by quantity sold)
+        $topProducts = OrderItem::whereIn('order_id', $orderIds)
+            ->select('product_id', DB::raw('SUM(quantity) as total_quantity'), DB::raw('SUM(total_amount) as total_revenue'))
+            ->groupBy('product_id')
+            ->orderBy('total_quantity', 'desc')
+            ->limit(5)
+            ->with('product:id,name,sku')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'product_id' => $item->product_id,
+                    'product_name' => $item->product->name ?? 'Unknown',
+                    'sku' => $item->product->sku ?? 'N/A',
+                    'quantity_sold' => (int) $item->total_quantity,
+                    'revenue' => (float) $item->total_revenue,
+                ];
+            });
+
+        // 5. RETURNS & REFUNDS
+        $returns = ProductReturn::whereHas('order', function ($q) use ($store) {
+                $q->where('store_id', $store->id);
+            })
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->get();
+
+        $totalReturns = $returns->count();
+        $returnRate = $totalOrders > 0 ? ($totalReturns / $totalOrders) * 100 : 0;
+
+        // 6. CUSTOMER METRICS
+        $uniqueCustomers = $orders->pluck('customer_id')->unique()->count();
+        $repeatCustomers = $orders->groupBy('customer_id')
+            ->filter(function ($customerOrders) {
+                return $customerOrders->count() > 1;
+            })
+            ->count();
+
+        return [
+            'store' => [
+                'id' => $store->id,
+                'name' => $store->name,
+                'store_code' => $store->store_code,
+                'store_type' => $store->store_type,
+                'address' => $store->address,
+            ],
+            'sales' => [
+                'total_sales' => (float) $totalSales,
+                'total_orders' => $totalOrders,
+                'avg_order_value' => (float) number_format($avgOrderValue, 2, '.', ''),
+                'paid_amount' => (float) $paidAmount,
+                'outstanding_amount' => (float) $outstandingAmount,
+                'orders_by_status' => $ordersByStatus,
+                'orders_by_payment_status' => $ordersByPaymentStatus,
+                'orders_by_type' => $ordersByType,
+            ],
+            'performance' => [
+                'gross_profit' => (float) $grossProfit,
+                'gross_margin_percentage' => (float) number_format($grossMarginPercentage, 2, '.', ''),
+                'expenses' => (float) $expenses,
+                'net_profit' => (float) $netProfit,
+                'net_margin_percentage' => (float) number_format($netMarginPercentage, 2, '.', ''),
+                'cogs' => (float) $cogs,
+            ],
+            'inventory' => [
+                'total_value' => (float) $totalInventoryValue,
+                'total_products' => $totalProducts,
+                'low_stock_count' => $lowStockCount,
+                'out_of_stock_count' => $outOfStockCount,
+            ],
+            'top_products' => $topProducts,
+            'returns' => [
+                'total_returns' => $totalReturns,
+                'return_rate' => (float) number_format($returnRate, 2, '.', ''),
+            ],
+            'customers' => [
+                'unique_customers' => $uniqueCustomers,
+                'repeat_customers' => $repeatCustomers,
+            ],
+        ];
+    }
+    
     /**
      * Get today's key metrics
      * 
