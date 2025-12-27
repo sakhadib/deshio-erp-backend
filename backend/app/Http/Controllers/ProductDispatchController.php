@@ -655,6 +655,206 @@ class ProductDispatchController extends Controller
     }
 
     /**
+     * Scan barcode when RECEIVING dispatch at destination store
+     * 
+     * POST /api/dispatches/{dispatchId}/items/{itemId}/receive-barcode
+     * Body: { "barcode": "BRC-12345" }
+     * 
+     * This is called by the receiving store employee to confirm receipt of specific physical units
+     */
+    public function receiveBarcode(Request $request, $dispatchId, $itemId)
+    {
+        $dispatch = ProductDispatch::find($dispatchId);
+
+        if (!$dispatch) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dispatch not found'
+            ], 404);
+        }
+
+        // Can only receive barcodes when dispatch is in_transit
+        if ($dispatch->status !== 'in_transit') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Barcodes can only be received when dispatch is in transit'
+            ], 422);
+        }
+
+        $item = ProductDispatchItem::where('id', $itemId)
+            ->where('product_dispatch_id', $dispatchId)
+            ->first();
+
+        if (!$item) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dispatch item not found'
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'barcode' => 'required|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Find the barcode
+            $barcode = \App\Models\ProductBarcode::where('barcode', $request->barcode)->first();
+
+            if (!$barcode) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Barcode not found in system'
+                ], 404);
+            }
+
+            // Validate barcode is for the correct product
+            if ($barcode->product_id !== $item->batch->product_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Barcode does not match the product for this dispatch item'
+                ], 422);
+            }
+
+            // Check if this barcode was actually sent in this dispatch
+            $wasSentInDispatch = $item->scannedBarcodes()->where('product_barcode_id', $barcode->id)->exists();
+            if (!$wasSentInDispatch) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This barcode was not sent in this dispatch'
+                ], 422);
+            }
+
+            // Check if already received
+            if ($barcode->current_store_id == $dispatch->destination_store_id && $barcode->current_status == 'available') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This barcode has already been received at destination'
+                ], 422);
+            }
+
+            // Update barcode location and status to received
+            $barcode->update([
+                'current_status' => 'available',
+                'current_store_id' => $dispatch->destination_store_id,
+                'location_updated_at' => now(),
+                'location_metadata' => array_merge($barcode->location_metadata ?? [], [
+                    'received_at' => now()->toISOString(),
+                    'received_by' => auth()->id(),
+                    'dispatch_number' => $dispatch->dispatch_number,
+                    'from_store_id' => $dispatch->source_store_id,
+                ])
+            ]);
+
+            // Update item's received quantity
+            $item->increment('received_quantity');
+
+            DB::commit();
+
+            // Get counts
+            $receivedCount = $item->received_quantity ?? 0;
+            $totalSentCount = $item->scannedBarcodes()->count();
+            $remainingCount = $totalSentCount - $receivedCount;
+
+            return response()->json([
+                'success' => true,
+                'message' => "Barcode received successfully. {$receivedCount} of {$totalSentCount} items received.",
+                'data' => [
+                    'barcode' => $barcode->barcode,
+                    'received_count' => $receivedCount,
+                    'total_sent' => $totalSentCount,
+                    'remaining_count' => $remainingCount,
+                    'all_received' => $remainingCount === 0,
+                    'received_at' => now()->toISOString(),
+                    'received_by' => auth()->user()->name ?? 'Unknown',
+                    'current_store' => [
+                        'id' => $dispatch->destinationStore->id,
+                        'name' => $dispatch->destinationStore->name,
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Get received barcodes count and list
+     * 
+     * GET /api/dispatches/{dispatchId}/items/{itemId}/received-barcodes
+     */
+    public function getReceivedBarcodes($dispatchId, $itemId)
+    {
+        $dispatch = ProductDispatch::find($dispatchId);
+
+        if (!$dispatch) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dispatch not found'
+            ], 404);
+        }
+
+        $item = ProductDispatchItem::where('id', $itemId)
+            ->where('product_dispatch_id', $dispatchId)
+            ->with(['scannedBarcodes'])
+            ->first();
+
+        if (!$item) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dispatch item not found'
+            ], 404);
+        }
+
+        // Get all barcodes that were sent
+        $sentBarcodes = $item->scannedBarcodes;
+
+        // Get barcodes that have been received (at destination store)
+        $receivedBarcodes = $sentBarcodes->filter(function($barcode) use ($dispatch) {
+            return $barcode->current_store_id == $dispatch->destination_store_id 
+                   && $barcode->current_status == 'available';
+        });
+
+        $receivedBarcodesData = $receivedBarcodes->map(function($barcode) {
+            $metadata = $barcode->location_metadata ?? [];
+            return [
+                'id' => $barcode->id,
+                'barcode' => $barcode->barcode,
+                'received_at' => $metadata['received_at'] ?? null,
+                'received_by_id' => $metadata['received_by'] ?? null,
+                'current_store' => [
+                    'id' => $barcode->currentStore->id ?? null,
+                    'name' => $barcode->currentStore->name ?? 'Unknown',
+                ],
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'dispatch_item_id' => $item->id,
+                'total_sent' => $sentBarcodes->count(),
+                'received_count' => $receivedBarcodes->count(),
+                'pending_count' => $sentBarcodes->count() - $receivedBarcodes->count(),
+                'received_barcodes' => $receivedBarcodesData,
+            ]
+        ]);
+    }
+
+    /**
      * Mark dispatch as delivered
      * This processes inventory movements
      * 
@@ -706,10 +906,15 @@ class ProductDispatchController extends Controller
 
         DB::beginTransaction();
         try {
-            // Validate that all dispatch items have required barcodes scanned
+            // Validate that all dispatch items have required barcodes scanned at SENDING
             $itemsWithMissingBarcodes = [];
+            // Validate that all dispatch items have been RECEIVED at destination
+            $itemsWithPendingReceipt = [];
+            
             foreach ($dispatch->items as $item) {
                 $scannedCount = $item->scannedBarcodes()->count();
+                
+                // Check if all items were scanned at source
                 if ($scannedCount < $item->quantity) {
                     $itemsWithMissingBarcodes[] = [
                         'item_id' => $item->id,
@@ -719,13 +924,34 @@ class ProductDispatchController extends Controller
                         'missing' => $item->quantity - $scannedCount
                     ];
                 }
+                
+                // Check if all scanned items were received at destination
+                $receivedCount = $item->received_quantity ?? 0;
+                if ($receivedCount < $scannedCount) {
+                    $itemsWithPendingReceipt[] = [
+                        'item_id' => $item->id,
+                        'product' => $item->batch->product->name,
+                        'sent' => $scannedCount,
+                        'received' => $receivedCount,
+                        'pending' => $scannedCount - $receivedCount
+                    ];
+                }
             }
 
             if (!empty($itemsWithMissingBarcodes)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot deliver dispatch: Not all barcodes have been scanned',
+                    'message' => 'Cannot deliver dispatch: Not all barcodes have been scanned at source',
                     'items_with_missing_barcodes' => $itemsWithMissingBarcodes
+                ], 422);
+            }
+            
+            if (!empty($itemsWithPendingReceipt)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot deliver dispatch: Not all barcodes have been received at destination',
+                    'hint' => 'Use POST /api/dispatches/' . $dispatch->id . '/items/{itemId}/receive-barcode to scan and receive items',
+                    'items_with_pending_receipt' => $itemsWithPendingReceipt
                 ], 422);
             }
 
