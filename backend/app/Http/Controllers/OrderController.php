@@ -380,12 +380,12 @@ class OrderController extends Controller
             if ($request->filled('shipping_address') && is_array($request->shipping_address)) {
                 $shippingData = $request->shipping_address;
                 
-                // Only create if we have essential address info
-                if (!empty($shippingData['address_line_1']) || !empty($shippingData['city'])) {
+                // Only create if we have essential address info (NOT NULL columns must have values)
+                if (!empty($shippingData['address_line_1']) && !empty($shippingData['city'])) {
                     // Check if this exact address already exists for the customer
                     $existingAddress = \App\Models\CustomerAddress::where('customer_id', $customer->id)
-                        ->where('address_line_1', $shippingData['address_line_1'] ?? '')
-                        ->where('city', $shippingData['city'] ?? '')
+                        ->where('address_line_1', $shippingData['address_line_1'])
+                        ->where('city', $shippingData['city'])
                         ->first();
                     
                     if (!$existingAddress) {
@@ -394,11 +394,11 @@ class OrderController extends Controller
                             'type' => 'shipping',
                             'name' => $shippingData['name'] ?? $customer->name,
                             'phone' => $shippingData['phone'] ?? $customer->phone,
-                            'address_line_1' => $shippingData['address_line_1'] ?? '',
+                            'address_line_1' => $shippingData['address_line_1'],
                             'address_line_2' => $shippingData['address_line_2'] ?? null,
-                            'city' => $shippingData['city'] ?? '',
-                            'state' => $shippingData['state'] ?? null,
-                            'postal_code' => $shippingData['postal_code'] ?? null,
+                            'city' => $shippingData['city'],
+                            'state' => $shippingData['state'] ?? '',  // NOT NULL - use empty string
+                            'postal_code' => $shippingData['postal_code'] ?? '',  // NOT NULL - use empty string
                             'country' => $shippingData['country'] ?? 'Bangladesh',
                             'pathao_city_id' => $shippingData['pathao_city_id'] ?? null,
                             'pathao_zone_id' => $shippingData['pathao_zone_id'] ?? null,
