@@ -585,24 +585,107 @@ class BusinessHistoryController extends Controller
             $changes['new_data'] = $properties['attributes'] ?? [];
         } elseif ($activity->event === 'updated') {
             $changes['action'] = 'updated';
-            $old = $properties['old'] ?? [];
-            $new = $properties['attributes'] ?? [];
+            $old = is_array($properties['old'] ?? []) ? $properties['old'] : (array) ($properties['old'] ?? []);
+            $new = is_array($properties['attributes'] ?? []) ? $properties['attributes'] : (array) ($properties['attributes'] ?? []);
             
-            $changes['fields_changed'] = array_keys(array_diff_assoc($new, $old));
-            $changes['changes'] = [];
-            
-            foreach ($changes['fields_changed'] as $field) {
-                $changes['changes'][$field] = [
-                    'from' => $old[$field] ?? null,
-                    'to' => $new[$field] ?? null,
-                ];
-            }
+            // Safe comparison that handles nested arrays/objects
+            $diffResult = $this->safeDiff($old, $new);
+            $changes['fields_changed'] = $diffResult['fields_changed'];
+            $changes['changes'] = $diffResult['changes'];
         } elseif ($activity->event === 'deleted') {
             $changes['action'] = 'deleted';
             $changes['deleted_data'] = $properties['attributes'] ?? [];
         }
 
         return $changes;
+    }
+
+    /**
+     * Safely compare two arrays that may contain nested arrays/objects
+     * 
+     * @param array $old
+     * @param array $new
+     * @return array
+     */
+    private function safeDiff(array $old, array $new): array
+    {
+        $changes = [];
+        $fieldsChanged = [];
+
+        $allKeys = array_unique(array_merge(array_keys($old), array_keys($new)));
+
+        foreach ($allKeys as $key) {
+            $oldVal = $old[$key] ?? null;
+            $newVal = $new[$key] ?? null;
+
+            // Normalize to comparable strings for comparison ONLY
+            $oldNorm = $this->normalizeForDiff($oldVal);
+            $newNorm = $this->normalizeForDiff($newVal);
+
+            if ($oldNorm !== $newNorm) {
+                $fieldsChanged[] = $key;
+                $changes[$key] = [
+                    'from' => $oldVal,
+                    'to'   => $newVal,
+                ];
+            }
+        }
+
+        return [
+            'fields_changed' => $fieldsChanged,
+            'changes' => $changes,
+        ];
+    }
+
+    /**
+     * Normalize a value to a comparable string representation
+     * 
+     * @param mixed $value
+     * @return string
+     */
+    private function normalizeForDiff($value): string
+    {
+        if (is_null($value)) return 'null';
+        if (is_bool($value)) return $value ? 'true' : 'false';
+        if (is_int($value) || is_float($value) || is_string($value)) return (string) $value;
+
+        // Laravel collections / models / objects → array
+        if ($value instanceof \Illuminate\Support\Collection) {
+            $value = $value->toArray();
+        } elseif ($value instanceof \JsonSerializable) {
+            $value = $value->jsonSerialize();
+        } elseif (is_object($value)) {
+            // try common model toArray()
+            if (method_exists($value, 'toArray')) {
+                $value = $value->toArray();
+            } else {
+                $value = (array) $value;
+            }
+        }
+
+        // Arrays (nested) → stable JSON string
+        if (is_array($value)) {
+            $this->ksortRecursive($value);
+            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        return (string) $value;
+    }
+
+    /**
+     * Recursively sort an array by keys for stable comparison
+     * 
+     * @param array $arr
+     * @return void
+     */
+    private function ksortRecursive(array &$arr): void
+    {
+        ksort($arr);
+        foreach ($arr as &$v) {
+            if (is_array($v)) {
+                $this->ksortRecursive($v);
+            }
+        }
     }
 
     /**
