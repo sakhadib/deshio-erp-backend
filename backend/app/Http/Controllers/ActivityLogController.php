@@ -33,8 +33,24 @@ class ActivityLogController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Activity::query()
-            ->with(['causer', 'subject']);
+        $query = Activity::query();
+
+        // Load relationships with soft-deleted models
+        // This prevents crashes when causer or subject is soft-deleted
+        $query->with([
+            'causer' => function ($q) {
+                // Load even if soft-deleted (for audit trail)
+                if (method_exists($q->getModel(), 'withTrashed')) {
+                    $q->withTrashed();
+                }
+            },
+            'subject' => function ($q) {
+                // Load even if soft-deleted (for audit trail)
+                if (method_exists($q->getModel(), 'withTrashed')) {
+                    $q->withTrashed();
+                }
+            }
+        ]);
 
         // Filter by event type (created, updated, deleted)
         if ($request->filled('event')) {
@@ -106,52 +122,76 @@ class ActivityLogController extends Controller
 
         // Pagination
         $perPage = $request->get('per_page', 50);
-        $logs = $query->paginate($perPage);
+        $paginatedLogs = $query->paginate($perPage);
 
         // Transform data for better FE consumption
-        $logs->getCollection()->transform(function ($log) {
-            return [
-                'id' => $log->id,
-                'event' => $log->event,
-                'description' => $log->description,
-                'log_name' => $log->log_name,
+        $transformedItems = collect($paginatedLogs->items())->map(function ($log) {
+            // Safely get properties (handle null/empty cases)
+            $properties = $log->properties ?? collect([]);
                 
-                // Subject (WHAT was changed)
-                'subject' => [
-                    'type' => class_basename($log->subject_type),
-                    'full_type' => $log->subject_type,
-                    'id' => $log->subject_id,
-                    'data' => $log->subject,  // The actual model instance (if not deleted)
-                ],
-                
-                // Causer (WHO made the change)
-                'causer' => [
-                    'type' => $log->causer_type ? class_basename($log->causer_type) : null,
-                    'full_type' => $log->causer_type,
-                    'id' => $log->causer_id,
-                    'name' => $log->causer ? ($log->causer->name ?? $log->causer->email ?? 'Unknown') : 'System',
-                ],
-                
-                // Changes (WHAT changed)
-                'changes' => [
-                    'attributes' => $log->properties->get('attributes', []),
-                    'old' => $log->properties->get('old', []),
-                ],
-                
-                // Metadata
-                'metadata' => [
-                    'ip_address' => $log->properties->get('ip_address'),
-                    'user_agent' => $log->properties->get('user_agent'),
-                    'url' => $log->properties->get('url'),
-                    'method' => $log->properties->get('method'),
-                ],
-                
-                // WHEN
-                'created_at' => $log->created_at->toIso8601String(),
-                'created_at_human' => $log->created_at->diffForHumans(),
-                'created_at_formatted' => $log->created_at->format('Y-m-d H:i:s'),
-            ];
-        });
+                return [
+                    'id' => $log->id,
+                    'event' => $log->event,
+                    'description' => $log->description,
+                    'log_name' => $log->log_name,
+                    
+                    // Subject (WHAT was changed)
+                    'subject' => [
+                        'type' => $log->subject_type ? class_basename($log->subject_type) : null,
+                        'full_type' => $log->subject_type,
+                        'id' => $log->subject_id,
+                        'data' => $log->subject,  // The actual model instance (if not deleted)
+                    ],
+                    
+                    // Causer (WHO made the change)
+                    'causer' => [
+                        'type' => $log->causer_type ? class_basename($log->causer_type) : null,
+                        'full_type' => $log->causer_type,
+                        'id' => $log->causer_id,
+                        'name' => $log->causer ? ($log->causer->name ?? $log->causer->email ?? 'Unknown') : 'System',
+                    ],
+                    
+                    // Changes (WHAT changed)
+                    'changes' => [
+                        'attributes' => $properties instanceof \Illuminate\Support\Collection 
+                            ? $properties->get('attributes', []) 
+                            : ($properties['attributes'] ?? []),
+                        'old' => $properties instanceof \Illuminate\Support\Collection 
+                            ? $properties->get('old', []) 
+                            : ($properties['old'] ?? []),
+                    ],
+                    
+                    // Metadata
+                    'metadata' => [
+                        'ip_address' => $properties instanceof \Illuminate\Support\Collection 
+                            ? $properties->get('ip_address') 
+                            : ($properties['ip_address'] ?? null),
+                        'user_agent' => $properties instanceof \Illuminate\Support\Collection 
+                            ? $properties->get('user_agent') 
+                            : ($properties['user_agent'] ?? null),
+                        'url' => $properties instanceof \Illuminate\Support\Collection 
+                            ? $properties->get('url') 
+                            : ($properties['url'] ?? null),
+                        'method' => $properties instanceof \Illuminate\Support\Collection 
+                            ? $properties->get('method') 
+                            : ($properties['method'] ?? null),
+                    ],
+                    
+                    // WHEN
+                    'created_at' => $log->created_at ? $log->created_at->toIso8601String() : null,
+                    'created_at_human' => $log->created_at ? $log->created_at->diffForHumans() : null,
+                    'created_at_formatted' => $log->created_at ? $log->created_at->format('Y-m-d H:i:s') : null,
+                ];
+            });
+
+        // Rebuild pagination with transformed items
+        $logs = new \Illuminate\Pagination\LengthAwarePaginator(
+            $transformedItems,
+            $paginatedLogs->total(),
+            $paginatedLogs->perPage(),
+            $paginatedLogs->currentPage(),
+            ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]
+        );
 
         return response()->json($logs);
     }
@@ -163,7 +203,21 @@ class ActivityLogController extends Controller
      */
     public function show($id)
     {
-        $log = Activity::with(['causer', 'subject'])->findOrFail($id);
+        $log = Activity::with([
+            'causer' => function ($q) {
+                if (method_exists($q->getModel(), 'withTrashed')) {
+                    $q->withTrashed();
+                }
+            },
+            'subject' => function ($q) {
+                if (method_exists($q->getModel(), 'withTrashed')) {
+                    $q->withTrashed();
+                }
+            }
+        ])->findOrFail($id);
+
+        // Safely get properties
+        $properties = $log->properties ?? collect([]);
 
         return response()->json([
             'success' => true,
@@ -175,7 +229,7 @@ class ActivityLogController extends Controller
                 'batch_uuid' => $log->batch_uuid,
                 
                 'subject' => [
-                    'type' => class_basename($log->subject_type),
+                    'type' => $log->subject_type ? class_basename($log->subject_type) : null,
                     'full_type' => $log->subject_type,
                     'id' => $log->subject_id,
                     'data' => $log->subject,
@@ -189,24 +243,36 @@ class ActivityLogController extends Controller
                     'data' => $log->causer,
                 ],
                 
-                'properties' => $log->properties,
+                'properties' => $properties,
                 
                 'changes' => [
-                    'attributes' => $log->properties->get('attributes', []),
-                    'old' => $log->properties->get('old', []),
+                    'attributes' => $properties instanceof \Illuminate\Support\Collection 
+                        ? $properties->get('attributes', []) 
+                        : ($properties['attributes'] ?? []),
+                    'old' => $properties instanceof \Illuminate\Support\Collection 
+                        ? $properties->get('old', []) 
+                        : ($properties['old'] ?? []),
                 ],
                 
                 'metadata' => [
-                    'ip_address' => $log->properties->get('ip_address'),
-                    'user_agent' => $log->properties->get('user_agent'),
-                    'url' => $log->properties->get('url'),
-                    'method' => $log->properties->get('method'),
+                    'ip_address' => $properties instanceof \Illuminate\Support\Collection 
+                        ? $properties->get('ip_address') 
+                        : ($properties['ip_address'] ?? null),
+                    'user_agent' => $properties instanceof \Illuminate\Support\Collection 
+                        ? $properties->get('user_agent') 
+                        : ($properties['user_agent'] ?? null),
+                    'url' => $properties instanceof \Illuminate\Support\Collection 
+                        ? $properties->get('url') 
+                        : ($properties['url'] ?? null),
+                    'method' => $properties instanceof \Illuminate\Support\Collection 
+                        ? $properties->get('method') 
+                        : ($properties['method'] ?? null),
                 ],
                 
-                'created_at' => $log->created_at->toIso8601String(),
-                'created_at_human' => $log->created_at->diffForHumans(),
-                'created_at_formatted' => $log->created_at->format('Y-m-d H:i:s'),
-                'updated_at' => $log->updated_at->toIso8601String(),
+                'created_at' => $log->created_at ? $log->created_at->toIso8601String() : null,
+                'created_at_human' => $log->created_at ? $log->created_at->diffForHumans() : null,
+                'created_at_formatted' => $log->created_at ? $log->created_at->format('Y-m-d H:i:s') : null,
+                'updated_at' => $log->updated_at ? $log->updated_at->toIso8601String() : null,
             ]
         ]);
     }
@@ -294,10 +360,18 @@ class ActivityLogController extends Controller
 
         $logs = Activity::where('subject_type', $modelType)
             ->where('subject_id', $modelId)
-            ->with(['causer'])
+            ->with([
+                'causer' => function ($q) {
+                    if (method_exists($q->getModel(), 'withTrashed')) {
+                        $q->withTrashed();
+                    }
+                }
+            ])
             ->orderByDesc('created_at')
             ->get()
             ->map(function ($log) {
+                $properties = $log->properties ?? collect([]);
+                
                 return [
                     'id' => $log->id,
                     'event' => $log->event,
@@ -307,11 +381,15 @@ class ActivityLogController extends Controller
                         'name' => $log->causer ? ($log->causer->name ?? $log->causer->email ?? 'Unknown') : 'System',
                     ],
                     'changes' => [
-                        'attributes' => $log->properties->get('attributes', []),
-                        'old' => $log->properties->get('old', []),
+                        'attributes' => $properties instanceof \Illuminate\Support\Collection 
+                            ? $properties->get('attributes', []) 
+                            : ($properties['attributes'] ?? []),
+                        'old' => $properties instanceof \Illuminate\Support\Collection 
+                            ? $properties->get('old', []) 
+                            : ($properties['old'] ?? []),
                     ],
-                    'created_at' => $log->created_at->toIso8601String(),
-                    'created_at_human' => $log->created_at->diffForHumans(),
+                    'created_at' => $log->created_at ? $log->created_at->toIso8601String() : null,
+                    'created_at_human' => $log->created_at ? $log->created_at->diffForHumans() : null,
                 ];
             });
 
@@ -328,7 +406,13 @@ class ActivityLogController extends Controller
      */
     public function exportCsv(Request $request)
     {
-        $query = Activity::query()->with(['causer']);
+        $query = Activity::query()->with([
+            'causer' => function ($q) {
+                if (method_exists($q->getModel(), 'withTrashed')) {
+                    $q->withTrashed();
+                }
+            }
+        ]);
 
         // Apply same filters as index
         $this->applyFilters($query, $request);
@@ -361,16 +445,20 @@ class ActivityLogController extends Controller
 
             // CSV Rows
             foreach ($logs as $log) {
+                $properties = $log->properties ?? collect([]);
+                
                 fputcsv($file, [
                     $log->id,
                     $log->event,
                     $log->description,
-                    class_basename($log->subject_type),
+                    $log->subject_type ? class_basename($log->subject_type) : 'N/A',
                     $log->subject_id,
                     $log->causer_type ? class_basename($log->causer_type) : 'System',
                     $log->causer ? ($log->causer->name ?? $log->causer->email ?? 'Unknown') : 'System',
-                    $log->properties->get('ip_address', 'N/A'),
-                    $log->created_at->format('Y-m-d H:i:s'),
+                    $properties instanceof \Illuminate\Support\Collection 
+                        ? $properties->get('ip_address', 'N/A') 
+                        : ($properties['ip_address'] ?? 'N/A'),
+                    $log->created_at ? $log->created_at->format('Y-m-d H:i:s') : 'N/A',
                 ]);
             }
 
@@ -387,7 +475,13 @@ class ActivityLogController extends Controller
      */
     public function exportExcel(Request $request)
     {
-        $query = Activity::query()->with(['causer']);
+        $query = Activity::query()->with([
+            'causer' => function ($q) {
+                if (method_exists($q->getModel(), 'withTrashed')) {
+                    $q->withTrashed();
+                }
+            }
+        ]);
 
         // Apply same filters as index
         $this->applyFilters($query, $request);
@@ -426,8 +520,13 @@ class ActivityLogController extends Controller
             ]);
 
             foreach ($logs as $log) {
-                $old = $log->properties->get('old', []);
-                $new = $log->properties->get('attributes', []);
+                $properties = $log->properties ?? collect([]);
+                $old = $properties instanceof \Illuminate\Support\Collection 
+                    ? $properties->get('old', []) 
+                    : ($properties['old'] ?? []);
+                $new = $properties instanceof \Illuminate\Support\Collection 
+                    ? $properties->get('attributes', []) 
+                    : ($properties['attributes'] ?? []);
                 $changes = [];
                 
                 foreach ($new as $key => $value) {
@@ -440,14 +539,20 @@ class ActivityLogController extends Controller
                     $log->id,
                     $log->event,
                     $log->description,
-                    class_basename($log->subject_type),
+                    $log->subject_type ? class_basename($log->subject_type) : 'N/A',
                     $log->subject_id,
                     $log->causer_type ? class_basename($log->causer_type) : 'System',
                     $log->causer ? ($log->causer->name ?? $log->causer->email ?? 'Unknown') : 'System',
-                    $log->properties->get('ip_address', 'N/A'),
-                    $log->properties->get('url', 'N/A'),
-                    $log->properties->get('method', 'N/A'),
-                    $log->created_at->format('Y-m-d H:i:s'),
+                    $properties instanceof \Illuminate\Support\Collection 
+                        ? $properties->get('ip_address', 'N/A') 
+                        : ($properties['ip_address'] ?? 'N/A'),
+                    $properties instanceof \Illuminate\Support\Collection 
+                        ? $properties->get('url', 'N/A') 
+                        : ($properties['url'] ?? 'N/A'),
+                    $properties instanceof \Illuminate\Support\Collection 
+                        ? $properties->get('method', 'N/A') 
+                        : ($properties['method'] ?? 'N/A'),
+                    $log->created_at ? $log->created_at->format('Y-m-d H:i:s') : 'N/A',
                     implode('; ', $changes),
                 ]);
             }
