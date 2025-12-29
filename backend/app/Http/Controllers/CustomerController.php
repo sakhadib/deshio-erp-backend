@@ -595,7 +595,7 @@ class CustomerController extends Controller
             ]);
         }
 
-        $customer->load(['createdBy', 'assignedEmployee']);
+        $customer->load(['createdBy', 'assignedEmployee', 'addresses']);
 
         return response()->json([
             'success' => true,

@@ -375,6 +375,43 @@ class OrderController extends Controller
                 'order_date' => now(),
             ]);
 
+            // Save shipping address to customer_addresses table if provided
+            // This ensures Pathao integration data is stored for later use
+            if ($request->filled('shipping_address') && is_array($request->shipping_address)) {
+                $shippingData = $request->shipping_address;
+                
+                // Only create if we have essential address info
+                if (!empty($shippingData['address_line_1']) || !empty($shippingData['city'])) {
+                    // Check if this exact address already exists for the customer
+                    $existingAddress = \App\Models\CustomerAddress::where('customer_id', $customer->id)
+                        ->where('address_line_1', $shippingData['address_line_1'] ?? '')
+                        ->where('city', $shippingData['city'] ?? '')
+                        ->first();
+                    
+                    if (!$existingAddress) {
+                        \App\Models\CustomerAddress::create([
+                            'customer_id' => $customer->id,
+                            'type' => 'shipping',
+                            'name' => $shippingData['name'] ?? $customer->name,
+                            'phone' => $shippingData['phone'] ?? $customer->phone,
+                            'address_line_1' => $shippingData['address_line_1'] ?? '',
+                            'address_line_2' => $shippingData['address_line_2'] ?? null,
+                            'city' => $shippingData['city'] ?? '',
+                            'state' => $shippingData['state'] ?? null,
+                            'postal_code' => $shippingData['postal_code'] ?? null,
+                            'country' => $shippingData['country'] ?? 'Bangladesh',
+                            'pathao_city_id' => $shippingData['pathao_city_id'] ?? null,
+                            'pathao_zone_id' => $shippingData['pathao_zone_id'] ?? null,
+                            'pathao_area_id' => $shippingData['pathao_area_id'] ?? null,
+                            'landmark' => $shippingData['landmark'] ?? null,
+                            'delivery_instructions' => $shippingData['delivery_instructions'] ?? null,
+                            'is_default_shipping' => false,  // Don't override existing default
+                            'is_default_billing' => false,
+                        ]);
+                    }
+                }
+            }
+
             // Add items
             $subtotal = 0;
             $taxTotal = 0;
