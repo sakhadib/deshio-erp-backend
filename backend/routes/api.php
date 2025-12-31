@@ -8,6 +8,7 @@ use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\VendorPaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductSearchController;
+use App\Http\Controllers\ReportingController;
 use App\Http\Controllers\ContactMessageController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\ProductImageController;
@@ -1481,6 +1482,18 @@ Route::middleware('auth:api')->group(function () {
         
         // Batch Lookup - All barcodes and history for a batch
         Route::get('/batch/{batchId}', [\App\Http\Controllers\LookupController::class, 'batchLookup']);
+    });
+
+    // ============================================
+    // REPORTING / EXPORTS
+    // CSV/Excel exports for sales analysis and reporting
+    // ============================================
+    
+    Route::prefix('reporting')->group(function () {
+        // Category Sales Report
+        Route::get('/csv/category-sales', [\App\Http\Controllers\ReportingController::class, 'exportCategorySalesCsv']);
+        // Sales Report
+        Route::get('/csv/sales', [\App\Http\Controllers\ReportingController::class, 'exportSalesCsv']);
     });
 
 }); // End of auth:api middleware group
