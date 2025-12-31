@@ -46,4 +46,22 @@ Downloads a detailed CSV report with order-level sales data including customer, 
 
 **Response**: CSV file download (`sales-report-{timestamp}.csv`)
 
+---
+
+## Stock CSV Export
+
+**Endpoint**: `GET /api/reporting/csv/stock`
+
+Downloads a detailed CSV report of product stock levels with sold quantities and stock values. Data is organized by product batches since pricing is attached to batches.
+
+**Query Parameters**:
+- `store_id` (optional): Filter by specific store
+- `category_id` (optional): Filter by product category
+- `product_id` (optional): Filter by specific product
+- `include_inactive` (optional): Include inactive batches (default: false)
+
+**CSV Columns**: Category, Product Code (SKU), Product Name, Product Brand, Product Description, Batch Number, Sold Quantity, Sub Total (sales revenue), Remaining Stock Quantity, Stock Volume (value of remaining stock)
+
+**Response**: CSV file download (`stock-report-{timestamp}.csv`)
+
 **Example**: `GET /api/reporting/csv/category-sales?status=confirmed` (only confirmed orders)

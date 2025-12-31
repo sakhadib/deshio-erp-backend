@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Models\ProductReturn;
 use App\Models\Refund;
 use Illuminate\Http\Request;
@@ -454,6 +456,179 @@ class ReportingController extends Controller
                     $deliveryArea,
                     $paymentMethod,
                     ucfirst(str_replace('_', ' ', $order->status ?? 'N/A')),
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return Response::stream($callback, 200, $headers);
+    }
+
+    /**
+     * Export stock report as CSV
+     * 
+     * GET /api/reporting/csv/stock
+     * 
+     * Query Parameters:
+     * - store_id: Filter by specific store - optional
+     * - category_id: Filter by category - optional
+     * - product_id: Filter by product - optional
+     * - include_inactive: Include inactive batches (default: false) - optional
+     * 
+     * Response: CSV file download with product stock details including:
+     * - Category, Product Code (SKU), Product Name, Product Brand, Product Description
+     * - Sold Quantity (total sold from this batch)
+     * - Sub Total (total sales revenue from this batch)
+     * - Remaining Stock Quantity
+     * - Stock Volume (remaining quantity × sell price)
+     */
+    public function exportStockCsv(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'store_id' => 'nullable|exists:stores,id',
+            'category_id' => 'nullable|exists:categories,id',
+            'product_id' => 'nullable|exists:products,id',
+            'include_inactive' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Build query for product batches with relationships
+        $query = ProductBatch::query()
+            ->with(['product.category', 'store'])
+            ->whereNull('product_batches.deleted_at');
+
+        // Join products to access category and product details
+        $query->join('products', 'product_batches.product_id', '=', 'products.id')
+            ->whereNull('products.deleted_at');
+
+        // Filters
+        if ($request->filled('store_id')) {
+            $query->where('product_batches.store_id', $request->store_id);
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('products.category_id', $request->category_id);
+        }
+
+        if ($request->filled('product_id')) {
+            $query->where('product_batches.product_id', $request->product_id);
+        }
+
+        // By default, only show active batches
+        if (!$request->boolean('include_inactive')) {
+            $query->where('product_batches.is_active', true);
+        }
+
+        // Select batch fields
+        $query->select('product_batches.*');
+
+        $batches = $query->orderBy('products.category_id')
+            ->orderBy('products.sku')
+            ->orderBy('product_batches.batch_number')
+            ->get();
+
+        // Calculate sold quantities for each batch
+        $batchIds = $batches->pluck('id')->toArray();
+        
+        $soldQuantities = [];
+        $soldSubtotals = [];
+        
+        if (!empty($batchIds)) {
+            $orderItemsData = OrderItem::query()
+                ->whereIn('product_batch_id', $batchIds)
+                ->whereHas('order', function($q) {
+                    $q->whereNull('deleted_at');
+                })
+                ->selectRaw('product_batch_id, SUM(quantity) as total_sold, SUM(total_amount) as total_revenue')
+                ->groupBy('product_batch_id')
+                ->get()
+                ->keyBy('product_batch_id');
+            
+            foreach ($orderItemsData as $batchId => $data) {
+                $soldQuantities[$batchId] = $data->total_sold;
+                $soldSubtotals[$batchId] = $data->total_revenue;
+            }
+        }
+
+        // Generate CSV
+        $filename = 'stock-report-' . now()->format('Y-m-d-His') . '.csv';
+        
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function() use ($batches, $soldQuantities, $soldSubtotals) {
+            $file = fopen('php://output', 'w');
+            
+            // Add BOM for Excel UTF-8 support
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            // CSV Headers
+            fputcsv($file, [
+                'Category',
+                'Product Code',
+                'Product Name',
+                'Product Brand',
+                'Product Description',
+                'Batch Number',
+                'Sold Quantity',
+                'Sub Total',
+                'Remaining Stock Quantity',
+                'Stock Volume',
+                'Store',
+            ]);
+
+            // CSV Rows - One row per batch
+            foreach ($batches as $batch) {
+                $product = $batch->product;
+                
+                // Category
+                $categoryName = $product && $product->category ? $product->category->title : 'N/A';
+                
+                // Product identification
+                $productCode = $product ? $product->sku : 'N/A';
+                $productName = $product ? $product->name : 'N/A';
+                $productBrand = $product && $product->brand ? $product->brand : 'N/A';
+                $productDescription = $product && $product->description ? $product->description : 'N/A';
+                
+                // Batch number
+                $batchNumber = $batch->batch_number ?? 'N/A';
+                
+                // Sold quantity and subtotal
+                $soldQty = $soldQuantities[$batch->id] ?? 0;
+                $soldSubtotal = $soldSubtotals[$batch->id] ?? 0;
+                
+                // Remaining stock
+                $remainingStock = floatval($batch->quantity);
+                
+                // Stock volume = remaining quantity × sell price
+                $sellPrice = floatval($batch->sell_price);
+                $stockVolume = $remainingStock * $sellPrice;
+                
+                // Store name
+                $storeName = $batch->store ? $batch->store->name : 'N/A';
+                
+                // Write row
+                fputcsv($file, [
+                    $categoryName,
+                    $productCode,
+                    $productName,
+                    $productBrand,
+                    $productDescription,
+                    $batchNumber,
+                    number_format($soldQty, 0),
+                    number_format($soldSubtotal, 2),
+                    number_format($remainingStock, 0),
+                    number_format($stockVolume, 2),
+                    $storeName,
                 ]);
             }
 
