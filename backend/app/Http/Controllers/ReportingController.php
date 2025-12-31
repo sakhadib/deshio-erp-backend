@@ -637,4 +637,173 @@ class ReportingController extends Controller
 
         return Response::stream($callback, 200, $headers);
     }
+
+    /**
+     * Export booking (order items) report as CSV
+     * 
+     * GET /api/reporting/csv/booking
+     * 
+     * Query Parameters:
+     * - date_from: Start date (YYYY-MM-DD) - optional
+     * - date_to: End date (YYYY-MM-DD) - optional
+     * - store_id: Filter by specific store - optional
+     * - status: Filter by order status - optional
+     * - customer_id: Filter by customer - optional
+     * - product_id: Filter by product - optional
+     * 
+     * Response: CSV file download with booking details including:
+     * - Order Number, Customer Name, Customer Phone, Customer Code
+     * - Product Name, Product Code (SKU), Product Barcode, Quantity
+     * - Selling Price, Cost Price (from batch)
+     * - Payable (order total), Paid Amount, Due Amount
+     */
+    public function exportBookingCsv(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from',
+            'store_id' => 'nullable|exists:stores,id',
+            'status' => 'nullable|string',
+            'customer_id' => 'nullable|exists:customers,id',
+            'product_id' => 'nullable|exists:products,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Build query for order items with related data
+        $query = OrderItem::query()
+            ->with(['order.customer', 'product', 'batch', 'barcode'])
+            ->whereHas('order', function($q) use ($request) {
+                $q->whereNull('deleted_at');
+                
+                // Filters on order
+                if ($request->filled('status')) {
+                    $q->where('status', $request->status);
+                }
+                
+                if ($request->filled('date_from')) {
+                    $q->whereDate('order_date', '>=', $request->date_from);
+                }
+                
+                if ($request->filled('date_to')) {
+                    $q->whereDate('order_date', '<=', $request->date_to);
+                }
+                
+                if ($request->filled('customer_id')) {
+                    $q->where('customer_id', $request->customer_id);
+                }
+            });
+
+        // Filters on order items
+        if ($request->filled('store_id')) {
+            $query->where('store_id', $request->store_id);
+        }
+
+        if ($request->filled('product_id')) {
+            $query->where('product_id', $request->product_id);
+        }
+
+        $orderItems = $query->orderBy('created_at', 'desc')->get();
+
+        // Generate CSV
+        $filename = 'booking-report-' . now()->format('Y-m-d-His') . '.csv';
+        
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function() use ($orderItems) {
+            $file = fopen('php://output', 'w');
+            
+            // Add BOM for Excel UTF-8 support
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            // CSV Headers
+            fputcsv($file, [
+                'Order Number',
+                'Order Date',
+                'Customer Name',
+                'Customer Phone',
+                'Customer Code',
+                'Product Name',
+                'Product Code (SKU)',
+                'Product Barcode',
+                'Batch Number',
+                'Quantity',
+                'Selling Price',
+                'Cost Price',
+                'Item Subtotal',
+                'Payable (Order Total)',
+                'Paid Amount',
+                'Due Amount',
+            ]);
+
+            // CSV Rows - One row per order item
+            foreach ($orderItems as $item) {
+                $order = $item->order;
+                $customer = $order ? $order->customer : null;
+                $product = $item->product;
+                $batch = $item->batch;
+                $barcode = $item->barcode;
+                
+                // Customer info
+                $orderNumber = $order ? $order->order_number : 'N/A';
+                $orderDate = $order && $order->order_date ? $order->order_date->format('Y-m-d H:i:s') : 'N/A';
+                $customerName = $customer ? $customer->name : 'N/A';
+                $customerPhone = $customer ? $customer->phone : 'N/A';
+                $customerCode = $customer ? ($customer->customer_code ?? 'N/A') : 'N/A';
+                
+                // Product info
+                $productName = $item->product_name ?? 'N/A';
+                $productSku = $item->product_sku ?? 'N/A';
+                $productBarcode = $barcode ? $barcode->barcode : 'N/A';
+                $batchNumber = $batch ? $batch->batch_number : 'N/A';
+                
+                // Quantity
+                $quantity = floatval($item->quantity);
+                
+                // Pricing from batch
+                $sellingPrice = $batch ? floatval($batch->sell_price) : 0;
+                $costPrice = $batch ? floatval($batch->cost_price) : 0;
+                
+                // Item subtotal
+                $itemSubtotal = floatval($item->total_amount);
+                
+                // Order financial data
+                $payable = $order ? floatval($order->total_amount) : 0;
+                $paid = $order ? floatval($order->paid_amount) : 0;
+                $due = $order ? floatval($order->outstanding_amount) : 0;
+                
+                // Write row
+                fputcsv($file, [
+                    $orderNumber,
+                    $orderDate,
+                    $customerName,
+                    $customerPhone,
+                    $customerCode,
+                    $productName,
+                    $productSku,
+                    $productBarcode,
+                    $batchNumber,
+                    number_format($quantity, 0),
+                    number_format($sellingPrice, 2),
+                    number_format($costPrice, 2),
+                    number_format($itemSubtotal, 2),
+                    number_format($payable, 2),
+                    number_format($paid, 2),
+                    number_format($due, 2),
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return Response::stream($callback, 200, $headers);
+    }
 }

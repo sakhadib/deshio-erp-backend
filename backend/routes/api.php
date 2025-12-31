@@ -1496,6 +1496,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/csv/sales', [\App\Http\Controllers\ReportingController::class, 'exportSalesCsv']);
         // Stock Report
         Route::get('/csv/stock', [\App\Http\Controllers\ReportingController::class, 'exportStockCsv']);
+        // Booking Report
+        Route::get('/csv/booking', [\App\Http\Controllers\ReportingController::class, 'exportBookingCsv']);
     });
 
 }); // End of auth:api middleware group

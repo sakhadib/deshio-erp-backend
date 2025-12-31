@@ -65,3 +65,23 @@ Downloads a detailed CSV report of product stock levels with sold quantities and
 **Response**: CSV file download (`stock-report-{timestamp}.csv`)
 
 **Example**: `GET /api/reporting/csv/category-sales?status=confirmed` (only confirmed orders)
+
+---
+
+## Booking CSV Export
+
+**Endpoint**: `GET /api/reporting/csv/booking`
+
+Downloads a detailed CSV report of order bookings (order items) with customer information, product details including specific barcodes, and pricing from batches.
+
+**Query Parameters**:
+- `date_from` (optional): Start date filter (YYYY-MM-DD)
+- `date_to` (optional): End date filter (YYYY-MM-DD)
+- `store_id` (optional): Filter by specific store
+- `status` (optional): Order status filter (e.g., `confirmed`, `pending_assignment`)
+- `customer_id` (optional): Filter by customer
+- `product_id` (optional): Filter by specific product
+
+**CSV Columns**: Order Number, Order Date, Customer Name, Customer Phone, Customer Code, Product Name, Product Code (SKU), Product Barcode, Batch Number, Quantity, Selling Price (from batch), Cost Price (from batch), Item Subtotal, Payable (Order Total), Paid Amount, Due Amount
+
+**Response**: CSV file download (`booking-report-{timestamp}.csv`)
