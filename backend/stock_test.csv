@@ -1,0 +1,5 @@
+﻿Category,"Product Code","Product Name","Product Brand","Product Description","Batch Number","Sold Quantity","Sub Total","Remaining Stock Quantity","Stock Volume",Store
+Saree,sar01,"Khandani shari - Yellow",N/A,"Khandani jomidari shari",BATCH-20251125-341C1B,7,"12,532.00",3,"6,000.00","Main Store"
+Saree,sar01,"Khandani shari - Yellow",N/A,"Khandani jomidari shari",PO-20251125-000001-1,0,0.00,10,"20,000.00","Main Store"
+3PIECE,8000,"2450 JAMDANI 3PIECE - MAJENTA ORANGE",N/A,HALFSILK,BATCH-20251129-75C8ED,0,0.00,5,"12,250.00",MohammadPur
+3PIECE,8000,"2450 JAMDANI 3PIECE - ORANGE BLACK",N/A,HALFSILK,BATCH-20251129-F998A0,3,"7,350.00",5,"12,250.00",MohammadPur

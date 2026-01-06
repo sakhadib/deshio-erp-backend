@@ -501,8 +501,7 @@ class ReportingController extends Controller
 
         // Build query for product batches with relationships
         $query = ProductBatch::query()
-            ->with(['product.category', 'store'])
-            ->whereNull('product_batches.deleted_at');
+            ->with(['product.category', 'store']);
 
         // Join products to access category and product details
         $query->join('products', 'product_batches.product_id', '=', 'products.id')
