@@ -4,6 +4,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderPaymentController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\ServiceOrderController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\VendorPaymentController;
 use App\Http\Controllers\ProductController;
@@ -571,6 +572,38 @@ Route::middleware('auth:api')->group(function () {
             Route::patch('/deactivate', [ServiceController::class, 'deactivate']);
         });
     });
+
+    // ============================================
+    // SERVICE ORDERS ROUTES
+    // Customer service bookings and order management
+    // ============================================
+    
+    Route::prefix('service-orders')->group(function () {
+        // List and statistics
+        Route::get('/', [ServiceOrderController::class, 'index']);
+        Route::get('/statistics', [ServiceOrderController::class, 'getStatistics']);
+        
+        // Create service order
+        Route::post('/', [ServiceOrderController::class, 'store']);
+        
+        // Individual service order operations
+        Route::prefix('{id}')->group(function () {
+            Route::get('/', [ServiceOrderController::class, 'show']);
+            Route::put('/', [ServiceOrderController::class, 'update']);
+            
+            // Status changes
+            Route::patch('/confirm', [ServiceOrderController::class, 'confirm']);
+            Route::patch('/start', [ServiceOrderController::class, 'start']);
+            Route::patch('/complete', [ServiceOrderController::class, 'complete']);
+            Route::patch('/cancel', [ServiceOrderController::class, 'cancel']);
+            
+            // Payments
+            Route::post('/payments', [ServiceOrderController::class, 'addPayment']);
+        });
+    });
+    
+    // Customer service orders
+    Route::get('/customers/{customerId}/service-orders', [ServiceOrderController::class, 'getByCustomer']);
 
     // ============================================
     // EXPENSE MANAGEMENT ROUTES
