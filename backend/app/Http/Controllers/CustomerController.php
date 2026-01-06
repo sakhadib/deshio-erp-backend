@@ -789,4 +789,116 @@ class CustomerController extends Controller
             'data' => $uniqueTags
         ]);
     }
+
+    /**
+     * Public customer registration - No authentication required
+     * Includes all customer table fields for maximum flexibility
+     */
+    public function publicRegistration(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            // Required fields
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string|unique:customers,phone',
+            
+            // Optional authentication
+            'email' => 'nullable|email|unique:customers,email',
+            'password' => 'nullable|string|min:6',
+            
+            // Customer type (defaults to ecommerce if not provided)
+            'customer_type' => 'nullable|in:counter,social_commerce,ecommerce',
+            
+            // Address fields
+            'address' => 'nullable|string',
+            'city' => 'nullable|string|max:100',
+            'state' => 'nullable|string|max:100',
+            'postal_code' => 'nullable|string|max:20',
+            'country' => 'nullable|string|max:100',
+            
+            // Personal information
+            'date_of_birth' => 'nullable|date|before:today',
+            'gender' => 'nullable|in:male,female,other',
+            
+            // Preferences and social
+            'preferences' => 'nullable|array',
+            'social_profiles' => 'nullable|array',
+            'social_profiles.facebook' => 'nullable|string|max:255',
+            'social_profiles.instagram' => 'nullable|string|max:255',
+            'social_profiles.twitter' => 'nullable|string|max:255',
+            'social_profiles.linkedin' => 'nullable|string|max:255',
+            
+            // Additional fields
+            'notes' => 'nullable|string',
+            'tags' => 'nullable|array',
+            'tags.*' => 'string|max:50',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $data = $request->only([
+                'name',
+                'phone',
+                'email',
+                'password',
+                'customer_type',
+                'address',
+                'city',
+                'state',
+                'postal_code',
+                'country',
+                'date_of_birth',
+                'gender',
+                'preferences',
+                'social_profiles',
+                'notes',
+                'tags',
+            ]);
+
+            // Set defaults
+        $data['customer_type'] = $data['customer_type'] ?? 'ecommerce';
+            $data['country'] = $data['country'] ?? 'Bangladesh';
+            
+            // Hash password if provided
+            if (!empty($data['password'])) {
+                $data['password'] = Hash::make($data['password']);
+            }
+
+            // Generate unique customer code
+            $data['customer_code'] = 'CUST-' . strtoupper(substr(md5(uniqid(rand(), true)), 0, 8));
+
+            $customer = Customer::create($data);
+
+            DB::commit();
+
+            // Return customer data without password
+            $customer->makeHidden(['password', 'remember_token']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Customer registered successfully',
+                'data' => [
+                    'customer' => $customer,
+                    'customer_code' => $customer->customer_code,
+                ]
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Registration failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

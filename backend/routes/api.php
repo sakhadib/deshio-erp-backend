@@ -70,6 +70,13 @@ Route::post('/guest-checkout', [\App\Http\Controllers\GuestCheckoutController::c
 Route::post('/guest-orders/by-phone', [\App\Http\Controllers\GuestCheckoutController::class, 'getOrdersByPhone']);
 
 // ============================================
+// PUBLIC CUSTOMER REGISTRATION
+// Open registration form for customers (no auth required)
+// ============================================
+
+Route::post('/customer-registration', [CustomerController::class, 'publicRegistration']);
+
+// ============================================
 // E-COMMERCE CUSTOMER AUTHENTICATION ROUTES
 // Customer registration, login, password reset
 // ============================================
