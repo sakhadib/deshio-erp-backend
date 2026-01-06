@@ -368,7 +368,17 @@ class GuestCheckoutController extends Controller
      */
     public function getOrdersByPhone(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        // Clean phone number BEFORE validation to handle various formats:
+        // - "mobile no 01712345678"
+        // - "+8801712345678" 
+        // - "017-123-45678"
+        // - Bengali text prefixes
+        $cleanPhone = preg_replace('/[^0-9+]/', '', $request->phone);
+        
+        // Remove international prefix +88 for Bangladesh numbers
+        $cleanPhone = preg_replace('/^\+88/', '', $cleanPhone);
+        
+        $validator = Validator::make(['phone' => $cleanPhone], [
             'phone' => 'required|string|min:10|max:20',
         ]);
 
@@ -379,8 +389,6 @@ class GuestCheckoutController extends Controller
                 'errors' => $validator->errors(),
             ], 422);
         }
-
-        $cleanPhone = preg_replace('/[^0-9+]/', '', $request->phone);
         
         $customer = Customer::where('phone', $cleanPhone)->first();
 
