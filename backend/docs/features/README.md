@@ -16,6 +16,7 @@
 ### **Products & Inventory**
 - `CATEGORY_HARD_DELETE_API.md` - Permanent category deletion
 - `DISPATCH_BARCODE_SYSTEM.md` - Barcode tracking and dispatch system
+- `PRODUCT_COMMON_INFO_UPDATE_API.md` - Update product common info across all variants
 - `VENDOR_OPTIONAL_FIELD.md` - Product vendor field configuration
 
 ### **Customers**

@@ -485,4 +485,47 @@ class CategoriesController extends Controller
             ]
         ]);
     }
+
+    /**
+     * Permanently delete a category (hard delete)
+     * 
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function hardDeleteCategory($id)
+    {
+        // Find category including soft deleted ones
+        $category = Category::withTrashed()->findOrFail($id);
+
+        // Check if category has children (including soft deleted)
+        $childrenCount = Category::withTrashed()->where('parent_id', $id)->count();
+        if ($childrenCount > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot permanently delete category with subcategories. Delete subcategories first.'
+            ], 400);
+        }
+
+        // Check if category has products
+        if ($category->products()->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot permanently delete category with associated products. Remove products first.'
+            ], 400);
+        }
+
+        // Delete image if exists
+        if ($category->image && Storage::disk('public')->exists($category->image)) {
+            Storage::disk('public')->delete($category->image);
+        }
+
+        // Permanently delete the category
+        $categoryTitle = $category->title;
+        $category->forceDelete();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Category '{$categoryTitle}' has been permanently deleted"
+        ]);
+    }
 }

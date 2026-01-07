@@ -481,6 +481,7 @@ Route::middleware('auth:api')->group(function () {
             Route::get('/', [CategoriesController::class, 'getCategory']);
             Route::put('/', [CategoriesController::class, 'updateCategory']);
             Route::delete('/', [CategoriesController::class, 'deleteCategory']);
+            Route::delete('/hard-delete', [CategoriesController::class, 'hardDeleteCategory']);
             Route::patch('/activate', [CategoriesController::class, 'activateCategory']);
             Route::patch('/deactivate', [CategoriesController::class, 'deactivateCategory']);
             

@@ -158,11 +158,11 @@ class Order extends Model
 
         // Check for overdue payments
         if ($this->next_payment_due && now()->gt($this->next_payment_due) && $this->outstanding_amount > 0) {
-            $this->payment_status = 'overdue';
+            $this->payment_status = 'unpaid'; // Changed from 'overdue' to match ENUM
         } elseif ($totalPaid >= $totalAmount) {
             $this->payment_status = 'paid';
         } elseif ($totalPaid > 0) {
-            $this->payment_status = 'partially_paid';
+            $this->payment_status = 'partial'; // Changed from 'partially_paid' to match ENUM
         } else {
             $this->payment_status = 'pending';
         }
@@ -215,8 +215,11 @@ class Order extends Model
 
     public function isPaymentOverdue(): bool
     {
-        return $this->payment_status === 'overdue' ||
-               ($this->next_payment_due && now()->gt($this->next_payment_due) && $this->outstanding_amount > 0);
+        // Since 'overdue' was removed from ENUM, check if unpaid AND past due date
+        return ($this->payment_status === 'unpaid' || $this->payment_status === 'partial') &&
+               $this->next_payment_due && 
+               now()->gt($this->next_payment_due) && 
+               $this->outstanding_amount > 0;
     }
 
     public function getDaysOverdue(): int
