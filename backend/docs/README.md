@@ -12,6 +12,7 @@ docs/
 ├── README.md (this file)
 ├── accounting/          # Financial & accounting system
 ├── features/            # Feature documentation & API specs
+├── product/             # Product management API documentation
 ├── integrations/        # Third-party integrations
 ├── guides/              # Implementation & quick start guides
 ├── fixes/               # Bug fixes & issue resolutions
@@ -29,7 +30,8 @@ docs/
 |----------|-------|-------------|
 | 💰 Accounting | [accounting/](accounting/) | Chart of accounts, COGS, financial reports |
 | ⚡ Features | [features/](features/) | API documentation for all features |
-| 🔌 Integrations | [integrations/](integrations/) | Pathao courier, payment gateways |
+| � Product | [product/](product/) | Product, variant, and barcode APIs |
+| �🔌 Integrations | [integrations/](integrations/) | Pathao courier, payment gateways |
 | 📖 Guides | [guides/](guides/) | Frontend integration, quick starts |
 | 🔧 Fixes | [fixes/](fixes/) | Bug fixes and issue resolutions |
 | 🧪 Testing | [testing/](testing/) | Testing guides and procedures |
@@ -101,7 +103,39 @@ API documentation and feature specifications
 **Total:** 15+ feature documents
 
 ---
+product/** 📦
+Comprehensive product management API documentation
 
+**Core APIs:**
+- **Product API** - CRUD operations, custom fields, bulk updates
+- **Product Variants API** - Size/color matrices, variant management
+- **Product Barcodes API** - Barcode generation, scanning, location tracking
+
+**Coverage:**
+- Product creation and management
+- Custom fields and attributes
+- Variant matrix generation
+- Barcode scanning workflows
+- Location and movement tracking
+- Statistics and analytics
+
+**Key Features:**
+- Inherited vs variant-specific fields
+- Bulk operations (category, vendor updates)
+- Matr5x generation for clothing products
+- Complete barcode lifecycle tracking
+- Integration with inventory and POS
+
+**Start:** [product/README.md](product/README.md)
+
+**Key Files:**
+- `2026_01_13_PRODUCT_API.md` - Product management
+- `2026_01_13_PRODUCT_VARIANTS_API.md` - Variant operations
+- `2026_01_13_PRODUCT_BARCODES_API.md` - Barcode system
+
+---
+
+### **4. 
 ### **3. integrations/** 🔌
 Third-party service integration guides
 
@@ -137,7 +171,7 @@ Implementation guides and quick starts
 
 ---
 
-### **5. fixes/** 🔧
+### **6. fixes/** 🔧
 Bug fixes, issue resolutions, and changelogs
 
 **Recent Fixes:**
