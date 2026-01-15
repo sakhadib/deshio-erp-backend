@@ -229,26 +229,27 @@ class ProductDispatch extends Model
         foreach ($this->items as $item) {
             $item->update(['status' => 'dispatched']);
             
-            // If barcodes were scanned, they are already marked as in_transit
-            // If not scanned, mark all barcodes of the source batch as in_transit
+            // Load scanned barcodes
             $item->load('scannedBarcodes');
-            if ($item->scannedBarcodes->count() === 0) {
-                // No individual barcode scanning done, so update batch barcodes
-                ProductBarcode::where('batch_id', $item->product_batch_id)
-                    ->where('current_store_id', $this->source_store_id)
-                    ->where('current_status', 'available')
-                    ->limit($item->quantity)
-                    ->update([
+            
+            if ($item->scannedBarcodes->count() > 0) {
+                // Barcodes were scanned - update their status from 'reserved' to 'in_transit'
+                foreach ($item->scannedBarcodes as $barcode) {
+                    $barcode->update([
                         'current_status' => 'in_transit',
                         'location_updated_at' => now(),
-                        'location_metadata' => [
-                            'dispatch_number' => $this->dispatch_number,
-                            'destination_store_id' => $this->destination_store_id,
-                            'source_store_id' => $this->source_store_id,
+                        'location_metadata' => array_merge($barcode->location_metadata ?? [], [
                             'dispatched_at' => now()->toISOString(),
-                            'quantity_transferred' => $item->quantity,
-                        ]
+                            'status_changed_to_in_transit' => now()->toISOString(),
+                        ])
                     ]);
+                }
+            } else {
+                // ERROR: Cannot dispatch without scanning barcodes!
+                throw new \Exception(
+                    "Cannot dispatch item without scanning barcodes. " .
+                    "Please scan {$item->quantity} barcode(s) for this item before sending."
+                );
             }
         }
 

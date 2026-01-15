@@ -454,8 +454,8 @@ class ProductDispatchController extends Controller
     }
 
     /**
-     * Scan barcode for a dispatch item
-     * This must be done before marking dispatch as delivered
+     * Scan barcode for a dispatch item at SOURCE STORE
+     * This should be done BEFORE marking dispatch as in_transit (sending)
      * 
      * POST /api/dispatches/{id}/items/{itemId}/scan-barcode
      * Body: {
@@ -473,11 +473,11 @@ class ProductDispatchController extends Controller
             ], 404);
         }
 
-        // Can only scan barcodes when dispatch is in_transit
-        if ($dispatch->status !== 'in_transit') {
+        // Can scan barcodes when dispatch is pending (before sending) or in_transit
+        if (!in_array($dispatch->status, ['pending', 'in_transit'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Barcodes can only be scanned when dispatch is in transit'
+                'message' => 'Barcodes can only be scanned for pending or in-transit dispatches'
             ], 422);
         }
 
@@ -525,10 +525,18 @@ class ProductDispatchController extends Controller
             }
 
             // Validate barcode is at the source store
-            if ($barcode->store_id !== $dispatch->source_store_id) {
+            if ($barcode->current_store_id !== $dispatch->source_store_id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Barcode is not currently at the source store'
+                ], 422);
+            }
+
+            // Validate barcode is available (not already in transit, sold, etc.)
+            if ($barcode->current_status !== 'available') {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Barcode is not available for dispatch. Current status: {$barcode->current_status}"
                 ], 422);
             }
 
@@ -548,14 +556,15 @@ class ProductDispatchController extends Controller
                     'success' => false,
                     'message' => "All required barcodes have already been scanned ({$item->quantity} of {$item->quantity})"
                 ], 422);
-            }
-
-            // Attach barcode to dispatch item
-            $item->scannedBarcodes()->attach($barcode->id, [
-                'scanned_at' => now(),
-                'scanned_by' => auth()->id()
-            ]);
-            
+            }Mark barcode as reserved for this dispatch (not in_transit yet)
+            // It will be marked as in_transit when dispatch is actually sent
+            $barcode->update([
+                'current_status' => $dispatch->status === 'in_transit' ? 'in_transit' : 'reserved',
+                'location_updated_at' => now(),
+                'location_metadata' => [
+                    'dispatch_number' => $dispatch->dispatch_number,
+                    'destination_store_id' => $dispatch->destination_store_id,
+                    'scanned_for_dispatch
             // Update barcode status to in_transit when scanned for dispatch
             $barcode->update([
                 'current_status' => 'in_transit',

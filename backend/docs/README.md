@@ -135,8 +135,27 @@ Comprehensive product management API documentation
 
 ---
 
-### **4. 
-### **3. integrations/** 🔌
+### **4. dispatch/** 📦🚚
+Store-to-store product dispatch and transfer system
+
+**Overview:**
+- Inter-store product transfers with barcode tracking
+- Mandatory barcode scanning at source and destination
+- Real-time inventory updates across stores
+- Complete audit trail of product movements
+
+**Workflow:**
+1. Source store creates dispatch and scans barcodes
+2. Approval and shipment marking
+3. Destination store receives and scans barcodes
+4. Automatic inventory reconciliation
+
+**Key Files:**
+- `2026_01_16_DISPATCH_BARCODE_WORKFLOW.md` - Complete workflow guide with all APIs
+
+---
+
+### **5. integrations/** 🔌
 Third-party service integration guides
 
 **Pathao Courier:**
