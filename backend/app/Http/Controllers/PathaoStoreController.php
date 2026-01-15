@@ -247,4 +247,124 @@ class PathaoStoreController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Check if a single order was sent via Pathao
+     * 
+     * GET /api/pathao/orders/lookup/{orderNumber}
+     */
+    public function checkOrderPathaoStatus($orderNumber)
+    {
+        try {
+            $order = \App\Models\Order::where('order_number', $orderNumber)->first();
+
+            if (!$order) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Order not found'
+                ], 404);
+            }
+
+            // Check if order has any shipment with Pathao consignment ID
+            $shipment = $order->shipments()
+                ->whereNotNull('pathao_consignment_id')
+                ->first();
+
+            $isSentViaPathao = !is_null($shipment);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'order_number' => $order->order_number,
+                    'order_id' => $order->id,
+                    'is_sent_via_pathao' => $isSentViaPathao,
+                    'pathao_consignment_id' => $shipment ? $shipment->pathao_consignment_id : null,
+                    'pathao_status' => $shipment ? $shipment->pathao_status : null,
+                    'shipment_status' => $shipment ? $shipment->status : null,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error checking order status: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Check if multiple orders were sent via Pathao (bulk lookup)
+     * 
+     * POST /api/pathao/orders/lookup/bulk
+     * Body: { "order_numbers": ["ORD-001", "ORD-002", ...] }
+     */
+    public function bulkCheckOrderPathaoStatus(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'order_numbers' => 'required|array|min:1|max:100',
+            'order_numbers.*' => 'required|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $orderNumbers = $request->order_numbers;
+
+            // Fetch all orders with their shipments
+            $orders = \App\Models\Order::with(['shipments' => function($query) {
+                $query->whereNotNull('pathao_consignment_id');
+            }])
+            ->whereIn('order_number', $orderNumbers)
+            ->get();
+
+            // Build result array
+            $results = [];
+            foreach ($orderNumbers as $orderNumber) {
+                $order = $orders->firstWhere('order_number', $orderNumber);
+
+                if (!$order) {
+                    $results[] = [
+                        'order_number' => $orderNumber,
+                        'order_id' => null,
+                        'is_sent_via_pathao' => false,
+                        'found' => false,
+                        'error' => 'Order not found'
+                    ];
+                    continue;
+                }
+
+                $shipment = $order->shipments->first();
+                $isSentViaPathao = !is_null($shipment);
+
+                $results[] = [
+                    'order_number' => $order->order_number,
+                    'order_id' => $order->id,
+                    'is_sent_via_pathao' => $isSentViaPathao,
+                    'found' => true,
+                    'pathao_consignment_id' => $shipment ? $shipment->pathao_consignment_id : null,
+                    'pathao_status' => $shipment ? $shipment->pathao_status : null,
+                    'shipment_status' => $shipment ? $shipment->status : null,
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'total_requested' => count($orderNumbers),
+                'total_found' => $orders->count(),
+                'data' => $results
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error performing bulk lookup: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

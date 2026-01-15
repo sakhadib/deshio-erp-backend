@@ -1039,6 +1039,10 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/cities/{cityId}/zones', [\App\Http\Controllers\PathaoStoreController::class, 'getZones']);
         Route::get('/zones/{zoneId}/areas', [\App\Http\Controllers\PathaoStoreController::class, 'getAreas']);
         
+        // Order Pathao status lookup
+        Route::get('/orders/lookup/{orderNumber}', [\App\Http\Controllers\PathaoStoreController::class, 'checkOrderPathaoStatus']);
+        Route::post('/orders/lookup/bulk', [\App\Http\Controllers\PathaoStoreController::class, 'bulkCheckOrderPathaoStatus']);
+        
         // Store registration with Pathao
         Route::prefix('stores')->group(function () {
             Route::post('/{storeId}/register', [\App\Http\Controllers\PathaoStoreController::class, 'registerStore']);
