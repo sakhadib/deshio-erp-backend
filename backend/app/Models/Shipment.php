@@ -530,7 +530,7 @@ class Shipment extends Model
         return $this;
     }
 
-    protected function addStatusHistory($status, $note = null)
+    public function addStatusHistory($status, $note = null)
     {
         $history = $this->status_history ?? [];
         $history[] = [

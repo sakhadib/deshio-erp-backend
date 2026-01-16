@@ -353,24 +353,21 @@ class ShipmentController extends Controller
 
             $data = $result['data'] ?? [];
 
-                $shipment->pathao_consignment_id = $data['consignment_id'] ?? null;
-                $shipment->pathao_tracking_number = $data['invoice_id'] ?? null;
-                $shipment->pathao_status = 'pickup_requested';
-                $shipment->pathao_response = $result['response'];
-                $shipment->status = 'pickup_requested';
-                $shipment->pickup_requested_at = now();
-                
-                if (isset($data['delivery_fee'])) {
-                    $shipment->delivery_fee = $data['delivery_fee'];
-                }
-
-                $shipment->addStatusHistory('pickup_requested', 'Sent to Pathao. Consignment ID: ' . ($data['consignment_id'] ?? 'N/A'));
-                $shipment->save();
-
-                return $shipment;
+            $shipment->pathao_consignment_id = $data['consignment_id'] ?? null;
+            $shipment->pathao_tracking_number = $data['invoice_id'] ?? null;
+            $shipment->pathao_status = 'pickup_requested';
+            $shipment->pathao_response = $result['response'];
+            $shipment->status = 'pickup_requested';
+            $shipment->pickup_requested_at = now();
+            
+            if (isset($data['delivery_fee'])) {
+                $shipment->delivery_fee = $data['delivery_fee'];
             }
 
-            throw new \Exception('Invalid response from Pathao API');
+            $shipment->addStatusHistory('pickup_requested', 'Sent to Pathao. Consignment ID: ' . ($data['consignment_id'] ?? 'N/A'));
+            $shipment->save();
+
+            return $shipment;
 
         } catch (\Exception $e) {
             \Log::error('Pathao API Error - Send Shipment', [

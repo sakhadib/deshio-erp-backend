@@ -55,10 +55,9 @@ class PathaoService
                     throw new \Exception('Pathao credentials missing: ' . implode(', ', $missing) . '. Check .env and clear config cache.');
                 }
 
-                // Use asForm() for better compatibility with OAuth password grant
+                // Pathao requires JSON format (NOT form-encoded)
                 $response = Http::timeout(30)
                     ->acceptJson()
-                    ->asForm()
                     ->post("{$this->baseUrl}/aladdin/api/v1/issue-token", [
                         'client_id' => $this->clientId,
                         'client_secret' => $this->clientSecret,
