@@ -38,6 +38,7 @@ return [
         'username' => env('PATHAO_USERNAME'),
         'password' => env('PATHAO_PASSWORD'),
         'store_id' => env('PATHAO_STORE_ID'),
+        'auto_location' => env('PATHAO_AUTO_LOCATION', true),  // Let Pathao infer location from address
     ],
 
 ];

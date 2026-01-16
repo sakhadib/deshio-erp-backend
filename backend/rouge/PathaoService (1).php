@@ -26,17 +26,6 @@ class PathaoService
     }
 
     /**
-     * Set store ID dynamically for multi-store operations
-     * @param int|string $storeId Pathao store ID
-     * @return self
-     */
-    public function setStoreId($storeId)
-    {
-        $this->storeId = $storeId;
-        return $this;
-    }
-
-    /**
      * Get access token from Pathao API
      */
     public function getAccessToken()
@@ -45,17 +34,18 @@ class PathaoService
 
         return Cache::remember($cacheKey, now()->addMinutes(50), function () {
             try {
-                // Fail fast with clear message if credentials are missing
+                // Fail fast with a clear message if credentials are missing in the running environment
                 $missing = [];
                 if (empty($this->clientId)) $missing[] = 'PATHAO_CLIENT_ID';
                 if (empty($this->clientSecret)) $missing[] = 'PATHAO_CLIENT_SECRET';
                 if (empty($this->username)) $missing[] = 'PATHAO_USERNAME';
                 if (empty($this->password)) $missing[] = 'PATHAO_PASSWORD';
                 if (!empty($missing)) {
-                    throw new \Exception('Pathao credentials missing: ' . implode(', ', $missing) . '. Check .env and clear config cache.');
+                    throw new \Exception('Pathao credentials missing: ' . implode(', ', $missing) . '. Check backend .env / server env and clear config cache.');
                 }
 
-                // Use asForm() for better compatibility with OAuth password grant
+                // Pathao token endpoint behaves like an OAuth password grant and commonly expects form-encoded payload.
+                // Using asForm() makes the request compatible with more environments than JSON posts.
                 $response = Http::timeout(30)
                     ->acceptJson()
                     ->asForm()
@@ -78,7 +68,9 @@ class PathaoService
                     'response' => $response->body(),
                 ]);
 
-                $bodySnippet = mb_substr($response->body() ?? '', 0, 500);
+                $body = $response->body();
+                // Keep error message small but informative (avoid leaking secrets)
+                $bodySnippet = mb_substr($body ?? '', 0, 500);
                 throw new \Exception('Failed to get Pathao access token (HTTP ' . $response->status() . '): ' . $bodySnippet);
 
             } catch (\Exception $e) {
@@ -340,17 +332,14 @@ class PathaoService
     /**
      * Prepare order data for Pathao API
      */
-    public function prepareOrderData($shipment, $overrideStoreId = null)
+    public function prepareOrderData($shipment)
     {
         $store = $shipment->store;
         $customer = $shipment->customer;
         $order = $shipment->order;
 
-        // Use store's pathao_store_id if available, otherwise use configured/override
-        $pathaoStoreId = $overrideStoreId ?? ($store->pathao_store_id ?? $this->storeId);
-
         return [
-            'store_id' => (int) $pathaoStoreId,
+            'store_id' => $this->storeId,
             'merchant_order_id' => $shipment->shipment_number,
             'recipient_name' => $shipment->recipient_name ?? $customer->name,
             'recipient_phone' => $shipment->recipient_phone ?? $customer->phone,

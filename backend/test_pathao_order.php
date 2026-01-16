@@ -51,8 +51,7 @@ try {
     
     echo "   Pathao Base URL: " . config('services.pathao.base_url') . "\n";
     echo "   Client ID: " . config('services.pathao.client_id') . "\n";
-    echo "   Username: " . config('services.pathao.username') . "\n";
-    echo "   Store ID: 329652\n\n";
+    echo "   Username: " . config('services.pathao.username') . "\n\n";
     
     // Get access token
     echo "   🔐 Obtaining access token...\n";
@@ -119,7 +118,7 @@ try {
             'phone' => '01700000002',
             'email' => 'store@deshio.com',
             'is_active' => true,
-            'pathao_store_id' => 329652,  // Provided Pathao store ID
+            'pathao_store_id' => '261222',  // Correct store ID for deshioltd@gmail.com
             'pathao_contact_name' => 'Store Manager',
             'pathao_contact_number' => '01700000002',
             'pathao_city_id' => $dhakaCity['city_id'] ?? 1,
@@ -129,17 +128,17 @@ try {
         echo "   ✅ Created store: {$store->name}\n";
     } else {
         $store->update([
-            'pathao_store_id' => 329652,
+            'pathao_store_id' => '261222',  // Correct store ID for deshioltd@gmail.com
             'pathao_contact_name' => 'Store Manager',
             'pathao_contact_number' => '01700000002',
         ]);
         echo "   ✅ Updated existing store: {$store->name}\n";
     }
     
-    echo "   📦 Pathao Store ID: {$store->pathao_store_id}\n";
+    echo "   📦 Pathao Store ID (from DB): {$store->pathao_store_id}\n";
     echo "   📍 Pickup City: " . ($dhakaCity['city_name'] ?? 'N/A') . "\n";
     
-    echo "\n✅ STEP 2 COMPLETE: Store configured with Pathao!\n\n";
+    echo "\n✅ STEP 2 COMPLETE: Store configured with Pathao (Store ID from database)!\n\n";
     
     // ============================================================
     // STEP 3: Create Admin User (AFTER Store)
@@ -241,7 +240,7 @@ try {
     $customer = Customer::where('email', 'customer.uttara@test.com')->first();
     if (!$customer) {
         $customer = Customer::create([
-            'name' => 'Uttara Customer',
+            'name' => 'Mueed bhaiya',
             'email' => 'customer.uttara@test.com',
             'phone' => '01700000003',
             'address' => '32, Sector 7, Uttara, Dhaka-1230',
@@ -384,7 +383,7 @@ try {
         // Prepare Pathao order data
         echo "   📡 Preparing Pathao order data...\n";
         $pathaoOrderData = [
-            'store_id' => 329652,
+            'store_id' => (int) $store->pathao_store_id,  // Using store's Pathao ID from database
             'merchant_order_id' => $order->order_number,
             'recipient_name' => $customer->name,
             'recipient_phone' => $customer->phone,
@@ -412,12 +411,29 @@ try {
         echo "      Weight: {$pathaoOrderData['item_weight']} kg\n";
         echo "      COD: {$pathaoOrderData['amount_to_collect']} BDT\n\n";
         
-        // Send to Pathao
+        // Send to Pathao using PathaoService (same as production)
         echo "   🚀 Sending order to Pathao...\n";
-        $pathaoResponse = PathaoCourier::order()->create($pathaoOrderData);
+        try {
+            // Use PathaoService like the production system does
+            $pathaoService->setStoreId($store->pathao_store_id);
+            $result = $pathaoService->createOrder($pathaoOrderData);
+            
+            if (!$result['success']) {
+                echo "\n   ❌ Pathao API Error:\n";
+                echo "      Error: " . ($result['error'] ?? 'Unknown error') . "\n";
+                echo "      Response: " . json_encode($result['response'] ?? [], JSON_PRETTY_PRINT) . "\n";
+                throw new Exception("Pathao API error: " . ($result['error'] ?? 'Unknown error'));
+            }
+            
+            $pathaoResponse = $result['response'];
+        } catch (\Exception $e) {
+            echo "\n   ❌ Exception:\n";
+            echo "      Message: " . $e->getMessage() . "\n";
+            throw $e;
+        }
         
         // Convert response to array if it's an object
-        $responseArray = json_decode(json_encode($pathaoResponse), true);
+        $responseArray = is_array($pathaoResponse) ? $pathaoResponse : json_decode(json_encode($pathaoResponse), true);
         
         // Check if response has either 'data' field or direct response fields
         if ($responseArray && (isset($responseArray['data']) || isset($responseArray['consignment_id']))) {

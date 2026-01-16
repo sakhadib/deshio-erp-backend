@@ -5,12 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Shipment;
 use App\Models\Order;
 use App\Models\Store;
-use App\Traits\DatabaseAgnosticSearch;
 use App\Services\PathaoService;
+use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Codeboxr\PathaoCourier\Facade\PathaoCourier;
 
 class ShipmentController extends Controller
 {
@@ -233,8 +234,8 @@ class ShipmentController extends Controller
      */
     public function sendToPathao($shipmentOrId)
     {
-        $shipment = $shipmentOrId instanceof Shipment 
-            ? $shipmentOrId 
+        $shipment = $shipmentOrId instanceof Shipment
+            ? $shipmentOrId
             : Shipment::with(['order', 'store'])->findOrFail($shipmentOrId);
 
         if (!$shipment->isPending()) {
@@ -250,10 +251,11 @@ class ShipmentController extends Controller
             $store = $shipment->store;
             $deliveryAddress = is_array($shipment->delivery_address) ? $shipment->delivery_address : [];
 
-            // Auto-location: let Pathao infer city/zone/area from address text
+            // When enabled, Pathao can infer city/zone/area from the address text.
+            // If we send recipient_city/zone/area incorrectly (or require them), the auto-mapping feature can't work.
             $autoLocation = config('services.pathao.auto_location', true);
 
-            // Build complete address string for Pathao auto-mapping
+            // Build a strong address string for Pathao auto-mapping.
             $addressParts = [
                 $deliveryAddress['address_line_1'] ?? $deliveryAddress['street'] ?? $deliveryAddress['address'] ?? null,
                 $deliveryAddress['address_line_2'] ?? null,
@@ -264,7 +266,9 @@ class ShipmentController extends Controller
             ];
 
             $addressParts = array_values(array_filter(array_map(function ($value) {
-                if ($value === null) return null;
+                if ($value === null) {
+                    return null;
+                }
                 if (is_scalar($value)) {
                     $s = trim((string) $value);
                     return $s === '' ? null : $s;
@@ -274,10 +278,9 @@ class ShipmentController extends Controller
 
             $recipientAddress = implode(', ', $addressParts);
 
-            // Validate Pathao requirements
+            // Validate requirements
             $validationErrors = [];
-            
-            // Check store has Pathao configuration
+
             if (!$store->pathao_store_id) {
                 $validationErrors[] = 'Store not registered with Pathao. Please configure store Pathao details first.';
             }
@@ -290,7 +293,7 @@ class ShipmentController extends Controller
                 && !empty($deliveryAddress['pathao_zone_id'])
                 && !empty($deliveryAddress['pathao_area_id']);
 
-            // If auto-location disabled, require manual IDs
+            // If auto-location is disabled, require manual IDs.
             if (!$autoLocation && !$hasLocationIds) {
                 if (empty($deliveryAddress['pathao_city_id'])) {
                     $validationErrors[] = 'Delivery address missing Pathao city ID';
@@ -302,27 +305,29 @@ class ShipmentController extends Controller
                     $validationErrors[] = 'Delivery address missing Pathao area ID';
                 }
             }
-            
-            // If validation errors, throw exception with details
+
             if (!empty($validationErrors)) {
                 throw new \Exception('Cannot send to Pathao: ' . implode('; ', $validationErrors));
             }
 
             // Calculate total weight from order items
-            $totalWeight = $order->items->sum(function($item) {
+            $totalWeight = $order->items->sum(function ($item) {
                 return ($item->product->weight ?? 0.5) * $item->quantity;
             });
             $totalWeight = max($totalWeight, 0.1); // Minimum 0.1kg
 
             // Prepare Pathao order data
             $pathaoData = [
-                'store_id' => (int) $store->pathao_store_id,
+                'store_id' => $store->pathao_store_id,
                 'merchant_order_id' => $order->order_number,
                 'recipient_name' => $shipment->recipient_name,
                 'recipient_phone' => $shipment->recipient_phone,
-                'recipient_address' => $recipientAddress,  // Complete address for auto-mapping
-                'delivery_type' => $shipment->delivery_type === 'express' ? 12 : 48,  // 12=express, 48=normal
-                'item_type' => 2,  // 1=document, 2=parcel
+
+                // IMPORTANT: for auto-mapping, send a complete address string
+                'recipient_address' => $recipientAddress,
+
+                'delivery_type' => $shipment->delivery_type === 'express' ? 12 : 48, // 12=express, 48=normal
+                'item_type' => 2, // 1=document, 2=parcel
                 'special_instruction' => $shipment->special_instructions ?? '',
                 'item_quantity' => $order->items->sum('quantity'),
                 'item_weight' => $totalWeight,
@@ -330,17 +335,16 @@ class ShipmentController extends Controller
                 'item_description' => $shipment->getPackageDescription(),
             ];
 
-            // If location IDs available (manual selection), include them
-            // Otherwise omit so Pathao can infer from recipient_address
+            // If location IDs are available (manual selection), include them.
+            // Otherwise omit them so Pathao can infer from recipient_address.
             if ($hasLocationIds) {
                 $pathaoData['recipient_city'] = $deliveryAddress['pathao_city_id'];
                 $pathaoData['recipient_zone'] = $deliveryAddress['pathao_zone_id'];
                 $pathaoData['recipient_area'] = $deliveryAddress['pathao_area_id'];
             }
 
-            // Call Pathao API using PathaoService
+            // Call Pathao API (direct service to avoid package-level validation issues)
             $pathaoService = new PathaoService();
-            $pathaoService->setStoreId($store->pathao_store_id);
             $result = $pathaoService->createOrder($pathaoData);
 
             if (empty($result['success'])) {
@@ -353,33 +357,31 @@ class ShipmentController extends Controller
 
             $data = $result['data'] ?? [];
 
-                $shipment->pathao_consignment_id = $data['consignment_id'] ?? null;
-                $shipment->pathao_tracking_number = $data['invoice_id'] ?? null;
-                $shipment->pathao_status = 'pickup_requested';
-                $shipment->pathao_response = $result['response'];
-                $shipment->status = 'pickup_requested';
-                $shipment->pickup_requested_at = now();
-                
-                if (isset($data['delivery_fee'])) {
-                    $shipment->delivery_fee = $data['delivery_fee'];
-                }
+            $shipment->pathao_consignment_id = $data['consignment_id'] ?? null;
+            $shipment->pathao_tracking_number = $data['invoice_id'] ?? null;
+            $shipment->pathao_status = 'pickup_requested';
+            $shipment->pathao_response = $result['response'] ?? $result;
+            $shipment->status = 'pickup_requested';
+            $shipment->pickup_requested_at = now();
 
-                $shipment->addStatusHistory('pickup_requested', 'Sent to Pathao. Consignment ID: ' . ($data['consignment_id'] ?? 'N/A'));
-                $shipment->save();
-
-                return $shipment;
+            if (isset($data['delivery_fee'])) {
+                $shipment->delivery_fee = $data['delivery_fee'];
             }
 
-            throw new \Exception('Invalid response from Pathao API');
+            $shipment->addStatusHistory('pickup_requested', 'Sent to Pathao. Consignment ID: ' . ($data['consignment_id'] ?? 'N/A'));
+            $shipment->save();
+
+            return $shipment;
 
         } catch (\Exception $e) {
             \Log::error('Pathao API Error - Send Shipment', [
                 'shipment_id' => $shipment->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
     }
+
 
     /**
      * Bulk send shipments to Pathao
