@@ -181,6 +181,139 @@ class ServiceController extends Controller
     }
 
     /**
+     * Hard delete a service (force delete)
+     * 
+     * DELETE /api/services/{id}/force
+     */
+    public function forceDestroy($id)
+    {
+        $service = Service::findOrFail($id);
+        
+        // Check if service has orders
+        $orderCount = ServiceOrder::where('service_id', $id)->count();
+        if ($orderCount > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cannot force delete service. It has {$orderCount} order(s) associated with it.",
+                'order_count' => $orderCount
+            ], 400);
+        }
+
+        $serviceName = $service->name;
+        $serviceCode = $service->service_code;
+        
+        // Delete related service fields
+        $service->serviceFields()->delete();
+        
+        // Detach field relationships
+        $service->fields()->detach();
+        
+        // Force delete the service
+        $service->forceDelete();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Service '{$serviceName}' (Code: {$serviceCode}) permanently deleted",
+            'deleted_service' => [
+                'name' => $serviceName,
+                'code' => $serviceCode
+            ]
+        ]);
+    }
+
+    /**
+     * Bulk delete services (hard delete)
+     * 
+     * POST /api/services/bulk-delete
+     * Body: {
+     *   "service_ids": [1, 2, 3],
+     *   "force": true
+     * }
+     */
+    public function bulkDelete(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'service_ids' => 'required|array|min:1',
+            'service_ids.*' => 'exists:services,id',
+            'force' => 'nullable|boolean'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $serviceIds = $request->service_ids;
+        $force = $request->boolean('force', false);
+        
+        $results = [
+            'deleted' => [],
+            'failed' => [],
+            'summary' => [
+                'total_requested' => count($serviceIds),
+                'deleted_count' => 0,
+                'failed_count' => 0
+            ]
+        ];
+
+        foreach ($serviceIds as $serviceId) {
+            try {
+                $service = Service::findOrFail($serviceId);
+                
+                // Check for orders
+                $orderCount = ServiceOrder::where('service_id', $serviceId)->count();
+                
+                if ($orderCount > 0) {
+                    $results['failed'][] = [
+                        'id' => $serviceId,
+                        'name' => $service->name,
+                        'code' => $service->service_code,
+                        'reason' => "Has {$orderCount} order(s)"
+                    ];
+                    $results['summary']['failed_count']++;
+                    continue;
+                }
+                
+                $serviceName = $service->name;
+                $serviceCode = $service->service_code;
+                
+                if ($force) {
+                    // Hard delete
+                    $service->serviceFields()->delete();
+                    $service->fields()->detach();
+                    $service->forceDelete();
+                } else {
+                    // Soft delete
+                    $service->delete();
+                }
+                
+                $results['deleted'][] = [
+                    'id' => $serviceId,
+                    'name' => $serviceName,
+                    'code' => $serviceCode,
+                    'type' => $force ? 'permanent' : 'soft'
+                ];
+                $results['summary']['deleted_count']++;
+                
+            } catch (\Exception $e) {
+                $results['failed'][] = [
+                    'id' => $serviceId,
+                    'reason' => $e->getMessage()
+                ];
+                $results['summary']['failed_count']++;
+            }
+        }
+
+        return response()->json([
+            'success' => $results['summary']['deleted_count'] > 0,
+            'message' => "Deleted {$results['summary']['deleted_count']} service(s), {$results['summary']['failed_count']} failed",
+            'data' => $results
+        ]);
+    }
+
+    /**
      * Activate a service
      */
     public function activate($id)

@@ -562,6 +562,7 @@ Route::middleware('auth:api')->group(function () {
         
         // Bulk operations
         Route::patch('/bulk/status', [ServiceController::class, 'bulkUpdateStatus']);
+        Route::post('/bulk-delete', [ServiceController::class, 'bulkDelete']);
         Route::patch('/reorder', [ServiceController::class, 'reorder']);
         
         // Individual service operations
@@ -569,6 +570,7 @@ Route::middleware('auth:api')->group(function () {
             Route::get('/', [ServiceController::class, 'show']);
             Route::put('/', [ServiceController::class, 'update']);
             Route::delete('/', [ServiceController::class, 'destroy']);
+            Route::delete('/force', [ServiceController::class, 'forceDestroy']);
             Route::patch('/activate', [ServiceController::class, 'activate']);
             Route::patch('/deactivate', [ServiceController::class, 'deactivate']);
         });
