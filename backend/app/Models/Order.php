@@ -54,6 +54,7 @@ class Order extends Model
         'shipped_by',
         'tracking_number',
         'carrier_name',
+        'intended_courier',
         'metadata',
         'payment_schedule',
         'payment_history',

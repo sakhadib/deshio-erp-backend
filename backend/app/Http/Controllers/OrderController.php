@@ -1854,4 +1854,219 @@ class OrderController extends Controller
             'total_tax' => $taxPerUnit * $quantity,
         ];
     }
+
+    /**
+     * Set intended courier for an order
+     * 
+     * PATCH /api/orders/{id}/set-courier
+     * Body: { "intended_courier": "pathao" }
+     */
+    public function setIntendedCourier(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'intended_courier' => 'required|string|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $order = Order::findOrFail($id);
+
+        $order->update([
+            'intended_courier' => $request->intended_courier
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Intended courier set successfully',
+            'data' => [
+                'order_number' => $order->order_number,
+                'intended_courier' => $order->intended_courier
+            ]
+        ]);
+    }
+
+    /**
+     * Get orders by intended courier with search and sort
+     * 
+     * GET /api/orders/by-courier?courier=pathao&status=pending&sort_by=created_at&sort_order=desc
+     */
+    public function getOrdersByCourier(Request $request)
+    {
+        $query = Order::with([
+            'customer',
+            'store',
+            'items.product'
+        ]);
+
+        // Filter by intended courier (required)
+        if ($request->filled('courier')) {
+            $query->where('intended_courier', $request->courier);
+        } else {
+            // If no courier specified, group by courier
+            $couriers = Order::whereNotNull('intended_courier')
+                ->select('intended_courier', DB::raw('COUNT(*) as order_count'))
+                ->groupBy('intended_courier')
+                ->get();
+            
+            return response()->json([
+                'success' => true,
+                'data' => $couriers
+            ]);
+        }
+
+        // Additional filters
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('store_id')) {
+            $query->where('store_id', $request->store_id);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->where('order_date', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->where('order_date', '<=', $request->date_to);
+        }
+
+        // Search
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $this->whereLike($q, 'order_number', $request->search);
+                $q->orWhereHas('customer', function ($customerQuery) use ($request) {
+                    $this->whereLike($customerQuery, 'name', $request->search);
+                    $this->orWhereLike($customerQuery, 'phone', $request->search);
+                });
+            });
+        }
+
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        $orders = $query->paginate($request->input('per_page', 20));
+
+        $formattedOrders = [];
+        foreach ($orders as $order) {
+            $formattedOrders[] = $this->formatOrderResponse($order);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'current_page' => $orders->currentPage(),
+                'data' => $formattedOrders,
+                'first_page_url' => $orders->url(1),
+                'from' => $orders->firstItem(),
+                'last_page' => $orders->lastPage(),
+                'last_page_url' => $orders->url($orders->lastPage()),
+                'next_page_url' => $orders->nextPageUrl(),
+                'path' => $orders->path(),
+                'per_page' => $orders->perPage(),
+                'prev_page_url' => $orders->previousPageUrl(),
+                'to' => $orders->lastItem(),
+                'total' => $orders->total(),
+                'courier' => $request->courier
+            ]
+        ]);
+    }
+
+    /**
+     * Lookup single order by intended courier
+     * 
+     * GET /api/orders/lookup-courier/{orderId}
+     */
+    public function lookupOrderCourier($orderId)
+    {
+        $order = Order::with(['customer', 'store'])
+            ->findOrFail($orderId);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'intended_courier' => $order->intended_courier,
+                'status' => $order->status,
+                'customer_name' => $order->customer->name,
+                'store_name' => $order->store?->name,
+                'total_amount' => $order->total_amount,
+                'created_at' => $order->created_at->format('Y-m-d H:i:s'),
+            ]
+        ]);
+    }
+
+    /**
+     * Bulk lookup orders by IDs
+     * 
+     * POST /api/orders/bulk-lookup-courier
+     * Body: { "order_ids": [1, 2, 3] }
+     */
+    public function bulkLookupCourier(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'order_ids' => 'required|array|min:1',
+            'order_ids.*' => 'integer|exists:orders,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $orders = Order::with(['customer', 'store'])
+            ->whereIn('id', $request->order_ids)
+            ->get();
+
+        $results = $orders->map(function ($order) {
+            return [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'intended_courier' => $order->intended_courier,
+                'status' => $order->status,
+                'customer_name' => $order->customer->name,
+                'store_name' => $order->store?->name,
+                'total_amount' => $order->total_amount,
+                'created_at' => $order->created_at->format('Y-m-d H:i:s'),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'total_orders' => $results->count(),
+                'orders' => $results
+            ]
+        ]);
+    }
+
+    /**
+     * Get available couriers (distinct values)
+     * 
+     * GET /api/orders/available-couriers
+     */
+    public function getAvailableCouriers()
+    {
+        $couriers = Order::whereNotNull('intended_courier')
+            ->select('intended_courier', DB::raw('COUNT(*) as order_count'))
+            ->groupBy('intended_courier')
+            ->orderBy('order_count', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $couriers
+        ]);
+    }
 }
+
