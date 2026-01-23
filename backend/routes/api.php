@@ -1554,6 +1554,33 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/csv/booking', [\App\Http\Controllers\ReportingController::class, 'exportBookingCsv']);
     });
 
+    // ============================================
+    // AD CAMPAIGN MANAGEMENT
+    // Manage advertising campaigns and product attribution
+    // ============================================
+    
+    Route::prefix('ad-campaigns')->group(function () {
+        // Campaign CRUD
+        Route::get('/', [\App\Http\Controllers\AdCampaignController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\AdCampaignController::class, 'store']);
+        Route::get('/{id}', [\App\Http\Controllers\AdCampaignController::class, 'show']);
+        Route::put('/{id}', [\App\Http\Controllers\AdCampaignController::class, 'update']);
+        Route::patch('/{id}/status', [\App\Http\Controllers\AdCampaignController::class, 'updateStatus']);
+        Route::delete('/{id}', [\App\Http\Controllers\AdCampaignController::class, 'destroy']);
+        
+        // Product Targeting
+        Route::post('/{id}/products', [\App\Http\Controllers\AdCampaignController::class, 'addProducts']);
+        Route::get('/{id}/products', [\App\Http\Controllers\AdCampaignController::class, 'listProducts']);
+        Route::delete('/{id}/products/{mappingId}', [\App\Http\Controllers\AdCampaignController::class, 'removeProduct']);
+        
+        // Reporting
+        Route::get('/reports/leaderboard', [\App\Http\Controllers\AdCampaignReportController::class, 'leaderboard']);
+        Route::get('/reports/health', [\App\Http\Controllers\AdCampaignReportController::class, 'attributionHealth']);
+        Route::get('/{id}/reports/summary', [\App\Http\Controllers\AdCampaignReportController::class, 'summary']);
+        Route::get('/{id}/reports/products', [\App\Http\Controllers\AdCampaignReportController::class, 'productBreakdown']);
+        Route::get('/{id}/reports/orders', [\App\Http\Controllers\AdCampaignReportController::class, 'ordersList']);
+    });
+
 }); // End of auth:api middleware group
 
 // ============================================
