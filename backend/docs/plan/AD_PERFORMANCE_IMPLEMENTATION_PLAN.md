@@ -150,8 +150,9 @@ Schema::create('order_item_attribution_summary', function (Blueprint $table) {
 
 ---
 
-### **Phase 2: Models & Relationships** (Day 2-3)
+### **Phase 2: Models & Relationships** (Day 2-3) ✅ COMPLETED
 **Goal:** Create Eloquent models with proper relationships and business logic
+**Completed:** January 23, 2026
 
 #### 2.1 `AdCampaign` Model
 **Location:** `app/Models/AdCampaign.php`
@@ -409,15 +410,16 @@ class OrderItemCampaignCredit extends Model
 ```
 
 **Deliverables:**
-- ✅ 3 model files with complete relationships
-- ✅ Business logic methods (isActiveAt, canTransitionTo, etc.)
-- ✅ Query scopes for attribution queries
-- ✅ Proper type casting for dates and decimals
+- ✅ 3 model files with complete relationships (COMPLETED - Jan 23, 2026)
+- ✅ Business logic methods (isActiveAt, canTransitionTo, etc.) (COMPLETED - Jan 23, 2026)
+- ✅ Query scopes for attribution queries (COMPLETED - Jan 23, 2026)
+- ✅ Proper type casting for dates and decimals (COMPLETED - Jan 23, 2026)
 
 ---
 
-### **Phase 3: Attribution Engine (Core Logic)** (Day 3-5)
+### **Phase 3: Attribution Engine (Core Logic)** (Day 3-5) ✅ COMPLETED
 **Goal:** Build the attribution computation system - the heart of the feature
+**Completed:** January 23, 2026
 
 #### 3.1 Create `AdAttributionService`
 **Location:** `app/Services/AdAttributionService.php`
@@ -643,16 +645,17 @@ class AdAttributionService
 4. **Logging:** Extensive logging for debugging attribution issues
 
 **Deliverables:**
-- ✅ Attribution service with core algorithm
-- ✅ Campaign matching logic with effective dating
-- ✅ Credit computation (FULL + SPLIT modes)
-- ✅ Reversal and unreversal support
-- ✅ Comprehensive logging
+- ✅ Attribution service with core algorithm (COMPLETED - Jan 23, 2026)
+- ✅ Campaign matching logic with effective dating (COMPLETED - Jan 23, 2026)
+- ✅ Credit computation (FULL + SPLIT modes) (COMPLETED - Jan 23, 2026)
+- ✅ Reversal and unreversal support (COMPLETED - Jan 23, 2026)
+- ✅ Comprehensive logging (COMPLETED - Jan 23, 2026)
 
 ---
 
-### **Phase 4: Event Listeners & Automation** (Day 5-6)
+### **Phase 4: Event Listeners & Automation** (Day 5-6) ✅ COMPLETED
 **Goal:** Trigger attribution automatically on order status changes
+**Completed:** January 23, 2026
 
 #### 4.1 Update `OrderObserver`
 **Location:** `app/Observers/OrderObserver.php`
@@ -670,8 +673,9 @@ public function updated(Order $order)
         $oldStatus = $order->getOriginal('status');
         $newStatus = $order->status;
         
-        // Define countable statuses (configure based on business rules)
-        $countableStatuses = ['confirmed', 'processing', 'delivered', 'completed'];
+        // Define countable statuses (based on actual system status values)
+        // System statuses: pending, confirmed, processing, ready_for_pickup, shipped, delivered, cancelled, refunded
+        $countableStatuses = ['confirmed', 'processing', 'shipped', 'delivered'];
         
         // Define reversal statuses
         $reversalStatuses = ['cancelled', 'refunded'];
@@ -821,7 +825,7 @@ class BackfillAdAttributionJob implements ShouldQueue
     {
         $this->fromDate = $fromDate;
         $this->toDate = $toDate;
-        $this->statuses = $statuses ?? ['confirmed', 'processing', 'delivered', 'completed'];
+        $this->statuses = $statuses ?? ['confirmed', 'processing', 'shipped', 'delivered'];
     }
     
     /**
@@ -869,11 +873,11 @@ class BackfillAdAttributionJob implements ShouldQueue
 ```
 
 **Deliverables:**
-- ✅ Observer hooks into Order model for automatic attribution
-- ✅ Background job for attribution computation
-- ✅ Backfill job for historical data
-- ✅ Retry logic and error handling
-- ✅ Comprehensive logging for monitoring
+- ✅ Observer hooks into Order model for automatic attribution (COMPLETED - Jan 23, 2026)
+- ✅ Background job for attribution computation (COMPLETED - Jan 23, 2026)
+- ✅ Backfill job for historical data (COMPLETED - Jan 23, 2026)
+- ✅ Retry logic and error handling (COMPLETED - Jan 23, 2026)
+- ✅ Comprehensive logging for monitoring (COMPLETED - Jan 23, 2026)
 
 ---
 
@@ -2391,9 +2395,9 @@ php artisan config:cache
 | Phase | Duration | Dependencies | Risk Level | Priority | Status |
 |-------|----------|--------------|------------|----------|--------|
 | 1. Database Foundation | 1-2 days | None | Low | Critical | ✅ DONE (Jan 23) |
-| 2. Models & Relationships | 1 day | Phase 1 | Low | Critical | ⏳ Ready |
-| 3. Attribution Engine | 2-3 days | Phase 2 | **High** | Critical |
-| 4. Event Automation | 1-2 days | Phase 3 | Medium | Critical |
+| 2. Models & Relationships | 1 day | Phase 1 | Low | Critical | ✅ DONE (Jan 23) |
+| 3. Attribution Engine | 2-3 days | Phase 2 | **High** | Critical | ✅ DONE (Jan 23) |
+| 4. Event Automation | 1-2 days | Phase 3 | Medium | Critical | ✅ DONE (Jan 23) |
 | 5. Campaign Management APIs | 2-3 days | Phase 2 | Low | High |
 | 6. Reporting APIs | 2-3 days | Phase 3 | Medium | High |
 | 7. Admin Utilities | 1-2 days | Phase 3 | Low | Medium |
