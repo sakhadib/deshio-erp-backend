@@ -1130,6 +1130,10 @@ Route::middleware('auth:api')->group(function () {
             // Custom field management
             Route::post('/custom-fields', [ProductController::class, 'updateCustomField']);
             Route::delete('/custom-fields/{fieldId}', [ProductController::class, 'removeCustomField']);
+            
+            // Common Edit - Update base_name across all SKU group products
+            Route::put('/common-info', [ProductController::class, 'updateCommonInfo']);
+            Route::get('/sku-group', [ProductController::class, 'getSkuGroup']);
         });
     });
 

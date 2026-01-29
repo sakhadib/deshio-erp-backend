@@ -22,6 +22,12 @@ class Product extends Model
      * Stock is managed through ProductBatch.
      * 
      * If SKU is not provided during creation, a unique 9-digit number is auto-generated.
+     * 
+     * COMMON EDIT FEATURE:
+     * - base_name: The core product name (e.g., "saree")
+     * - variation_suffix: The variation identifier (e.g., "-red-30")
+     * - name: Display name = base_name + variation_suffix (auto-computed on save)
+     * When base_name is updated for a SKU group, all display names update automatically.
      */
 
     protected $fillable = [
@@ -30,6 +36,8 @@ class Product extends Model
         'brand',
         'sku',
         'name',
+        'base_name',
+        'variation_suffix',
         'description',
         'is_archived',
     ];
@@ -40,6 +48,7 @@ class Product extends Model
 
     /**
      * Boot method to auto-generate SKU if not provided
+     * and auto-compute name from base_name + variation_suffix
      */
     protected static function boot()
     {
@@ -48,6 +57,24 @@ class Product extends Model
         static::creating(function ($product) {
             if (empty($product->sku)) {
                 $product->sku = static::generateUniqueSku();
+            }
+            
+            // Auto-set base_name if not provided (for backward compatibility)
+            if (empty($product->base_name) && !empty($product->name)) {
+                $product->base_name = $product->name;
+                $product->variation_suffix = '';
+            }
+            
+            // Auto-compute name from base_name + variation_suffix
+            if (!empty($product->base_name)) {
+                $product->name = $product->base_name . ($product->variation_suffix ?? '');
+            }
+        });
+
+        static::updating(function ($product) {
+            // Auto-compute name when base_name or variation_suffix changes
+            if ($product->isDirty(['base_name', 'variation_suffix'])) {
+                $product->name = $product->base_name . ($product->variation_suffix ?? '');
             }
         });
     }
@@ -80,6 +107,43 @@ class Product extends Model
         }
 
         return $sku;
+    }
+
+    /**
+     * Update base_name for all products in the same SKU group.
+     * This enables "common edit" where changing the base name
+     * automatically updates all variations.
+     * 
+     * @param string $newBaseName The new base name to apply
+     * @return int Number of products updated
+     */
+    public function updateBaseNameForSkuGroup(string $newBaseName): int
+    {
+        return static::where('sku', $this->sku)
+            ->update([
+                'base_name' => $newBaseName,
+                'name' => \DB::raw("CONCAT('{$newBaseName}', COALESCE(variation_suffix, ''))")
+            ]);
+    }
+
+    /**
+     * Get all products in the same SKU group (variations of same product)
+     * 
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getSkuGroupProducts()
+    {
+        return static::where('sku', $this->sku)->get();
+    }
+
+    /**
+     * Get count of products in the same SKU group
+     * 
+     * @return int
+     */
+    public function getSkuGroupCount(): int
+    {
+        return static::where('sku', $this->sku)->count();
     }
 
     public function category(): BelongsTo

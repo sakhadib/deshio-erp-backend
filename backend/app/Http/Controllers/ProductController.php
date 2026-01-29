@@ -113,6 +113,13 @@ class ProductController extends Controller
 
     /**
      * Create product with custom fields
+     * 
+     * Supports "common edit" feature:
+     * - base_name: Core product name (e.g., "saree")
+     * - variation_suffix: Variation identifier (e.g., "-red-30")
+     * - name: Auto-computed as base_name + variation_suffix
+     * 
+     * If only 'name' is provided (backward compatible), it becomes base_name with empty suffix.
      */
     public function create(Request $request)
     {
@@ -121,7 +128,9 @@ class ProductController extends Controller
             'vendor_id' => 'nullable|exists:vendors,id',
             'brand' => 'nullable|string|max:255',
             'sku' => 'nullable|string|max:255', // Optional - auto-generated if not provided (9-digit unique number)
-            'name' => 'required|string|max:255',
+            'name' => 'required_without:base_name|string|max:255',
+            'base_name' => 'required_without:name|string|max:255',
+            'variation_suffix' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'custom_fields' => 'nullable|array',
             'custom_fields.*.field_id' => 'required|exists:fields,id|distinct', // Prevent duplicate field_ids
@@ -130,13 +139,20 @@ class ProductController extends Controller
 
         DB::beginTransaction();
         try {
+            // Determine base_name and variation_suffix
+            $baseName = $validated['base_name'] ?? $validated['name'];
+            $variationSuffix = $validated['variation_suffix'] ?? '';
+            $displayName = $baseName . $variationSuffix;
+
             // Create product (SKU auto-generated in model boot if not provided)
             $product = Product::create([
                 'category_id' => $validated['category_id'],
                 'vendor_id' => $validated['vendor_id'] ?? null,
                 'brand' => $validated['brand'] ?? null,
                 'sku' => $validated['sku'] ?? null, // Will be auto-generated if null
-                'name' => $validated['name'],
+                'name' => $displayName,
+                'base_name' => $baseName,
+                'variation_suffix' => $variationSuffix,
                 'description' => $validated['description'] ?? null,
                 'is_archived' => false,
             ]);
@@ -428,6 +444,120 @@ class ProductController extends Controller
                 'message' => 'Bulk update failed: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Update common info (base_name) for all products in a SKU group.
+     * 
+     * This is the "magic" common edit feature:
+     * - Changing base_name from "saree" to "sharee"
+     * - Automatically updates all products with same SKU
+     * - saree-red-30 → sharee-red-30
+     * - saree-green-40 → sharee-green-40
+     * 
+     * @param Request $request
+     * @param int $id Product ID (any product in the SKU group)
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateCommonInfo(Request $request, $id)
+    {
+        $product = Product::findOrFail($id);
+
+        $validated = $request->validate([
+            'base_name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'category_id' => 'sometimes|exists:categories,id',
+            'vendor_id' => 'nullable|exists:vendors,id',
+            'brand' => 'nullable|string|max:255',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $sku = $product->sku;
+            $newBaseName = $validated['base_name'];
+            
+            // Build update data for all products in SKU group
+            $updateData = [
+                'base_name' => $newBaseName,
+            ];
+
+            // Add optional common fields if provided
+            if (isset($validated['description'])) {
+                $updateData['description'] = $validated['description'];
+            }
+            if (isset($validated['category_id'])) {
+                $updateData['category_id'] = $validated['category_id'];
+            }
+            if (array_key_exists('vendor_id', $validated)) {
+                $updateData['vendor_id'] = $validated['vendor_id'];
+            }
+            if (isset($validated['brand'])) {
+                $updateData['brand'] = $validated['brand'];
+            }
+
+            // Update all products in SKU group
+            // Use raw SQL to concatenate base_name + variation_suffix for name
+            $count = Product::where('sku', $sku)->count();
+            
+            Product::where('sku', $sku)->update($updateData);
+            
+            // Update the display name (name = base_name + variation_suffix)
+            DB::statement("
+                UPDATE products 
+                SET name = CONCAT(?, COALESCE(variation_suffix, ''))
+                WHERE sku = ?
+            ", [$newBaseName, $sku]);
+
+            DB::commit();
+
+            // Return the updated products in the SKU group
+            $updatedProducts = Product::where('sku', $sku)
+                ->with(['category', 'vendor', 'productFields.field'])
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Updated common info for {$count} product(s) in SKU group '{$sku}'",
+                'data' => [
+                    'sku' => $sku,
+                    'new_base_name' => $newBaseName,
+                    'products_updated' => $count,
+                    'products' => $updatedProducts
+                ]
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update common info: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all products in a SKU group (variations of same product)
+     * 
+     * @param int $id Product ID (any product in the group)
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getSkuGroup($id)
+    {
+        $product = Product::findOrFail($id);
+        
+        $products = Product::where('sku', $product->sku)
+            ->with(['category', 'vendor', 'productFields.field', 'images'])
+            ->orderBy('variation_suffix')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'sku' => $product->sku,
+                'base_name' => $product->base_name,
+                'total_variations' => $products->count(),
+                'products' => $products
+            ]
+        ]);
     }
 
     /**
