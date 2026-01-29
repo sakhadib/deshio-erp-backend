@@ -120,7 +120,7 @@ class ProductController extends Controller
             'category_id' => 'required|exists:categories,id',
             'vendor_id' => 'nullable|exists:vendors,id',
             'brand' => 'nullable|string|max:255',
-            'sku' => 'required|string', // SKU not unique - supports variations
+            'sku' => 'nullable|string|max:255', // Optional - auto-generated if not provided (9-digit unique number)
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'custom_fields' => 'nullable|array',
@@ -130,12 +130,12 @@ class ProductController extends Controller
 
         DB::beginTransaction();
         try {
-            // Create product
+            // Create product (SKU auto-generated in model boot if not provided)
             $product = Product::create([
                 'category_id' => $validated['category_id'],
                 'vendor_id' => $validated['vendor_id'] ?? null,
                 'brand' => $validated['brand'] ?? null,
-                'sku' => $validated['sku'],
+                'sku' => $validated['sku'] ?? null, // Will be auto-generated if null
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
                 'is_archived' => false,

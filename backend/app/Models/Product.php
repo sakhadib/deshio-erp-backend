@@ -20,6 +20,8 @@ class Product extends Model
      * 
      * Each physical item is uniquely tracked via ProductBarcode.
      * Stock is managed through ProductBatch.
+     * 
+     * If SKU is not provided during creation, a unique 9-digit number is auto-generated.
      */
 
     protected $fillable = [
@@ -35,6 +37,50 @@ class Product extends Model
     protected $casts = [
         'is_archived' => 'boolean',
     ];
+
+    /**
+     * Boot method to auto-generate SKU if not provided
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($product) {
+            if (empty($product->sku)) {
+                $product->sku = static::generateUniqueSku();
+            }
+        });
+    }
+
+    /**
+     * Generate a unique 9-digit SKU
+     * 
+     * @return string
+     */
+    public static function generateUniqueSku(): string
+    {
+        $maxAttempts = 10;
+        $attempts = 0;
+
+        do {
+            // Generate random 9-digit number (100000000 to 999999999)
+            $sku = (string) random_int(100000000, 999999999);
+            $attempts++;
+            
+            // Check if SKU already exists (including soft-deleted products)
+            $exists = static::withTrashed()->where('sku', $sku)->exists();
+            
+        } while ($exists && $attempts < $maxAttempts);
+
+        if ($exists) {
+            // Fallback: use timestamp-based SKU if random generation fails
+            $sku = (string) (time() % 1000000000);
+            // Pad to 9 digits if needed
+            $sku = str_pad($sku, 9, '0', STR_PAD_LEFT);
+        }
+
+        return $sku;
+    }
 
     public function category(): BelongsTo
     {
