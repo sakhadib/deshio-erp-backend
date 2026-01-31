@@ -340,7 +340,7 @@ class ProductSearchController extends Controller
                     'id' => $product->id,
                     'name' => $product->name,
                     'sku' => $product->sku,
-                    'category' => $product->category->name ?? null,
+                    'category' => $product->category->title ?? null,
                     'vendor' => $product->vendor->name ?? null,
                     'primary_image' => $primaryImage ? [
                         'id' => $primaryImage->id,
