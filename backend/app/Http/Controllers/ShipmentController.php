@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Shipment;
 use App\Models\Order;
 use App\Models\Store;
+use App\Models\PathaoBulkBatch;
+use App\Jobs\SendToPathaoJob;
 use App\Traits\DatabaseAgnosticSearch;
 use App\Services\PathaoService;
 use Illuminate\Http\Request;
@@ -153,6 +155,7 @@ class ShipmentController extends Controller
             'package_dimensions' => 'nullable|array',
             'special_instructions' => 'nullable|string',
             'send_to_pathao' => 'nullable|boolean',
+            'cod_amount' => 'nullable|numeric|min:0', // ✅ allow explicit COD override
         ]);
 
         if ($validator->fails()) {
@@ -196,6 +199,21 @@ class ShipmentController extends Controller
 
             // Create shipment from order
             $shipment = Shipment::createFromOrder($order, $shipmentData);
+
+            // ✅ Set COD amount so Pathao doesn't get 0/null
+            // Priority: request.cod_amount -> order.outstanding_amount -> total - paid
+            if ($request->filled('cod_amount')) {
+                $shipment->cod_amount = (float) $request->cod_amount;
+            } else {
+                if ($order->outstanding_amount !== null) {
+                    $shipment->cod_amount = (float) $order->outstanding_amount;
+                } else {
+                    $total = (float) ($order->total_amount ?? 0);
+                    $paid  = (float) ($order->paid_amount ?? 0);
+                    $shipment->cod_amount = max(0, $total - $paid);
+                }
+            }
+            $shipment->save();
 
             // Immediately send to Pathao if requested
             if ($request->boolean('send_to_pathao')) {
@@ -249,6 +267,18 @@ class ShipmentController extends Controller
             $order = $shipment->order;
             $store = $shipment->store;
             $deliveryAddress = is_array($shipment->delivery_address) ? $shipment->delivery_address : [];
+
+            // ✅ If COD is still null, derive from order to prevent 0 being sent
+            if ($shipment->cod_amount === null) {
+                if ($order->outstanding_amount !== null) {
+                    $shipment->cod_amount = (float) $order->outstanding_amount;
+                } else {
+                    $total = (float) ($order->total_amount ?? 0);
+                    $paid  = (float) ($order->paid_amount ?? 0);
+                    $shipment->cod_amount = max(0, $total - $paid);
+                }
+                $shipment->save();
+            }
 
             // Auto-location: let Pathao infer city/zone/area from address text
             $autoLocation = config('services.pathao.auto_location', true);
@@ -324,9 +354,12 @@ class ShipmentController extends Controller
                 'delivery_type' => $shipment->delivery_type === 'express' ? 12 : 48,  // 12=express, 48=normal
                 'item_type' => 2,  // 1=document, 2=parcel
                 'special_instruction' => $shipment->special_instructions ?? '',
-                'item_quantity' => $order->items->sum('quantity'),
+                'item_quantity' => (int) $order->items->sum('quantity'),
                 'item_weight' => $totalWeight,
-                'amount_to_collect' => $shipment->cod_amount ?? 0,
+
+                // ✅ Pathao expects integer
+                'amount_to_collect' => (int) round((float) ($shipment->cod_amount ?? 0)),
+
                 'item_description' => $shipment->getPackageDescription(),
             ];
 
@@ -379,18 +412,22 @@ class ShipmentController extends Controller
     }
 
     /**
-     * Bulk send shipments to Pathao
-     * 
+     * Bulk send shipments to Pathao (Queue-based)
+     *
      * POST /api/shipments/bulk-send-to-pathao
      * Body: {
-     *   "shipment_ids": [1, 2, 3, 4]
+     *   "shipment_ids": [1, 2, 3, 4],
+     *   "sync": false  // optional: true for synchronous (old behavior)
      * }
+     *
+     * Returns batch_code for tracking progress
      */
     public function bulkSendToPathao(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'shipment_ids' => 'required|array|min:1',
+            'shipment_ids' => 'required|array|min:1|max:500',
             'shipment_ids.*' => 'exists:shipments,id',
+            'sync' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -401,18 +438,108 @@ class ShipmentController extends Controller
             ], 422);
         }
 
+        // If sync mode requested (for small batches or debugging), use old behavior
+        if ($request->boolean('sync')) {
+            return $this->bulkSendToPathaoSync($request->shipment_ids);
+        }
+
+        // Pre-validate shipments before queueing
+        $shipments = Shipment::with(['order', 'store'])
+            ->whereIn('id', $request->shipment_ids)
+            ->get();
+
+        $eligibleIds = [];
+        $immediateFailures = [];
+
+        foreach ($shipments as $shipment) {
+            if (!$shipment->isPending()) {
+                $immediateFailures[] = [
+                    'shipment_id' => $shipment->id,
+                    'shipment_number' => $shipment->shipment_number,
+                    'reason' => "Status is '{$shipment->status}', expected 'pending'"
+                ];
+                continue;
+            }
+
+            if ($shipment->pathao_consignment_id) {
+                $immediateFailures[] = [
+                    'shipment_id' => $shipment->id,
+                    'shipment_number' => $shipment->shipment_number,
+                    'reason' => 'Already sent to Pathao'
+                ];
+                continue;
+            }
+
+            if (!$shipment->store?->pathao_store_id) {
+                $immediateFailures[] = [
+                    'shipment_id' => $shipment->id,
+                    'shipment_number' => $shipment->shipment_number,
+                    'reason' => 'Store not registered with Pathao'
+                ];
+                continue;
+            }
+
+            $eligibleIds[] = $shipment->id;
+        }
+
+        if (empty($eligibleIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No eligible shipments to send',
+                'data' => [
+                    'immediate_failures' => $immediateFailures
+                ]
+            ], 400);
+        }
+
+        // Create batch tracker
+        $batch = PathaoBulkBatch::create([
+            'created_by' => Auth::id(),
+            'store_id' => $shipments->first()?->store_id,
+            'status' => 'pending',
+            'total_shipments' => count($eligibleIds),
+            'shipment_ids' => $eligibleIds,
+            'results' => [],
+        ]);
+
+        // Mark as processing
+        $batch->markAsProcessing();
+
+        // Dispatch jobs for each eligible shipment
+        foreach ($eligibleIds as $shipmentId) {
+            SendToPathaoJob::dispatch($shipmentId, $batch->id)
+                ->delay(now()->addSeconds(rand(0, 5))); // Slight delay to avoid rate limits
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => count($eligibleIds) . ' shipments queued for processing',
+            'data' => [
+                'batch_code' => $batch->batch_code,
+                'batch_id' => $batch->id,
+                'queued_count' => count($eligibleIds),
+                'immediate_failures' => $immediateFailures,
+                'status_url' => url("/api/shipments/bulk-status/{$batch->batch_code}"),
+            ]
+        ]);
+    }
+
+    /**
+     * Synchronous bulk send (old behavior, for small batches)
+     */
+    protected function bulkSendToPathaoSync(array $shipmentIds): \Illuminate\Http\JsonResponse
+    {
         $results = [
             'success' => [],
             'failed' => [],
         ];
 
         $shipments = Shipment::with(['order', 'store'])
-                             ->whereIn('id', $request->shipment_ids)
-                             ->get();
+            ->whereIn('id', $shipmentIds)
+            ->get();
 
         foreach ($shipments as $shipment) {
             try {
-                // Check if eligible
                 if (!$shipment->isPending()) {
                     $results['failed'][] = [
                         'shipment_id' => $shipment->id,
@@ -431,7 +558,6 @@ class ShipmentController extends Controller
                     continue;
                 }
 
-                // Send to Pathao
                 $this->sendToPathao($shipment);
 
                 $results['success'][] = [
@@ -453,6 +579,115 @@ class ShipmentController extends Controller
             'success' => true,
             'message' => count($results['success']) . ' shipments sent successfully, ' . count($results['failed']) . ' failed',
             'data' => $results
+        ]);
+    }
+
+    /**
+     * Get bulk send batch status
+     *
+     * GET /api/shipments/bulk-status/{batchCode}
+     */
+    public function bulkStatus($batchCode)
+    {
+        $batch = PathaoBulkBatch::where('batch_code', $batchCode)->first();
+
+        if (!$batch) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Batch not found'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $batch->getSummary()
+        ]);
+    }
+
+    /**
+     * Get detailed results for a bulk batch
+     *
+     * GET /api/shipments/bulk-status/{batchCode}/details
+     */
+    public function bulkStatusDetails($batchCode)
+    {
+        $batch = PathaoBulkBatch::where('batch_code', $batchCode)->first();
+
+        if (!$batch) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Batch not found'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'summary' => $batch->getSummary(),
+                'results' => $batch->getDetailedResults(),
+            ]
+        ]);
+    }
+
+    /**
+     * Cancel a bulk batch (stops pending jobs)
+     *
+     * POST /api/shipments/bulk-status/{batchCode}/cancel
+     */
+    public function bulkCancel($batchCode)
+    {
+        $batch = PathaoBulkBatch::where('batch_code', $batchCode)->first();
+
+        if (!$batch) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Batch not found'
+            ], 404);
+        }
+
+        if ($batch->isCompleted()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Batch already completed'
+            ], 400);
+        }
+
+        $batch->cancel();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Batch cancelled',
+            'data' => $batch->getSummary()
+        ]);
+    }
+
+    /**
+     * List recent bulk batches
+     *
+     * GET /api/shipments/bulk-batches?status=processing&days=7
+     */
+    public function listBulkBatches(Request $request)
+    {
+        $query = PathaoBulkBatch::query()
+            ->orderBy('created_at', 'desc');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $days = $request->input('days', 7);
+        $query->recent($days);
+
+        $batches = $query->paginate($request->input('per_page', 20));
+
+        // Transform to include summary
+        $batches->through(function ($batch) {
+            return $batch->getSummary();
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $batches
         ]);
     }
 

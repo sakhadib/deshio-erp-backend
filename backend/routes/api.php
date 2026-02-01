@@ -1025,6 +1025,12 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/bulk-send-to-pathao', [ShipmentController::class, 'bulkSendToPathao']);
         Route::post('/bulk-sync-pathao-status', [ShipmentController::class, 'bulkSyncPathaoStatus']);
 
+        // Bulk batch status tracking
+        Route::get('/bulk-batches', [ShipmentController::class, 'listBulkBatches']);
+        Route::get('/bulk-status/{batchCode}', [ShipmentController::class, 'bulkStatus']);
+        Route::get('/bulk-status/{batchCode}/details', [ShipmentController::class, 'bulkStatusDetails']);
+        Route::post('/bulk-status/{batchCode}/cancel', [ShipmentController::class, 'bulkCancel']);
+
         // Create shipment from order
         Route::post('/', [ShipmentController::class, 'create']);
 

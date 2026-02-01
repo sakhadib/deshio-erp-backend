@@ -5,20 +5,20 @@ namespace App\Http\Controllers;
 use App\Models\Shipment;
 use App\Models\Order;
 use App\Models\Store;
-use App\Services\PathaoService;
 use App\Traits\DatabaseAgnosticSearch;
+use App\Services\PathaoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Codeboxr\PathaoCourier\Facade\PathaoCourier;
 
 class ShipmentController extends Controller
 {
     use DatabaseAgnosticSearch;
+
     /**
      * List all shipments with filters
-     * 
+     *
      * GET /api/shipments?status=pending&store_id=1
      */
     public function index(Request $request)
@@ -73,8 +73,8 @@ class ShipmentController extends Controller
                     $this->whereLike($orderQuery, 'order_number', $request->search);
                 })
                   ->orWhereHas('order.customer', function ($customerQuery) use ($request) {
-                    $this->whereLike($customerQuery, 'name', $request->search);
-                    $this->orWhereLike($customerQuery, 'phone', $request->search);
+                      $this->whereLike($customerQuery, 'name', $request->search);
+                      $this->orWhereLike($customerQuery, 'phone', $request->search);
                   });
             });
         }
@@ -100,7 +100,7 @@ class ShipmentController extends Controller
 
     /**
      * Get shipment details
-     * 
+     *
      * GET /api/shipments/{id}
      */
     public function show($id)
@@ -135,14 +135,15 @@ class ShipmentController extends Controller
 
     /**
      * Create shipment from order
-     * 
+     *
      * POST /api/shipments
      * Body: {
      *   "order_id": 1,
-     *   "delivery_type": "home_delivery|express",  // no store_pickup if using Pathao
+     *   "delivery_type": "home_delivery|express",
      *   "package_weight": 2.5,
      *   "special_instructions": "Handle with care",
-     *   "send_to_pathao": false  // Set true to immediately send to Pathao
+     *   "send_to_pathao": false,
+     *   "cod_amount": 2000 // optional override
      * }
      */
     public function create(Request $request)
@@ -154,6 +155,7 @@ class ShipmentController extends Controller
             'package_dimensions' => 'nullable|array',
             'special_instructions' => 'nullable|string',
             'send_to_pathao' => 'nullable|boolean',
+            'cod_amount' => 'nullable|numeric|min:0', // ✅ allow explicit COD override
         ]);
 
         if ($validator->fails()) {
@@ -178,7 +180,7 @@ class ShipmentController extends Controller
                 ], 400);
             }
 
-            // Collect package barcodes from order items
+            // Collect package barcodes from order items (kept as-is; may be used elsewhere)
             $packageBarcodes = [];
             foreach ($order->items as $item) {
                 if ($item->batch && $item->batch->barcode) {
@@ -197,6 +199,21 @@ class ShipmentController extends Controller
 
             // Create shipment from order
             $shipment = Shipment::createFromOrder($order, $shipmentData);
+
+            // ✅ Set COD amount so Pathao doesn't get 0/null
+            // Priority: request.cod_amount -> order.outstanding_amount -> total - paid
+            if ($request->filled('cod_amount')) {
+                $shipment->cod_amount = (float) $request->cod_amount;
+            } else {
+                if ($order->outstanding_amount !== null) {
+                    $shipment->cod_amount = (float) $order->outstanding_amount;
+                } else {
+                    $total = (float) ($order->total_amount ?? 0);
+                    $paid  = (float) ($order->paid_amount ?? 0);
+                    $shipment->cod_amount = max(0, $total - $paid);
+                }
+            }
+            $shipment->save();
 
             // Immediately send to Pathao if requested
             if ($request->boolean('send_to_pathao')) {
@@ -229,7 +246,7 @@ class ShipmentController extends Controller
 
     /**
      * Send shipment to Pathao
-     * 
+     *
      * POST /api/shipments/{id}/send-to-pathao
      */
     public function sendToPathao($shipmentOrId)
@@ -251,11 +268,22 @@ class ShipmentController extends Controller
             $store = $shipment->store;
             $deliveryAddress = is_array($shipment->delivery_address) ? $shipment->delivery_address : [];
 
-            // When enabled, Pathao can infer city/zone/area from the address text.
-            // If we send recipient_city/zone/area incorrectly (or require them), the auto-mapping feature can't work.
+            // ✅ If COD is still null, derive from order to prevent 0 being sent
+            if ($shipment->cod_amount === null) {
+                if ($order->outstanding_amount !== null) {
+                    $shipment->cod_amount = (float) $order->outstanding_amount;
+                } else {
+                    $total = (float) ($order->total_amount ?? 0);
+                    $paid  = (float) ($order->paid_amount ?? 0);
+                    $shipment->cod_amount = max(0, $total - $paid);
+                }
+                $shipment->save();
+            }
+
+            // Auto-location: let Pathao infer city/zone/area from address text
             $autoLocation = config('services.pathao.auto_location', true);
 
-            // Build a strong address string for Pathao auto-mapping.
+            // Build complete address string for Pathao auto-mapping
             $addressParts = [
                 $deliveryAddress['address_line_1'] ?? $deliveryAddress['street'] ?? $deliveryAddress['address'] ?? null,
                 $deliveryAddress['address_line_2'] ?? null,
@@ -266,9 +294,7 @@ class ShipmentController extends Controller
             ];
 
             $addressParts = array_values(array_filter(array_map(function ($value) {
-                if ($value === null) {
-                    return null;
-                }
+                if ($value === null) return null;
                 if (is_scalar($value)) {
                     $s = trim((string) $value);
                     return $s === '' ? null : $s;
@@ -278,9 +304,10 @@ class ShipmentController extends Controller
 
             $recipientAddress = implode(', ', $addressParts);
 
-            // Validate requirements
+            // Validate Pathao requirements
             $validationErrors = [];
 
+            // Check store has Pathao configuration
             if (!$store->pathao_store_id) {
                 $validationErrors[] = 'Store not registered with Pathao. Please configure store Pathao details first.';
             }
@@ -293,7 +320,7 @@ class ShipmentController extends Controller
                 && !empty($deliveryAddress['pathao_zone_id'])
                 && !empty($deliveryAddress['pathao_area_id']);
 
-            // If auto-location is disabled, require manual IDs.
+            // If auto-location disabled, require manual IDs
             if (!$autoLocation && !$hasLocationIds) {
                 if (empty($deliveryAddress['pathao_city_id'])) {
                     $validationErrors[] = 'Delivery address missing Pathao city ID';
@@ -306,6 +333,7 @@ class ShipmentController extends Controller
                 }
             }
 
+            // If validation errors, throw exception with details
             if (!empty($validationErrors)) {
                 throw new \Exception('Cannot send to Pathao: ' . implode('; ', $validationErrors));
             }
@@ -318,33 +346,34 @@ class ShipmentController extends Controller
 
             // Prepare Pathao order data
             $pathaoData = [
-                'store_id' => $store->pathao_store_id,
+                'store_id' => (int) $store->pathao_store_id,
                 'merchant_order_id' => $order->order_number,
                 'recipient_name' => $shipment->recipient_name,
                 'recipient_phone' => $shipment->recipient_phone,
-
-                // IMPORTANT: for auto-mapping, send a complete address string
                 'recipient_address' => $recipientAddress,
-
                 'delivery_type' => $shipment->delivery_type === 'express' ? 12 : 48, // 12=express, 48=normal
                 'item_type' => 2, // 1=document, 2=parcel
                 'special_instruction' => $shipment->special_instructions ?? '',
-                'item_quantity' => $order->items->sum('quantity'),
+                'item_quantity' => (int) $order->items->sum('quantity'),
                 'item_weight' => $totalWeight,
-                'amount_to_collect' => $shipment->cod_amount ?? 0,
+
+                // ✅ Pathao expects integer
+                'amount_to_collect' => (int) round((float) ($shipment->cod_amount ?? 0)),
+
                 'item_description' => $shipment->getPackageDescription(),
             ];
 
-            // If location IDs are available (manual selection), include them.
-            // Otherwise omit them so Pathao can infer from recipient_address.
+            // If location IDs available (manual selection), include them
+            // Otherwise omit so Pathao can infer from recipient_address
             if ($hasLocationIds) {
                 $pathaoData['recipient_city'] = $deliveryAddress['pathao_city_id'];
                 $pathaoData['recipient_zone'] = $deliveryAddress['pathao_zone_id'];
                 $pathaoData['recipient_area'] = $deliveryAddress['pathao_area_id'];
             }
 
-            // Call Pathao API (direct service to avoid package-level validation issues)
+            // Call Pathao API using PathaoService
             $pathaoService = new PathaoService();
+            $pathaoService->setStoreId($store->pathao_store_id);
             $result = $pathaoService->createOrder($pathaoData);
 
             if (empty($result['success'])) {
@@ -360,7 +389,7 @@ class ShipmentController extends Controller
             $shipment->pathao_consignment_id = $data['consignment_id'] ?? null;
             $shipment->pathao_tracking_number = $data['invoice_id'] ?? null;
             $shipment->pathao_status = 'pickup_requested';
-            $shipment->pathao_response = $result['response'] ?? $result;
+            $shipment->pathao_response = $result['response'];
             $shipment->status = 'pickup_requested';
             $shipment->pickup_requested_at = now();
 
@@ -376,20 +405,17 @@ class ShipmentController extends Controller
         } catch (\Exception $e) {
             \Log::error('Pathao API Error - Send Shipment', [
                 'shipment_id' => $shipment->id,
-                'error' => $e->getMessage(),
+                'error' => $e->getMessage()
             ]);
             throw $e;
         }
     }
 
-
     /**
      * Bulk send shipments to Pathao
-     * 
+     *
      * POST /api/shipments/bulk-send-to-pathao
-     * Body: {
-     *   "shipment_ids": [1, 2, 3, 4]
-     * }
+     * Body: { "shipment_ids": [1,2,3] }
      */
     public function bulkSendToPathao(Request $request)
     {
@@ -463,7 +489,7 @@ class ShipmentController extends Controller
 
     /**
      * Update shipment status from Pathao
-     * 
+     *
      * GET /api/shipments/{id}/sync-pathao-status
      */
     public function syncPathaoStatus($id)
@@ -482,7 +508,7 @@ class ShipmentController extends Controller
 
             if ($response && isset($response['data'])) {
                 $data = $response['data'];
-                
+
                 $oldStatus = $shipment->pathao_status;
                 $newStatus = $data['status'] ?? $oldStatus;
 
@@ -541,11 +567,8 @@ class ShipmentController extends Controller
 
     /**
      * Bulk sync Pathao status
-     * 
+     *
      * POST /api/shipments/bulk-sync-pathao-status
-     * Body: {
-     *   "shipment_ids": [1, 2, 3]  // Optional, sync all if not provided
-     * }
      */
     public function bulkSyncPathaoStatus(Request $request)
     {
@@ -604,11 +627,8 @@ class ShipmentController extends Controller
 
     /**
      * Cancel shipment
-     * 
+     *
      * PATCH /api/shipments/{id}/cancel
-     * Body: {
-     *   "reason": "Customer cancelled order"
-     * }
      */
     public function cancel($id, Request $request)
     {
@@ -640,7 +660,7 @@ class ShipmentController extends Controller
 
     /**
      * Get shipment statistics
-     * 
+     *
      * GET /api/shipments/statistics?store_id=1
      */
     public function getStatistics(Request $request)
@@ -681,11 +701,11 @@ class ShipmentController extends Controller
     {
         try {
             $response = PathaoCourier::area()->city();
-            
+
             // Convert stdClass to array and extract data
             $responseArray = json_decode(json_encode($response), true);
             $cities = $responseArray['data'] ?? [];
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $cities
@@ -702,11 +722,11 @@ class ShipmentController extends Controller
     {
         try {
             $response = PathaoCourier::area()->zone($cityId);
-            
+
             // Convert stdClass to array and extract data
             $responseArray = json_decode(json_encode($response), true);
             $zones = $responseArray['data'] ?? [];
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $zones
@@ -723,11 +743,11 @@ class ShipmentController extends Controller
     {
         try {
             $response = PathaoCourier::area()->area($zoneId);
-            
+
             // Convert stdClass to array and extract data
             $responseArray = json_decode(json_encode($response), true);
             $areas = $responseArray['data'] ?? [];
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $areas
@@ -742,18 +762,18 @@ class ShipmentController extends Controller
 
     /**
      * Get Pathao stores
-     * 
+     *
      * GET /api/shipments/pathao/stores
      */
     public function getPathaoStores()
     {
         try {
             $response = PathaoCourier::store()->list();
-            
+
             // Convert stdClass to array and extract data
             $responseArray = json_decode(json_encode($response), true);
             $stores = $responseArray['data'] ?? [];
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $stores
@@ -768,18 +788,8 @@ class ShipmentController extends Controller
 
     /**
      * Create Pathao store
-     * 
+     *
      * POST /api/shipments/pathao/stores
-     * Body: {
-     *   "name": "Main Store",
-     *   "contact_name": "John Doe",
-     *   "contact_number": "01712345678",
-     *   "address": "123 Main St",
-     *   "secondary_contact": "01812345678",
-     *   "city_id": 1,
-     *   "zone_id": 1,
-     *   "area_id": 1
-     * }
      */
     public function createPathaoStore(Request $request)
     {

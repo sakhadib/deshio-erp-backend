@@ -37,6 +37,21 @@ class PathaoService
     }
 
     /**
+     * Convert money/amount input to integer BDT for Pathao.
+     * Accepts numbers or strings like "2500.00" / "2,500.00".
+     * Pathao API REQUIRES amount_to_collect as INTEGER (no decimals).
+     */
+    private function toIntAmount($value): int
+    {
+        if ($value === null || $value === '') {
+            return 0;
+        }
+
+        $clean = str_replace([',', ' '], '', (string) $value);
+        return (int) round((float) $clean);
+    }
+
+    /**
      * Get access token from Pathao API
      */
     public function getAccessToken()
@@ -110,20 +125,65 @@ class PathaoService
     public function createOrder(array $orderData)
     {
         try {
+            // ✅ Pathao requires amount_to_collect as INTEGER (no decimals, no string)
+            if (array_key_exists('amount_to_collect', $orderData)) {
+                $orderData['amount_to_collect'] = $this->toIntAmount($orderData['amount_to_collect']);
+            } else {
+                $orderData['amount_to_collect'] = 0;
+            }
+
+            // ✅ Also ensure quantity is integer (safe)
+            if (array_key_exists('item_quantity', $orderData)) {
+                $orderData['item_quantity'] = (int) $orderData['item_quantity'];
+            }
+
+            // Debug log to confirm it's an int before sending
+            Log::info('Pathao Create Order Payload (normalized)', [
+                'amount_to_collect' => $orderData['amount_to_collect'],
+                'amount_type' => gettype($orderData['amount_to_collect']),
+                'item_quantity' => $orderData['item_quantity'] ?? null,
+            ]);
+
             $response = $this->callAPI('POST', 'orders', $orderData);
 
             if ($response->successful()) {
                 return [
                     'success' => true,
                     'data' => $response->json()['data'] ?? [],
-                    'response' => $response->json()
+                    'response' => $response->json(),
+                    'status' => $response->status(),
                 ];
             }
 
+            $payload = null;
+            try {
+                $payload = $response->json();
+            } catch (\Throwable $t) {
+                $payload = null;
+            }
+
+            // Pathao may return message/errors instead of error
+            $error =
+                ($payload['message'] ?? null) ??
+                ($payload['error']['message'] ?? null) ??
+                ($payload['error'] ?? null) ??
+                ($payload['errors'] ?? null) ??
+                ($payload['data']['message'] ?? null) ??
+                $response->body();
+
+            if (is_array($error)) $error = json_encode($error);
+
+            Log::error('Pathao Create Order Error', [
+                'status' => $response->status(),
+                'response' => $payload ?? $response->body(),
+                'order_data' => $orderData, // normalized payload
+            ]);
+
             return [
                 'success' => false,
-                'error' => $response->json()['error'] ?? 'Unknown error',
-                'response' => $response->json()
+                'status' => $response->status(),
+                'error' => $error ?: 'Unknown error',
+                'response' => $payload ?? $response->body(),
             ];
 
         } catch (\Exception $e) {
@@ -360,9 +420,12 @@ class PathaoService
             'delivery_type' => $shipment->delivery_type === 'express' ? 48 : 12, // 48 for express, 12 for regular
             'item_type' => 2, // 2 for parcel
             'special_instruction' => $shipment->special_instructions,
-            'item_quantity' => $order->items->sum('quantity'),
+            'item_quantity' => (int) $order->items->sum('quantity'),
             'item_weight' => $shipment->package_weight ?? 0.5,
-            'amount_to_collect' => $shipment->cod_amount ?? 0,
+
+            // ✅ Pathao requires integer for amount_to_collect
+            'amount_to_collect' => $this->toIntAmount($shipment->cod_amount ?? 0),
+
             'item_description' => $shipment->getPackageDescription(),
         ];
     }

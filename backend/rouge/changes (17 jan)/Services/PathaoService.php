@@ -26,6 +26,31 @@ class PathaoService
     }
 
     /**
+     * Set store ID dynamically for multi-store operations
+     * @param int|string $storeId Pathao store ID
+     * @return self
+     */
+    public function setStoreId($storeId)
+    {
+        $this->storeId = $storeId;
+        return $this;
+    }
+
+    /**
+     * Convert money/amount input to integer BDT for Pathao.
+     * Accepts numbers or strings like "2500.00" / "2,500.00".
+     */
+    private function toIntAmount($value): int
+    {
+        if ($value === null || $value === '') {
+            return 0;
+        }
+
+        $clean = str_replace([',', ' '], '', (string) $value);
+        return (int) round((float) $clean);
+    }
+
+    /**
      * Get access token from Pathao API
      */
     public function getAccessToken()
@@ -34,21 +59,19 @@ class PathaoService
 
         return Cache::remember($cacheKey, now()->addMinutes(50), function () {
             try {
-                // Fail fast with a clear message if credentials are missing in the running environment
+                // Fail fast with clear message if credentials are missing
                 $missing = [];
                 if (empty($this->clientId)) $missing[] = 'PATHAO_CLIENT_ID';
                 if (empty($this->clientSecret)) $missing[] = 'PATHAO_CLIENT_SECRET';
                 if (empty($this->username)) $missing[] = 'PATHAO_USERNAME';
                 if (empty($this->password)) $missing[] = 'PATHAO_PASSWORD';
                 if (!empty($missing)) {
-                    throw new \Exception('Pathao credentials missing: ' . implode(', ', $missing) . '. Check backend .env / server env and clear config cache.');
+                    throw new \Exception('Pathao credentials missing: ' . implode(', ', $missing) . '. Check .env and clear config cache.');
                 }
 
-                // Pathao token endpoint behaves like an OAuth password grant and commonly expects form-encoded payload.
-                // Using asForm() makes the request compatible with more environments than JSON posts.
+                // Pathao requires JSON format (NOT form-encoded)
                 $response = Http::timeout(30)
                     ->acceptJson()
-                    ->asForm()
                     ->post("{$this->baseUrl}/aladdin/api/v1/issue-token", [
                         'client_id' => $this->clientId,
                         'client_secret' => $this->clientSecret,
@@ -68,9 +91,7 @@ class PathaoService
                     'response' => $response->body(),
                 ]);
 
-                $body = $response->body();
-                // Keep error message small but informative (avoid leaking secrets)
-                $bodySnippet = mb_substr($body ?? '', 0, 500);
+                $bodySnippet = mb_substr($response->body() ?? '', 0, 500);
                 throw new \Exception('Failed to get Pathao access token (HTTP ' . $response->status() . '): ' . $bodySnippet);
 
             } catch (\Exception $e) {
@@ -101,36 +122,82 @@ class PathaoService
      * Create a new order in Pathao
      */
     public function createOrder(array $orderData)
-    {
-        try {
-            $response = $this->callAPI('POST', 'orders', $orderData);
+{
+    try {
+        // ✅ Pathao requires amount_to_collect as INTEGER (no decimals, no string)
+        if (array_key_exists('amount_to_collect', $orderData)) {
+            $orderData['amount_to_collect'] = $this->toIntAmount($orderData['amount_to_collect']);
+        } else {
+            $orderData['amount_to_collect'] = 0;
+        }
 
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()['data'] ?? [],
-                    'response' => $response->json()
-                ];
-            }
+        // ✅ Also ensure quantity is integer (safe)
+        if (array_key_exists('item_quantity', $orderData)) {
+            $orderData['item_quantity'] = (int) $orderData['item_quantity'];
+        }
 
+        // Optional: debug log to confirm it's an int before sending
+        Log::info('Pathao Create Order Payload (normalized)', [
+            'amount_to_collect' => $orderData['amount_to_collect'],
+            'amount_type' => gettype($orderData['amount_to_collect']),
+            'item_quantity' => $orderData['item_quantity'] ?? null,
+        ]);
+
+        $response = $this->callAPI('POST', 'orders', $orderData);
+
+        if ($response->successful()) {
             return [
-                'success' => false,
-                'error' => $response->json()['error'] ?? 'Unknown error',
-                'response' => $response->json()
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Pathao Create Order Exception', [
-                'error' => $e->getMessage(),
-                'order_data' => $orderData
-            ]);
-
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
+                'success' => true,
+                'data' => $response->json()['data'] ?? [],
+                'response' => $response->json(),
+                'status' => $response->status(),
             ];
         }
+
+        $payload = null;
+        try {
+            $payload = $response->json();
+        } catch (\Throwable $t) {
+            $payload = null;
+        }
+
+        // Pathao may return message/errors instead of error
+        $error =
+            ($payload['message'] ?? null) ??
+            ($payload['error']['message'] ?? null) ??
+            ($payload['error'] ?? null) ??
+            ($payload['errors'] ?? null) ??
+            ($payload['data']['message'] ?? null) ??
+            $response->body();
+
+        if (is_array($error)) $error = json_encode($error);
+
+        Log::error('Pathao Create Order Error', [
+            'status' => $response->status(),
+            'response' => $payload ?? $response->body(),
+            'order_data' => $orderData, // normalized payload
+        ]);
+
+        return [
+            'success' => false,
+            'status' => $response->status(),
+            'error' => $error ?: 'Unknown error',
+            'response' => $payload ?? $response->body(),
+        ];
+
+    } catch (\Exception $e) {
+        Log::error('Pathao Create Order Exception', [
+            'error' => $e->getMessage(),
+            'order_data' => $orderData
+        ]);
+
+        return [
+            'success' => false,
+            'error' => $e->getMessage()
+        ];
     }
+}
+
 
     /**
      * Get order details from Pathao
@@ -332,14 +399,17 @@ class PathaoService
     /**
      * Prepare order data for Pathao API
      */
-    public function prepareOrderData($shipment)
+    public function prepareOrderData($shipment, $overrideStoreId = null)
     {
         $store = $shipment->store;
         $customer = $shipment->customer;
         $order = $shipment->order;
 
+        // Use store's pathao_store_id if available, otherwise use configured/override
+        $pathaoStoreId = $overrideStoreId ?? ($store->pathao_store_id ?? $this->storeId);
+
         return [
-            'store_id' => $this->storeId,
+            'store_id' => (int) $pathaoStoreId,
             'merchant_order_id' => $shipment->shipment_number,
             'recipient_name' => $shipment->recipient_name ?? $customer->name,
             'recipient_phone' => $shipment->recipient_phone ?? $customer->phone,
@@ -350,9 +420,12 @@ class PathaoService
             'delivery_type' => $shipment->delivery_type === 'express' ? 48 : 12, // 48 for express, 12 for regular
             'item_type' => 2, // 2 for parcel
             'special_instruction' => $shipment->special_instructions,
-            'item_quantity' => $order->items->sum('quantity'),
+            'item_quantity' => (int) $order->items->sum('quantity'),
             'item_weight' => $shipment->package_weight ?? 0.5,
-            'amount_to_collect' => $shipment->cod_amount ?? 0,
+
+            // ✅ Pathao requires integer for amount_to_collect
+            'amount_to_collect' => $this->toIntAmount($shipment->cod_amount ?? 0),
+
             'item_description' => $shipment->getPackageDescription(),
         ];
     }
