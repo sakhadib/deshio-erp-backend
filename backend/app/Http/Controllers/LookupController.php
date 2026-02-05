@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ProductBarcode;
 use App\Models\Order;
 use App\Models\ProductBatch;
+use App\Models\PurchaseOrderItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Spatie\Activitylog\Models\Activity;
@@ -112,14 +113,102 @@ class LookupController extends Controller
             ];
         }
 
-        // 5. Purchase Order Origin
+        // 5. Purchase Order Origin - Enhanced with full PO and Vendor details
         $purchaseOrderOrigin = null;
+        $purchaseOrderDetails = null;
+        $vendorDetails = null;
+
+        // First check metadata for basic PO info
         if ($barcodeRecord->location_metadata && isset($barcodeRecord->location_metadata['po_number'])) {
             $purchaseOrderOrigin = [
                 'po_number' => $barcodeRecord->location_metadata['po_number'],
                 'received_date' => $barcodeRecord->location_metadata['received_date'] ?? null,
                 'source' => $barcodeRecord->location_metadata['source'] ?? 'purchase_order',
             ];
+        }
+
+        // Try to find PO through batch connection (PurchaseOrderItem -> PurchaseOrder)
+        $poItem = null;
+        if ($barcodeRecord->batch_id) {
+            $poItem = PurchaseOrderItem::with(['purchaseOrder.vendor', 'purchaseOrder.store', 'purchaseOrder.createdBy'])
+                ->where('product_batch_id', $barcodeRecord->batch_id)
+                ->first();
+        }
+
+        // If no batch link, try finding PO by product_id (most recent received PO for this product)
+        if (!$poItem) {
+            $poItem = PurchaseOrderItem::with(['purchaseOrder.vendor', 'purchaseOrder.store', 'purchaseOrder.createdBy'])
+                ->where('product_id', $barcodeRecord->product_id)
+                ->whereHas('purchaseOrder', function($q) {
+                    $q->whereIn('status', ['received', 'partially_received', 'approved']);
+                })
+                ->orderBy('created_at', 'desc')
+                ->first();
+        }
+
+        if ($poItem && $poItem->purchaseOrder) {
+            $po = $poItem->purchaseOrder;
+            
+            $purchaseOrderDetails = [
+                'id' => $po->id,
+                'po_number' => $po->po_number,
+                'order_date' => $po->order_date?->format('Y-m-d'),
+                'expected_delivery_date' => $po->expected_delivery_date?->format('Y-m-d'),
+                'status' => $po->status,
+                'payment_status' => $po->payment_status,
+                'total_amount' => $po->total_amount,
+                'paid_amount' => $po->paid_amount,
+                'outstanding_amount' => $po->outstanding_amount,
+                'store' => $po->store ? [
+                    'id' => $po->store->id,
+                    'name' => $po->store->name,
+                    'store_code' => $po->store->store_code,
+                ] : null,
+                'created_by' => $po->createdBy ? [
+                    'id' => $po->createdBy->id,
+                    'name' => $po->createdBy->name,
+                ] : null,
+                'item_details' => [
+                    'quantity_ordered' => $poItem->quantity_ordered,
+                    'quantity_received' => $poItem->quantity_received,
+                    'unit_cost' => $poItem->unit_cost,
+                    'unit_sell_price' => $poItem->unit_sell_price,
+                    'total_cost' => $poItem->total_cost,
+                    'receive_status' => $poItem->receive_status,
+                ],
+            ];
+
+            // Full vendor details from PO
+            if ($po->vendor) {
+                $vendor = $po->vendor;
+                $vendorDetails = [
+                    'id' => $vendor->id,
+                    'name' => $vendor->name,
+                    'company_name' => $vendor->company_name,
+                    'email' => $vendor->email,
+                    'phone' => $vendor->phone,
+                    'address' => $vendor->address,
+                    'city' => $vendor->city,
+                    'state' => $vendor->state,
+                    'postal_code' => $vendor->postal_code,
+                    'country' => $vendor->country,
+                    'tax_id' => $vendor->tax_id,
+                    'payment_terms' => $vendor->payment_terms,
+                    'status' => $vendor->status,
+                    'notes' => $vendor->notes,
+                    'total_purchase_orders' => $vendor->purchaseOrders()->count(),
+                    'total_purchase_amount' => $vendor->purchaseOrders()->sum('total_amount'),
+                ];
+            }
+
+            // Update origin info if we have better data
+            if (!$purchaseOrderOrigin) {
+                $purchaseOrderOrigin = [
+                    'po_number' => $po->po_number,
+                    'received_date' => $po->received_at?->format('Y-m-d H:i:s'),
+                    'source' => 'purchase_order',
+                ];
+            }
         }
 
         // 6. Get all activity history for this barcode
@@ -293,6 +382,8 @@ class LookupController extends Controller
                 'current_location' => $currentLocation,
                 'batch' => $batchInfo,
                 'purchase_order_origin' => $purchaseOrderOrigin,
+                'purchase_order' => $purchaseOrderDetails,  // NEW: Full PO details
+                'vendor' => $vendorDetails,                  // NEW: Full vendor details
                 'lifecycle' => $lifecycle,
                 'activity_history' => $activityHistory,
                 'summary' => [
@@ -302,6 +393,8 @@ class LookupController extends Controller
                     'is_currently_defective' => $barcodeRecord->is_defective,
                     'is_active' => $barcodeRecord->is_active,
                     'current_status' => $barcodeRecord->current_status,
+                    'has_purchase_order' => $purchaseOrderDetails !== null,
+                    'has_vendor_info' => $vendorDetails !== null,
                 ],
             ]
         ]);

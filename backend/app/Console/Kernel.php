@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         \App\Console\Commands\RouteMethodCount::class,
+        \App\Console\Commands\SyncPathaoStatus::class,
     ];
 
     /**
@@ -26,6 +27,21 @@ class Kernel extends ConsoleKernel
         $schedule->call(function () {
             app(\App\Http\Controllers\RecycleBinController::class)->autoCleanup();
         })->dailyAt('02:00')->name('recycle-bin-cleanup');
+
+        // Sync Pathao shipment status and payment info - runs every 30 minutes
+        // Updates delivery status and records COD payments automatically
+        $schedule->command('pathao:sync-status --limit=200')
+            ->everyThirtyMinutes()
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->name('pathao-status-sync');
+
+        // Full sync once daily at 6 AM for any missed updates
+        $schedule->command('pathao:sync-status --limit=500 --days=7')
+            ->dailyAt('06:00')
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->name('pathao-daily-sync');
     }
 
     /**

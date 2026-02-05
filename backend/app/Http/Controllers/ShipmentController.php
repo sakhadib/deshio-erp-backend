@@ -1059,4 +1059,115 @@ class ShipmentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Manually trigger Pathao status sync
+     * 
+     * POST /api/shipments/trigger-pathao-sync
+     * Body: {
+     *   "limit": 100,     // Optional, default 100
+     *   "days": 30        // Optional, default 30
+     * }
+     */
+    public function triggerPathaoSync(Request $request)
+    {
+        $limit = $request->input('limit', 100);
+        $days = $request->input('days', 30);
+
+        try {
+            // Run the command in background
+            \Artisan::queue('pathao:sync-status', [
+                '--limit' => $limit,
+                '--days' => $days,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Pathao sync triggered for up to {$limit} shipments from last {$days} days",
+                'note' => 'Sync is running in background. Check pathao-sync-stats for progress.'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to trigger sync: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get Pathao sync statistics
+     * 
+     * GET /api/shipments/pathao-sync-stats
+     */
+    public function getPathaoSyncStats()
+    {
+        $stats = [
+            // Total shipments with Pathao
+            'total_pathao_shipments' => Shipment::whereNotNull('pathao_consignment_id')->count(),
+            
+            // By status
+            'by_status' => Shipment::whereNotNull('pathao_consignment_id')
+                ->selectRaw('status, COUNT(*) as count')
+                ->groupBy('status')
+                ->pluck('count', 'status'),
+            
+            // By Pathao status
+            'by_pathao_status' => Shipment::whereNotNull('pathao_consignment_id')
+                ->selectRaw('pathao_status, COUNT(*) as count')
+                ->groupBy('pathao_status')
+                ->pluck('count', 'pathao_status'),
+            
+            // Pending sync (not in terminal status)
+            'pending_sync' => Shipment::whereNotNull('pathao_consignment_id')
+                ->whereNotIn('status', ['delivered', 'cancelled', 'returned'])
+                ->count(),
+            
+            // COD collection stats
+            'cod_stats' => [
+                'total_cod_shipments' => Shipment::whereNotNull('pathao_consignment_id')
+                    ->where(function($q) {
+                        $q->where('cod_amount', '>', 0)
+                          ->orWhere('amount_to_collect', '>', 0);
+                    })->count(),
+                'cod_collected' => Shipment::whereNotNull('pathao_consignment_id')
+                    ->where('cod_collected', true)
+                    ->count(),
+                'cod_pending' => Shipment::whereNotNull('pathao_consignment_id')
+                    ->where(function($q) {
+                        $q->where('cod_amount', '>', 0)
+                          ->orWhere('amount_to_collect', '>', 0);
+                    })
+                    ->where(function($q) {
+                        $q->where('cod_collected', false)
+                          ->orWhereNull('cod_collected');
+                    })
+                    ->whereNotIn('status', ['cancelled', 'returned'])
+                    ->count(),
+                'total_cod_amount' => Shipment::whereNotNull('pathao_consignment_id')
+                    ->where('cod_collected', true)
+                    ->sum('cod_collected_amount'),
+            ],
+            
+            // Last sync info
+            'last_sync' => Shipment::whereNotNull('pathao_last_synced_at')
+                ->orderBy('pathao_last_synced_at', 'desc')
+                ->value('pathao_last_synced_at'),
+            
+            // Never synced
+            'never_synced' => Shipment::whereNotNull('pathao_consignment_id')
+                ->whereNull('pathao_last_synced_at')
+                ->count(),
+            
+            // Recent (last 24h)
+            'synced_last_24h' => Shipment::whereNotNull('pathao_last_synced_at')
+                ->where('pathao_last_synced_at', '>=', now()->subHours(24))
+                ->count(),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $stats
+        ]);
+    }
 }

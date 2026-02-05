@@ -413,10 +413,14 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [PurchaseOrderController::class, 'index']);
         Route::post('/', [PurchaseOrderController::class, 'create']);
         Route::get('/stats', [PurchaseOrderController::class, 'statistics']);
+        Route::get('/report/pdf', [PurchaseOrderController::class, 'exportSummaryPdf']); // Summary report PDF
 
         Route::prefix('{id}')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'show']);
             Route::put('/', [PurchaseOrderController::class, 'update']);
+            Route::delete('/', [PurchaseOrderController::class, 'destroy']); // Hard delete
+            Route::get('/can-delete', [PurchaseOrderController::class, 'canDelete']); // Check before delete
+            Route::get('/pdf', [PurchaseOrderController::class, 'exportPdf']); // Individual PO PDF
             
             // PO Actions
             Route::post('/approve', [PurchaseOrderController::class, 'approve']);
@@ -1024,6 +1028,10 @@ Route::middleware('auth:api')->group(function () {
         // Bulk operations
         Route::post('/bulk-send-to-pathao', [ShipmentController::class, 'bulkSendToPathao']);
         Route::post('/bulk-sync-pathao-status', [ShipmentController::class, 'bulkSyncPathaoStatus']);
+        
+        // Pathao status sync scheduler trigger (manual trigger for admins)
+        Route::post('/trigger-pathao-sync', [ShipmentController::class, 'triggerPathaoSync']);
+        Route::get('/pathao-sync-stats', [ShipmentController::class, 'getPathaoSyncStats']);
 
         // Bulk batch status tracking
         Route::get('/bulk-batches', [ShipmentController::class, 'listBulkBatches']);
@@ -1198,6 +1206,8 @@ Route::middleware('auth:api')->group(function () {
         Route::prefix('{id}')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'show']);
             Route::put('/', [PurchaseOrderController::class, 'update']);
+            Route::delete('/', [PurchaseOrderController::class, 'destroy']); // Hard delete
+            Route::get('/can-delete', [PurchaseOrderController::class, 'canDelete']); // Check before delete
             Route::post('/approve', [PurchaseOrderController::class, 'approve']);
             Route::post('/receive', [PurchaseOrderController::class, 'receive']);
             Route::post('/cancel', [PurchaseOrderController::class, 'cancel']);

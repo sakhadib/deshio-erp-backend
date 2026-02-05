@@ -23,10 +23,15 @@ class Shipment extends Model
         'pathao_tracking_number',
         'pathao_status',
         'pathao_response',
+        'pathao_last_synced_at',      // NEW: Last sync timestamp
+        'pathao_payment_status',       // NEW: Payment status from Pathao
         'status',
         'delivery_type',
         'delivery_fee',
         'cod_amount',
+        'cod_collected',               // NEW: Whether COD was collected
+        'cod_collected_amount',        // NEW: Actual collected amount
+        'cod_collected_at',            // NEW: When COD was collected
         'carrier_name', // NEW: Pathao, etc.
         'item_quantity', // NEW: Number of items in this shipment
         'item_weight', // NEW: Total weight for this shipment
@@ -60,6 +65,10 @@ class Shipment extends Model
         'pathao_response' => 'array',
         'delivery_fee' => 'decimal:2',
         'cod_amount' => 'decimal:2',
+        'cod_collected' => 'boolean',              // NEW
+        'cod_collected_amount' => 'decimal:2',     // NEW
+        'cod_collected_at' => 'datetime',          // NEW
+        'pathao_last_synced_at' => 'datetime',     // NEW
         'amount_to_collect' => 'decimal:2', // NEW
         'item_weight' => 'decimal:2', // NEW
         'package_weight' => 'decimal:2',
