@@ -23,7 +23,7 @@ class PurchaseOrderController extends Controller
         $validated = $request->validate([
             'vendor_id' => 'required|exists:vendors,id',
             'store_id' => 'required|exists:stores,id',
-            'expected_delivery_date' => 'nullable|date|after_or_equal:today',
+            'expected_delivery_date' => 'nullable|date',  // Allow any date including backdate
             'tax_amount' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
             'shipping_cost' => 'nullable|numeric|min:0',
@@ -188,7 +188,7 @@ class PurchaseOrderController extends Controller
 
         $validated = $request->validate([
             'vendor_id' => 'sometimes|exists:vendors,id',
-            'expected_delivery_date' => 'nullable|date',
+            'expected_delivery_date' => 'nullable|date',  // Allow any date including backdate
             'tax_amount' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
             'shipping_cost' => 'nullable|numeric|min:0',
