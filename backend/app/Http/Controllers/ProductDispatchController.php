@@ -556,18 +556,12 @@ class ProductDispatchController extends Controller
                     'success' => false,
                     'message' => "All required barcodes have already been scanned ({$item->quantity} of {$item->quantity})"
                 ], 422);
-            }Mark barcode as reserved for this dispatch (not in_transit yet)
+            }
+            
+            // Mark barcode as reserved for this dispatch (not in_transit yet)
             // It will be marked as in_transit when dispatch is actually sent
             $barcode->update([
                 'current_status' => $dispatch->status === 'in_transit' ? 'in_transit' : 'reserved',
-                'location_updated_at' => now(),
-                'location_metadata' => [
-                    'dispatch_number' => $dispatch->dispatch_number,
-                    'destination_store_id' => $dispatch->destination_store_id,
-                    'scanned_for_dispatch
-            // Update barcode status to in_transit when scanned for dispatch
-            $barcode->update([
-                'current_status' => 'in_transit',
                 'location_updated_at' => now(),
                 'location_metadata' => [
                     'dispatch_number' => $dispatch->dispatch_number,
