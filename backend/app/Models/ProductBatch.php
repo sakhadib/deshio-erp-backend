@@ -56,8 +56,9 @@ class ProductBatch extends Model
         });
 
         static::updating(function ($batch) {
-            // Recalculate base_price and tax_amount if sell_price or tax_percentage changed
-            if ($batch->isDirty(['sell_price', 'tax_percentage'])) {
+            // Recalculate base_price and tax_amount if sell_price, tax_percentage, or product_id changed
+            // Product change matters because category tax might be different
+            if ($batch->isDirty(['sell_price', 'tax_percentage', 'product_id'])) {
                 static::calculateTaxFields($batch);
             }
         });
@@ -65,6 +66,7 @@ class ProductBatch extends Model
 
     /**
      * Calculate tax fields based on TAX_MODE configuration
+     * Priority: Category tax > Batch tax
      */
     protected static function calculateTaxFields($batch): void
     {
@@ -74,13 +76,16 @@ class ProductBatch extends Model
             return;
         }
 
+        // Get effective tax percentage (category takes priority)
+        $effectiveTaxPercentage = static::getEffectiveTaxPercentage($batch);
+
         $taxMode = config('app.tax_mode', 'inclusive');
 
         if ($taxMode === 'inclusive') {
             // Inclusive: sell_price includes tax (price = base + tax)
             // Extract base and tax from sell_price
-            if ($batch->tax_percentage > 0) {
-                $batch->base_price = round($batch->sell_price / (1 + ($batch->tax_percentage / 100)), 2);
+            if ($effectiveTaxPercentage > 0) {
+                $batch->base_price = round($batch->sell_price / (1 + ($effectiveTaxPercentage / 100)), 2);
                 $batch->tax_amount = round($batch->sell_price - $batch->base_price, 2);
             } else {
                 $batch->base_price = $batch->sell_price;
@@ -89,12 +94,49 @@ class ProductBatch extends Model
         } else {
             // Exclusive: sell_price is the base, tax is added on top (total = price + tax)
             $batch->base_price = $batch->sell_price;
-            if ($batch->tax_percentage > 0) {
-                $batch->tax_amount = round($batch->sell_price * ($batch->tax_percentage / 100), 2);
+            if ($effectiveTaxPercentage > 0) {
+                $batch->tax_amount = round($batch->sell_price * ($effectiveTaxPercentage / 100), 2);
             } else {
                 $batch->tax_amount = 0;
             }
         }
+    }
+
+    /**
+     * Get effective tax percentage for this batch
+     * Priority: Category tax > Batch tax
+     */
+    protected static function getEffectiveTaxPercentage($batch): float
+    {
+        // Load product with category if not loaded
+        if (!$batch->relationLoaded('product')) {
+            $batch->load('product.category');
+        } elseif ($batch->product && !$batch->product->relationLoaded('category')) {
+            $batch->product->load('category');
+        }
+
+        // Check category tax first (priority)
+        if ($batch->product && $batch->product->category && $batch->product->category->tax_percentage > 0) {
+            return (float) $batch->product->category->tax_percentage;
+        }
+
+        // Fall back to batch tax
+        return (float) ($batch->tax_percentage ?? 0);
+    }
+
+    /**
+     * Get the effective tax percentage for this batch (public accessor)
+     * Priority: Category tax > Batch tax
+     */
+    public function getEffectiveTax(): float
+    {
+        // Check category tax first (priority)
+        if ($this->product && $this->product->category && $this->product->category->tax_percentage > 0) {
+            return (float) $this->product->category->tax_percentage;
+        }
+
+        // Fall back to batch tax
+        return (float) ($this->tax_percentage ?? 0);
     }
 
     /**

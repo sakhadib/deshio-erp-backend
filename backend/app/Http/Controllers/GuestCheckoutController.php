@@ -126,9 +126,10 @@ class GuestCheckoutController extends Controller
                     
                     $itemTotal = $unitPrice * $item['quantity'];
                     
-                    // Extract tax from inclusive price using batch tax_percentage
+                    // Extract tax from inclusive price using category/batch tax_percentage
+                    // Priority: Category tax > Batch tax
                     $batch = $inStockBatch ?? $anyBatch;
-                    $taxPercentage = $batch ? ($batch->tax_percentage ?? 0) : 0;
+                    $taxPercentage = $batch ? $batch->getEffectiveTax() : 0;
                     $itemTax = $taxPercentage > 0 
                         ? round($itemTotal - ($itemTotal / (1 + ($taxPercentage / 100))), 2)
                         : 0;

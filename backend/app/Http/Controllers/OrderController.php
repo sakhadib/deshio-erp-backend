@@ -478,7 +478,8 @@ class OrderController extends Controller
                 $discount = $itemData['discount_amount'] ?? 0;
                 
                 // Calculate tax using the helper method (respects TAX_MODE)
-                $taxPercentage = $batch?->tax_percentage ?? 0;
+                // Priority: Category tax > Batch tax
+                $taxPercentage = $batch?->getEffectiveTax() ?? 0;
                 $taxCalculation = $this->calculateTax($unitPrice, $quantity, $taxPercentage);
                 $tax = $taxCalculation['total_tax'];
                 
@@ -888,7 +889,8 @@ class OrderController extends Controller
                     $discount = $request->discount_amount ?? 0;
 
                     // Calculate tax using the helper method (respects TAX_MODE)
-                    $taxPercentage = $batch->tax_percentage ?? 0;
+                    // Priority: Category tax > Batch tax
+                    $taxPercentage = $batch->getEffectiveTax();
                     $taxCalculation = $this->calculateTax($unitPrice, 1, $taxPercentage);
 
                     // Create order item with barcode tracking
@@ -948,7 +950,8 @@ class OrderController extends Controller
                 $discount = $request->discount_amount ?? 0;
                 
                 // Calculate tax using the helper method (respects TAX_MODE)
-                $taxPercentage = $batch->tax_percentage ?? 0;
+                // Priority: Category tax > Batch tax
+                $taxPercentage = $batch->getEffectiveTax();
                 $taxCalculation = $this->calculateTax($unitPrice, $quantity, $taxPercentage);
                 
                 // Check if this product already exists in the order
@@ -960,7 +963,7 @@ class OrderController extends Controller
                 if ($existingItem) {
                     // Update existing item quantity
                     $existingItem->quantity += $quantity;
-                    $existingItem->tax_amount = $this->calculateTax($existingItem->unit_price, $existingItem->quantity, $taxPercentage)['total_tax'];
+                    $existingItem->tax_amount = $this->calculateTax((float)$existingItem->unit_price, $existingItem->quantity, $taxPercentage)['total_tax'];
                     $existingItem->total_amount = ($existingItem->unit_price * $existingItem->quantity) - $existingItem->discount_amount;
                     $existingItem->cogs = round(($batch->cost_price ?? 0) * $existingItem->quantity, 2);
                     $existingItem->save();

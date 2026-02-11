@@ -252,11 +252,12 @@ class EcommerceOrderController extends Controller
                     $itemTotal = $item->unit_price * $item->quantity;
                     $subtotal += $itemTotal;
                     
-                    // Extract tax from inclusive price using batch tax_percentage
+                    // Extract tax from inclusive price using category/batch tax_percentage
+                    // Priority: Category tax > Batch tax
                     $batch = ProductBatch::where('product_id', $item->product_id)
                         ->orderBy('created_at', 'desc')
                         ->first();
-                    $taxPercentage = $batch ? ($batch->tax_percentage ?? 0) : 0;
+                    $taxPercentage = $batch ? $batch->getEffectiveTax() : 0;
                     $itemTax = $taxPercentage > 0 
                         ? round($itemTotal - ($itemTotal / (1 + ($taxPercentage / 100))), 2)
                         : 0;
@@ -303,11 +304,12 @@ class EcommerceOrderController extends Controller
 
                 // Create order items without batch/barcode (will be assigned during fulfillment)
                 foreach ($cartItems as $cartItem) {
-                    // Calculate tax for this item
+                    // Calculate tax for this item using category/batch tax
+                    // Priority: Category tax > Batch tax
                     $batch = ProductBatch::where('product_id', $cartItem->product_id)
                         ->orderBy('created_at', 'desc')
                         ->first();
-                    $taxPercentage = $batch ? ($batch->tax_percentage ?? 0) : 0;
+                    $taxPercentage = $batch ? $batch->getEffectiveTax() : 0;
                     $itemTotal = $cartItem->unit_price * $cartItem->quantity;
                     $itemTax = $taxPercentage > 0 
                         ? round($itemTotal - ($itemTotal / (1 + ($taxPercentage / 100))), 2)

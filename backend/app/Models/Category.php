@@ -20,6 +20,7 @@ class Category extends Model
         'slug',
         'order',
         'is_active',
+        'tax_percentage',
         'parent_id',
         'level',
         'path',
@@ -29,6 +30,7 @@ class Category extends Model
         'is_active' => 'boolean',
         'order' => 'integer',
         'level' => 'integer',
+        'tax_percentage' => 'decimal:2',
     ];
 
     protected $appends = [
