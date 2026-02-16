@@ -114,6 +114,13 @@ class EcommerceCatalogController extends Controller
                         'selling_price' => $variantLowestBatch ? $variantLowestBatch->sell_price : null,
                         'stock_quantity' => $variantStock,
                         'in_stock' => $variantStock > 0,
+                        'images' => $variant->images->where('is_active', true)->take(2)->map(function ($image) {
+                            return [
+                                'id' => $image->id,
+                                'url' => $image->image_url,
+                                'is_primary' => $image->is_primary,
+                            ];
+                        }),
                     ];
                 });
                 
