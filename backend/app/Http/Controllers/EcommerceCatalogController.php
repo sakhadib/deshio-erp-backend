@@ -80,50 +80,87 @@ class EcommerceCatalogController extends Controller
                 return true;
             });
 
+            // Group products by base_name (show one product per base, others as variants)
+            $groupedProducts = $filteredProducts->groupBy(function ($product) {
+                // Group by base_name if exists, otherwise use product name
+                return $product->base_name ?? $product->name;
+            })->map(function ($group) {
+                // For each base_name group, pick the main product (lowest price available)
+                $sortedGroup = $group->sortBy(function ($product) {
+                    $availableBatches = $product->batches->where('quantity', '>', 0);
+                    $lowestBatch = $availableBatches->sortBy('sell_price')->first();
+                    return $lowestBatch ? $lowestBatch->sell_price : PHP_INT_MAX;
+                });
+                
+                $mainProduct = $sortedGroup->first();
+                $totalStock = $mainProduct->batches->sum('quantity');
+                $availableBatches = $mainProduct->batches->where('quantity', '>', 0);
+                $lowestAvailableBatch = $availableBatches->sortBy('sell_price')->first();
+                $hasStock = $totalStock > 0;
+                
+                // Get variants (other products in same base_name group)
+                $variants = $group->filter(function ($p) use ($mainProduct) {
+                    return $p->id !== $mainProduct->id;
+                })->values()->map(function ($variant) {
+                    $variantStock = $variant->batches->sum('quantity');
+                    $variantAvailableBatches = $variant->batches->where('quantity', '>', 0);
+                    $variantLowestBatch = $variantAvailableBatches->sortBy('sell_price')->first();
+                    
+                    return [
+                        'id' => $variant->id,
+                        'name' => $variant->name,
+                        'variation_suffix' => $variant->variation_suffix,
+                        'sku' => $variant->sku,
+                        'selling_price' => $variantLowestBatch ? $variantLowestBatch->sell_price : null,
+                        'stock_quantity' => $variantStock,
+                        'in_stock' => $variantStock > 0,
+                    ];
+                });
+                
+                return [
+                    'id' => $mainProduct->id,
+                    'name' => $mainProduct->name,
+                    'base_name' => $mainProduct->base_name,
+                    'variation_suffix' => $mainProduct->variation_suffix,
+                    'brand' => $mainProduct->brand,
+                    'sku' => $mainProduct->sku,
+                    'description' => $mainProduct->description,
+                    'short_description' => $mainProduct->description ? (strlen($mainProduct->description) > 150 ? substr($mainProduct->description, 0, 150) . '...' : $mainProduct->description) : null,
+                    'selling_price' => $lowestAvailableBatch ? $lowestAvailableBatch->sell_price : null,
+                    'price_display' => $lowestAvailableBatch ? number_format($lowestAvailableBatch->sell_price, 2) . ' BDT' : 'TBA',
+                    'cost_price' => $lowestAvailableBatch ? $lowestAvailableBatch->cost_price : null,
+                    'stock_quantity' => $totalStock,
+                    'in_stock' => $hasStock,
+                    'available_for_preorder' => !$hasStock,
+                    'has_variants' => $variants->count() > 0,
+                    'variants_count' => $variants->count(),
+                    'variants' => $variants,
+                    'images' => $mainProduct->images->where('is_active', true)->take(3)->map(function ($image) {
+                        return [
+                            'id' => $image->id,
+                            'url' => $image->image_url,
+                            'alt_text' => $image->alt_text,
+                            'is_primary' => $image->is_primary,
+                        ];
+                    }),
+                    'category' => $mainProduct->category ? [
+                        'id' => $mainProduct->category->id,
+                        'name' => $mainProduct->category->title,
+                    ] : null,
+                    'created_at' => $mainProduct->created_at,
+                ];
+            });
+
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'products' => $filteredProducts->values()->map(function ($product) {
-                        $lowestBatch = $product->batches->sortBy('sell_price')->first();
-                        $totalStock = $product->batches->sum('quantity');
-                        
-                        $availableBatches = $product->batches->where('quantity', '>', 0);
-                        $lowestAvailableBatch = $availableBatches->sortBy('sell_price')->first();
-                        $hasStock = $totalStock > 0;
-                        
-                        return [
-                            'id' => $product->id,
-                            'name' => $product->name,
-                            'brand' => $product->brand,
-                            'sku' => $product->sku,
-                            'description' => $product->description,
-                            'short_description' => $product->description ? (strlen($product->description) > 150 ? substr($product->description, 0, 150) . '...' : $product->description) : null,
-                            'selling_price' => $lowestAvailableBatch ? $lowestAvailableBatch->sell_price : null,
-                            'price_display' => $lowestAvailableBatch ? number_format($lowestAvailableBatch->sell_price, 2) . ' BDT' : 'TBA',
-                            'cost_price' => $lowestAvailableBatch ? $lowestAvailableBatch->cost_price : null,
-                            'stock_quantity' => $totalStock,
-                            'in_stock' => $hasStock,
-                            'available_for_preorder' => !$hasStock,
-                            'images' => $product->images->where('is_active', true)->take(3)->map(function ($image) {
-                                return [
-                                    'id' => $image->id,
-                                    'url' => $image->image_url,
-                                    'alt_text' => $image->alt_text,
-                                    'is_primary' => $image->is_primary,
-                                ];
-                            }),
-                            'category' => $product->category ? [
-                                'id' => $product->category->id,
-                                'name' => $product->category->title,
-                            ] : null,
-                            'created_at' => $product->created_at,
-                        ];
-                    }),
+                    'products' => $groupedProducts->values(),
                     'pagination' => [
                         'current_page' => $products->currentPage(),
                         'last_page' => $products->lastPage(),
                         'per_page' => $products->perPage(),
-                        'total' => $minPrice || $maxPrice ? $filteredProducts->count() : $products->total(),
+                        'total' => $groupedProducts->count(), // Count of base products (grouped)
+                        'total_variants' => $filteredProducts->count(), // Total individual products including variants
                         'from' => $products->firstItem(),
                         'to' => $products->lastItem(),
                     ],
@@ -174,6 +211,40 @@ class EcommerceCatalogController extends Controller
                 ->take(6)
                 ->get();
 
+            // Get variants (same base_name, different variation_suffix)
+            $variants = collect();
+            if ($product->base_name) {
+                $variants = Product::with(['images', 'batches' => function ($q) {
+                        $q->orderBy('sell_price', 'asc');
+                    }])
+                    ->where('base_name', $product->base_name)
+                    ->where('id', '!=', $product->id)
+                    ->where('is_archived', false)
+                    ->get()
+                    ->map(function ($variant) {
+                        $variantStock = $variant->batches->sum('quantity');
+                        $variantAvailableBatches = $variant->batches->where('quantity', '>', 0);
+                        $variantLowestBatch = $variantAvailableBatches->sortBy('sell_price')->first();
+                        
+                        return [
+                            'id' => $variant->id,
+                            'name' => $variant->name,
+                            'variation_suffix' => $variant->variation_suffix,
+                            'sku' => $variant->sku,
+                            'selling_price' => $variantLowestBatch ? $variantLowestBatch->sell_price : null,
+                            'stock_quantity' => $variantStock,
+                            'in_stock' => $variantStock > 0,
+                            'images' => $variant->images->where('is_active', true)->take(1)->map(function ($image) {
+                                return [
+                                    'id' => $image->id,
+                                    'url' => $image->image_url,
+                                    'is_primary' => $image->is_primary,
+                                ];
+                            }),
+                        ];
+                    });
+            }
+
             $lowestBatch = $product->batches->sortBy('sell_price')->first();
             $totalStock = $product->batches->sum('quantity');
             
@@ -183,6 +254,8 @@ class EcommerceCatalogController extends Controller
                     'product' => [
                         'id' => $product->id,
                         'name' => $product->name,
+                        'base_name' => $product->base_name,
+                        'variation_suffix' => $product->variation_suffix,
                         'brand' => $product->brand,
                         'sku' => $product->sku,
                         'description' => $product->description,
@@ -190,6 +263,9 @@ class EcommerceCatalogController extends Controller
                         'cost_price' => $lowestBatch ? $lowestBatch->cost_price : 0,
                         'stock_quantity' => $totalStock,
                         'in_stock' => $totalStock > 0,
+                        'has_variants' => $variants->count() > 0,
+                        'variants_count' => $variants->count(),
+                        'variants' => $variants,
                         'images' => $product->images->where('is_active', true)->map(function ($image) {
                             return [
                                 'id' => $image->id,
