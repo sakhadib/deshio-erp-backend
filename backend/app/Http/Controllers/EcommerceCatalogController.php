@@ -11,6 +11,104 @@ use Illuminate\Support\Facades\Cache;
 class EcommerceCatalogController extends Controller
 {
     use DatabaseAgnosticSearch;
+    
+    /**
+     * Safely extract image data with error handling
+     */
+    private function safeImageMap($image, $includeAltText = false)
+    {
+        try {
+            $data = [
+                'id' => $image->id ?? null,
+                'url' => $image->image_url ?? null,
+                'is_primary' => $image->is_primary ?? false,
+            ];
+            
+            if ($includeAltText) {
+                $data['alt_text'] = $image->alt_text ?? null;
+            }
+            
+            return $data;
+        } catch (\Exception $e) {
+            // If image access fails, return null or basic data
+            return [
+                'id' => $image->id ?? null,
+                'url' => null,
+                'is_primary' => false,
+            ];
+        }
+    }
+    
+    /**
+     * Safely map a collection of images with error handling
+     */
+    private function safeMapImages($images, $limit = null, $includeAltText = false)
+    {
+        try {
+            if (!$images) {
+                return [];
+            }
+            
+            $activeImages = $images->where('is_active', true);
+            
+            if ($limit) {
+                $activeImages = $activeImages->take($limit);
+            }
+            
+            return $activeImages->map(function ($image) use ($includeAltText) {
+                return $this->safeImageMap($image, $includeAltText);
+            })->filter(function ($img) {
+                return $img['url'] !== null;
+            })->values();
+            
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+    
+    /**
+     * Safely map images with display order for product detail page
+     */
+    private function safeMapImagesWithOrder($images)
+    {
+        try {
+            if (!$images) {
+                return [];
+            }
+            
+            return $images->where('is_active', true)->map(function ($image) {
+                try {
+                    return [
+                        'id' => $image->id ?? null,
+                        'url' => $image->image_url ?? null,
+                        'alt_text' => $image->alt_text ?? null,
+                        'is_primary' => $image->is_primary ?? false,
+                        'display_order' => $image->display_order ?? 0,
+                    ];
+                } catch (\Exception $e) {
+                    return null;
+                }
+            })->filter(function ($img) {
+                return $img !== null && $img['url'] !== null;
+            })->values();
+            
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+    
+    /**
+     * Safely get category image URL with error handling
+     */
+    private function safeCategoryImageUrl($category)
+    {
+        try {
+            return $category->image_url ?? null;
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+    
     /**
      * Get products for e-commerce (public endpoint)
      */
@@ -106,6 +204,20 @@ class EcommerceCatalogController extends Controller
                     $variantAvailableBatches = $variant->batches->where('quantity', '>', 0);
                     $variantLowestBatch = $variantAvailableBatches->sortBy('sell_price')->first();
                     
+                    // Safely map images with error handling
+                    $variantImages = [];
+                    try {
+                        if ($variant->images) {
+                            $variantImages = $variant->images->where('is_active', true)->take(2)->map(function ($image) {
+                                return $this->safeImageMap($image);
+                            })->filter(function ($img) {
+                                return $img['url'] !== null;
+                            })->values();
+                        }
+                    } catch (\Exception $e) {
+                        $variantImages = [];
+                    }
+                    
                     return [
                         'id' => $variant->id,
                         'name' => $variant->name,
@@ -114,13 +226,7 @@ class EcommerceCatalogController extends Controller
                         'selling_price' => $variantLowestBatch ? $variantLowestBatch->sell_price : null,
                         'stock_quantity' => $variantStock,
                         'in_stock' => $variantStock > 0,
-                        'images' => $variant->images->where('is_active', true)->take(2)->map(function ($image) {
-                            return [
-                                'id' => $image->id,
-                                'url' => $image->image_url,
-                                'is_primary' => $image->is_primary,
-                            ];
-                        }),
+                        'images' => $variantImages,
                     ];
                 });
                 
@@ -142,14 +248,7 @@ class EcommerceCatalogController extends Controller
                     'has_variants' => $variants->count() > 0,
                     'variants_count' => $variants->count(),
                     'variants' => $variants,
-                    'images' => $mainProduct->images->where('is_active', true)->take(3)->map(function ($image) {
-                        return [
-                            'id' => $image->id,
-                            'url' => $image->image_url,
-                            'alt_text' => $image->alt_text,
-                            'is_primary' => $image->is_primary,
-                        ];
-                    }),
+                    'images' => $this->safeMapImages($mainProduct->images, 3, true),
                     'category' => $mainProduct->category ? [
                         'id' => $mainProduct->category->id,
                         'name' => $mainProduct->category->title,
@@ -233,6 +332,20 @@ class EcommerceCatalogController extends Controller
                         $variantAvailableBatches = $variant->batches->where('quantity', '>', 0);
                         $variantLowestBatch = $variantAvailableBatches->sortBy('sell_price')->first();
                         
+                        // Safely map images with error handling
+                        $variantImages = [];
+                        try {
+                            if ($variant->images) {
+                                $variantImages = $variant->images->where('is_active', true)->take(1)->map(function ($image) {
+                                    return $this->safeImageMap($image);
+                                })->filter(function ($img) {
+                                    return $img['url'] !== null;
+                                })->values();
+                            }
+                        } catch (\Exception $e) {
+                            $variantImages = [];
+                        }
+                        
                         return [
                             'id' => $variant->id,
                             'name' => $variant->name,
@@ -241,13 +354,7 @@ class EcommerceCatalogController extends Controller
                             'selling_price' => $variantLowestBatch ? $variantLowestBatch->sell_price : null,
                             'stock_quantity' => $variantStock,
                             'in_stock' => $variantStock > 0,
-                            'images' => $variant->images->where('is_active', true)->take(1)->map(function ($image) {
-                                return [
-                                    'id' => $image->id,
-                                    'url' => $image->image_url,
-                                    'is_primary' => $image->is_primary,
-                                ];
-                            }),
+                            'images' => $variantImages,
                         ];
                     });
             }
@@ -273,15 +380,7 @@ class EcommerceCatalogController extends Controller
                         'has_variants' => $variants->count() > 0,
                         'variants_count' => $variants->count(),
                         'variants' => $variants,
-                        'images' => $product->images->where('is_active', true)->map(function ($image) {
-                            return [
-                                'id' => $image->id,
-                                'url' => $image->image_url,
-                                'alt_text' => $image->alt_text,
-                                'is_primary' => $image->is_primary,
-                                'display_order' => $image->display_order,
-                            ];
-                        }),
+                        'images' => $this->safeMapImagesWithOrder($product->images),
                         'category' => $product->category ? [
                             'id' => $product->category->id,
                             'name' => $product->category->title,
@@ -311,7 +410,7 @@ class EcommerceCatalogController extends Controller
                             'brand' => $product->brand,
                             'sku' => $product->sku,
                             'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
-                            'images' => $product->images->where('is_active', true)->take(1),
+                            'images' => $this->safeMapImages($product->images, 1),
                             'in_stock' => $totalStock > 0,
                         ];
                     }),
@@ -351,7 +450,7 @@ class EcommerceCatalogController extends Controller
                             'name' => $category->title,
                             'description' => $category->description,
                             'image' => $category->image,
-                            'image_url' => $category->image_url,
+                            'image_url' => $this->safeCategoryImageUrl($category),
                             'color' => $category->color,
                             'icon' => $category->icon,
                             'product_count' => $category->products()->count(),
@@ -360,7 +459,7 @@ class EcommerceCatalogController extends Controller
                                     'id' => $child->id,
                                     'name' => $child->title,
                                     'image' => $child->image,
-                                    'image_url' => $child->image_url,
+                                    'image_url' => $this->safeCategoryImageUrl($child),
                                     'color' => $child->color,
                                     'icon' => $child->icon,
                                     'product_count' => $child->products()->count(),
@@ -585,14 +684,7 @@ class EcommerceCatalogController extends Controller
                             'brand' => $product->brand,
                             'sku' => $product->sku,
                             'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
-                            'images' => $product->images->where('is_active', true)->take(2)->map(function ($image) {
-                                return [
-                                    'id' => $image->id,
-                                    'url' => $image->image_url,
-                                    'alt_text' => $image->alt_text,
-                                    'is_primary' => $image->is_primary,
-                                ];
-                            }),
+                            'images' => $this->safeMapImages($product->images, 2, true),
                             'category' => $product->category->title ?? null,
                             'added_days_ago' => $product->created_at->diffInDays(now()),
                         ];
@@ -673,14 +765,7 @@ class EcommerceCatalogController extends Controller
                             'brand' => $product->brand,
                             'sku' => $product->sku,
                             'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
-                            'images' => $product->images->where('is_active', true)->take(2)->map(function ($image) {
-                                return [
-                                    'id' => $image->id,
-                                    'url' => $image->image_url,
-                                    'alt_text' => $image->alt_text,
-                                    'is_primary' => $image->is_primary,
-                                ];
-                            }),
+                            'images' => $this->safeMapImages($product->images, 2, true),
                             'category' => $product->category ? [
                                 'name' => $product->category->title,
                             ] : null,
