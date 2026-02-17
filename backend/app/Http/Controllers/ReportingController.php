@@ -811,4 +811,212 @@ class ReportingController extends Controller
 
         return Response::stream($callback, 200, $headers);
     }
+
+    /**
+     * Export payment breakdown report as CSV
+     * 
+     * GET /api/reporting/csv/payment-breakdown
+     * 
+     * Query Parameters:
+     * - date_from: Start date (YYYY-MM-DD) - optional
+     * - date_to: End date (YYYY-MM-DD) - optional
+     * - today: Get today's orders only (boolean) - optional
+     * - store_id: Filter by specific store - optional
+     * - order_type: Filter by order type (counter, ecommerce, social_commerce) - optional
+     * - status: Filter by order status - optional
+     * 
+     * Response: CSV file download with payment breakdown per order
+     */
+    public function exportPaymentBreakdownCsv(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from',
+            'today' => 'nullable|boolean',
+            'store_id' => 'nullable|exists:stores,id',
+            'order_type' => 'nullable|in:counter,ecommerce,social_commerce,service',
+            'status' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Build query for orders with items and payments
+        $query = Order::query()
+            ->with(['customer', 'items.product', 'payments.paymentMethod', 'store'])
+            ->whereNull('deleted_at');
+
+        // Today filter (overrides date_from/date_to)
+        if ($request->boolean('today')) {
+            $query->whereDate('order_date', today());
+        } else {
+            // Date range filter
+            if ($request->filled('date_from')) {
+                $query->whereDate('order_date', '>=', $request->date_from);
+            }
+
+            if ($request->filled('date_to')) {
+                $query->whereDate('order_date', '<=', $request->date_to);
+            }
+        }
+
+        // Store filter
+        if ($request->filled('store_id')) {
+            $query->where('store_id', $request->store_id);
+        }
+
+        // Order type filter
+        if ($request->filled('order_type')) {
+            $query->where('order_type', $request->order_type);
+        }
+
+        // Status filter
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $orders = $query->orderBy('order_date', 'desc')->get();
+
+        // Generate CSV
+        $filename = 'payment-breakdown-' . now()->format('Y-m-d-His') . '.csv';
+        
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function() use ($orders) {
+            $file = fopen('php://output', 'w');
+            
+            // Add BOM for Excel UTF-8 support
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            // CSV Headers
+            fputcsv($file, [
+                'Date',
+                'Invoice Number',
+                'Store/Branch',
+                'Customer Name',
+                'Customer Phone',
+                'Customer Address',
+                'Product Name',
+                'Quantity',
+                'Cash Paid',
+                'Bkash/Mobile Banking Paid',
+                'Bank Paid',
+                'Due',
+                'System (Online/POS)',
+                'Order Status',
+            ]);
+
+            // CSV Rows - One row per order
+            foreach ($orders as $order) {
+                // Customer info
+                $customerName = $order->customer ? $order->customer->name : 'Walk-in Customer';
+                $customerPhone = $order->customer ? $order->customer->phone : 'N/A';
+                
+                // Customer address
+                $customerAddress = '';
+                if ($order->shipping_address && is_array($order->shipping_address)) {
+                    $addressParts = array_filter([
+                        $order->shipping_address['street'] ?? $order->shipping_address['address_line_1'] ?? '',
+                        $order->shipping_address['area'] ?? $order->shipping_address['address_line_2'] ?? '',
+                        $order->shipping_address['city'] ?? '',
+                    ]);
+                    $customerAddress = implode(', ', $addressParts);
+                } elseif ($order->customer && $order->customer->address) {
+                    $customerAddress = $order->customer->address;
+                }
+                
+                // Store/Branch name
+                $storeName = $order->store ? $order->store->name : 'N/A';
+                
+                // Product names - concatenate all items with quantities
+                $productNames = [];
+                foreach ($order->items as $item) {
+                    $productNames[] = ($item->product_name ?? 'Unknown') . ' (x' . $item->quantity . ')';
+                }
+                $productNameQty = implode(', ', $productNames);
+                
+                // Total quantity
+                $totalQuantity = $order->items->sum('quantity');
+                
+                // Calculate payment breakdown by payment method type
+                $cashPaid = 0;
+                $mobileBankingPaid = 0;
+                $bankPaid = 0;
+                
+                foreach ($order->payments as $payment) {
+                    if ($payment->status !== 'completed') {
+                        continue; // Only count completed payments
+                    }
+                    
+                    $amount = floatval($payment->amount);
+                    
+                    if ($payment->paymentMethod) {
+                        $methodType = $payment->paymentMethod->type;
+                        $methodName = strtolower($payment->paymentMethod->name);
+                        
+                        // Cash payment (ID 1 or type 'cash')
+                        if ($payment->payment_method_id == 1 || $methodType == 'cash') {
+                            $cashPaid += $amount;
+                        }
+                        // Mobile banking (bKash, Nagad, Rocket, etc.) - ID 6 or type 'mobile_banking'
+                        elseif ($payment->payment_method_id == 6 || $methodType == 'mobile_banking' || 
+                                str_contains($methodName, 'bkash') || str_contains($methodName, 'nagad') ||
+                                str_contains($methodName, 'rocket') || str_contains($methodName, 'upay')) {
+                            $mobileBankingPaid += $amount;
+                        }
+                        // Bank transfer - ID 4 or type 'bank_transfer' or 'online_banking'
+                        elseif ($payment->payment_method_id == 4 || 
+                                $methodType == 'bank_transfer' || 
+                                $methodType == 'online_banking') {
+                            $bankPaid += $amount;
+                        }
+                    }
+                }
+                
+                // Due amount
+                $dueAmount = floatval($order->outstanding_amount);
+                
+                // System type - map order_type to readable format
+                $systemType = match($order->order_type) {
+                    'counter' => 'POS',
+                    'ecommerce' => 'Online (E-commerce)',
+                    'social_commerce' => 'Online (Social)',
+                    'service' => 'Service Order',
+                    default => ucfirst($order->order_type ?? 'N/A'),
+                };
+                
+                // Order status
+                $orderStatus = ucfirst(str_replace('_', ' ', $order->status ?? 'N/A'));
+                
+                // Write row
+                fputcsv($file, [
+                    $order->order_date ? $order->order_date->format('Y-m-d H:i:s') : 'N/A',
+                    $order->order_number ?? 'N/A',
+                    $storeName,
+                    $customerName,
+                    $customerPhone,
+                    $customerAddress,
+                    $productNameQty,
+                    $totalQuantity,
+                    number_format($cashPaid, 2),
+                    number_format($mobileBankingPaid, 2),
+                    number_format($bankPaid, 2),
+                    number_format($dueAmount, 2),
+                    $systemType,
+                    $orderStatus,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return Response::stream($callback, 200, $headers);
+    }
 }

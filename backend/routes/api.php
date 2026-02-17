@@ -1572,6 +1572,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/csv/stock', [\App\Http\Controllers\ReportingController::class, 'exportStockCsv']);
         // Booking Report
         Route::get('/csv/booking', [\App\Http\Controllers\ReportingController::class, 'exportBookingCsv']);
+        // Payment Breakdown Report
+        Route::get('/csv/payment-breakdown', [\App\Http\Controllers\ReportingController::class, 'exportPaymentBreakdownCsv']);
     });
 
     // ============================================
