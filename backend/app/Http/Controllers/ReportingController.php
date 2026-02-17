@@ -337,6 +337,8 @@ class ReportingController extends Controller
                 'Delivery Charge',
                 'Total Price',
                 'Paid Amount',
+                'Vat Amount',
+                'Total Without Vat',
                 'Due Amount',
                 'Delivery Partner',
                 'Delivery Area',
@@ -404,6 +406,8 @@ class ReportingController extends Controller
                 $deliveryCharge = floatval($order->shipping_amount);
                 $totalPrice = floatval($order->total_amount);
                 $paidAmount = floatval($order->paid_amount);
+                $vatAmount = floatval($order->tax_amount);
+                $totalWithoutVat = $totalPrice - $vatAmount;
                 $dueAmount = floatval($order->outstanding_amount);
                 
                 // Delivery partner (from shipments)
@@ -451,6 +455,8 @@ class ReportingController extends Controller
                     number_format($deliveryCharge, 2),
                     number_format($totalPrice, 2),
                     number_format($paidAmount, 2),
+                    number_format($vatAmount, 2),
+                    number_format($totalWithoutVat, 2),
                     number_format($dueAmount, 2),
                     $deliveryPartner,
                     $deliveryArea,
