@@ -39,7 +39,7 @@ Export a detailed payment breakdown report showing how customers paid for orders
 | `date_to` | date | No | - | End date (YYYY-MM-DD format, must be >= date_from) |
 | `today` | boolean | No | false | Get today's orders only (overrides date_from/date_to) |
 | `store_id` | integer | No | - | Filter by specific store/branch |
-| `order_type` | string | No | - | Filter by order type: `counter`, `ecommerce`, `social_commerce`, `service` |
+| `order_type` | string | No | - | Filter by order type: `counter`, `ecommerce`, `social_commerce` `service` |
 | `status` | string | No | - | Filter by order status: `pending`, `confirmed`, `completed`, `cancelled`, etc. |
 
 **Parameter Notes:**
