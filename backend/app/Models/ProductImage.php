@@ -55,7 +55,24 @@ class ProductImage extends Model
 
     public function getImageUrlAttribute()
     {
-        return $this->image_path ? Storage::url($this->image_path) : null;
+        if (!$this->image_path) {
+            return null;
+        }
+        
+        // Use public disk explicitly and ensure full URL is returned
+        try {
+            $relativeUrl = Storage::disk('public')->url($this->image_path);
+            
+            // If URL is already absolute, return it
+            if (filter_var($relativeUrl, FILTER_VALIDATE_URL)) {
+                return $relativeUrl;
+            }
+            
+            // Otherwise, prepend APP_URL to make it absolute
+            return url($relativeUrl);
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     public function makePrimary()

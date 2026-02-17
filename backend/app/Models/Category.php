@@ -191,9 +191,14 @@ class Category extends Model
      */
     public function getImageUrlAttribute()
     {
-        if ($this->image) {
-            return asset('storage/' . $this->image);
+        try {
+            if ($this->image) {
+                // asset() returns absolute URL including APP_URL
+                return asset('storage/' . $this->image);
+            }
+            return null;
+        } catch (\Exception $e) {
+            return null;
         }
-        return null;
     }
 }
