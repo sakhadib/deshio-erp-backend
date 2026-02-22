@@ -78,6 +78,18 @@ Route::post('/guest-orders/by-phone', [\App\Http\Controllers\GuestCheckoutContro
 Route::post('/customer-registration', [CustomerController::class, 'publicRegistration']);
 
 // ============================================
+// PUBLIC SALE CAMPAIGNS & DISCOUNTS
+// Display active sales, calculate discounts (no auth required)
+// Used by eCommerce, social commerce platforms
+// ============================================
+
+Route::prefix('campaigns')->group(function () {
+    Route::get('/active', [PromotionController::class, 'getActiveCampaigns']);
+    Route::post('/calculate-discount', [PromotionController::class, 'calculateAutoDiscount']);
+    Route::get('/product-discounts', [PromotionController::class, 'getActiveDiscounts']);
+});
+
+// ============================================
 // E-COMMERCE CUSTOMER AUTHENTICATION ROUTES
 // Customer registration, login, password reset
 // ============================================

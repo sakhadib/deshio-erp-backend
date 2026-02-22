@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Category;
+use App\Services\AutomaticDiscountService;
 use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -178,11 +179,14 @@ class EcommerceCatalogController extends Controller
                 return true;
             });
 
+            // Initialize discount service for price calculation
+            $discountService = app(AutomaticDiscountService::class);
+
             // Group products by base_name (show one product per base, others as variants)
             $groupedProducts = $filteredProducts->groupBy(function ($product) {
                 // Group by base_name if exists, otherwise use product name
                 return $product->base_name ?? $product->name;
-            })->map(function ($group) {
+            })->map(function ($group) use ($discountService) {
                 // For each base_name group, pick the main product (lowest price available)
                 $sortedGroup = $group->sortBy(function ($product) {
                     $availableBatches = $product->batches->where('quantity', '>', 0);
@@ -199,10 +203,14 @@ class EcommerceCatalogController extends Controller
                 // Get variants (other products in same base_name group)
                 $variants = $group->filter(function ($p) use ($mainProduct) {
                     return $p->id !== $mainProduct->id;
-                })->values()->map(function ($variant) {
+                })->values()->map(function ($variant) use ($discountService) {
                     $variantStock = $variant->batches->sum('quantity');
                     $variantAvailableBatches = $variant->batches->where('quantity', '>', 0);
                     $variantLowestBatch = $variantAvailableBatches->sortBy('sell_price')->first();
+                    
+                    // Calculate discount for variant
+                    $variantOriginalPrice = $variantLowestBatch ? $variantLowestBatch->sell_price : 0;
+                    $variantDiscountInfo = $discountService->calculateProductDiscount($variant->id, $variantOriginalPrice);
                     
                     // Safely map images with error handling
                     $variantImages = [];
@@ -223,12 +231,20 @@ class EcommerceCatalogController extends Controller
                         'name' => $variant->name,
                         'variation_suffix' => $variant->variation_suffix,
                         'sku' => $variant->sku,
-                        'selling_price' => $variantLowestBatch ? $variantLowestBatch->sell_price : null,
+                        'original_price' => $variantDiscountInfo['original_price'],
+                        'selling_price' => $variantDiscountInfo['discounted_price'],
+                        'discount_amount' => $variantDiscountInfo['discount_amount'],
+                        'discount_percentage' => $variantDiscountInfo['discount_percentage'],
+                        'has_discount' => $variantDiscountInfo['discount_amount'] > 0,
                         'stock_quantity' => $variantStock,
                         'in_stock' => $variantStock > 0,
                         'images' => $variantImages,
                     ];
                 });
+                
+                // Calculate automatic discount for this product
+                $originalPrice = $lowestAvailableBatch ? $lowestAvailableBatch->sell_price : 0;
+                $discountInfo = $discountService->calculateProductDiscount($mainProduct->id, $originalPrice);
                 
                 return [
                     'id' => $mainProduct->id,
@@ -239,8 +255,13 @@ class EcommerceCatalogController extends Controller
                     'sku' => $mainProduct->sku,
                     'description' => $mainProduct->description,
                     'short_description' => $mainProduct->description ? (strlen($mainProduct->description) > 150 ? substr($mainProduct->description, 0, 150) . '...' : $mainProduct->description) : null,
-                    'selling_price' => $lowestAvailableBatch ? $lowestAvailableBatch->sell_price : null,
-                    'price_display' => $lowestAvailableBatch ? number_format($lowestAvailableBatch->sell_price, 2) . ' BDT' : 'TBA',
+                    'original_price' => $discountInfo['original_price'],
+                    'selling_price' => $discountInfo['discounted_price'],
+                    'discount_amount' => $discountInfo['discount_amount'],
+                    'discount_percentage' => $discountInfo['discount_percentage'],
+                    'has_discount' => $discountInfo['discount_amount'] > 0,
+                    'active_campaign' => $discountInfo['active_campaign'],
+                    'price_display' => $discountInfo['discounted_price'] > 0 ? number_format($discountInfo['discounted_price'], 2) . ' BDT' : 'TBA',
                     'cost_price' => $lowestAvailableBatch ? $lowestAvailableBatch->cost_price : null,
                     'stock_quantity' => $totalStock,
                     'in_stock' => $hasStock,

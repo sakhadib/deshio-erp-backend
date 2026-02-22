@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Promotion;
 use App\Models\Customer;
 use App\Models\Order;
+use App\Services\AutomaticDiscountService;
 use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -370,6 +371,146 @@ class PromotionController extends Controller
             'data' => $newPromotion->load('createdBy'),
             'message' => 'Promotion duplicated successfully'
         ], 201);
+    }
+
+    /**
+     * Get active automatic campaigns (PUBLIC - no auth required)
+     * Used by eCommerce, social commerce to display active sales
+     */
+    public function getActiveCampaigns(Request $request)
+    {
+        $productIds = $request->get('product_ids', []);
+        $categoryIds = $request->get('category_ids', []);
+        
+        $now = now();
+        
+        $query = Promotion::where('is_automatic', true)
+            ->where('is_active', true)
+            ->where('is_public', true)
+            ->where('start_date', '<=', $now)
+            ->where(function ($q) use ($now) {
+                $q->whereNull('end_date')
+                  ->orWhere('end_date', '>=', $now);
+            });
+        
+        // Filter by products if provided
+        if (!empty($productIds)) {
+            $query->where(function ($q) use ($productIds) {
+                foreach ($productIds as $id) {
+                    $q->orWhereJsonContains('applicable_products', (string)$id);
+                }
+            });
+        }
+        
+        // Filter by categories if provided
+        if (!empty($categoryIds)) {
+            $query->where(function ($q) use ($categoryIds) {
+                foreach ($categoryIds as $id) {
+                    $q->orWhereJsonContains('applicable_categories', (string)$id);
+                }
+            });
+        }
+        
+        $campaigns = $query->get()->map(function ($campaign) {
+            return [
+                'id' => $campaign->id,
+                'name' => $campaign->name,
+                'description' => $campaign->description,
+                'code' => $campaign->code,
+                'type' => $campaign->type,
+                'discount_value' => $campaign->discount_value,
+                'start_date' => $campaign->start_date->toIso8601String(),
+                'end_date' => $campaign->end_date?->toIso8601String(),
+                'applicable_products' => $campaign->applicable_products,
+                'applicable_categories' => $campaign->applicable_categories,
+            ];
+        });
+        
+        return response()->json([
+            'success' => true,
+            'data' => $campaigns,
+        ]);
+    }
+
+    /**
+     * Calculate automatic discount for products (PUBLIC - no auth required)
+     * Used by eCommerce catalog to show discounted prices
+     */
+    public function calculateAutoDiscount(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'items' => 'required|array',
+            'items.*.product_id' => 'required|integer|exists:products,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $discountService = app(AutomaticDiscountService::class);
+        $result = $discountService->calculateCartDiscounts($request->items);
+        
+        return response()->json([
+            'success' => true,
+            'data' => $result,
+        ]);
+    }
+
+    /**
+     * Get active discounts for specific products (PUBLIC - no auth required)
+     * Used by product pages, catalog listings
+     */
+    public function getActiveDiscounts(Request $request)
+    {
+        $productIds = $request->get('product_ids', []);
+        
+        if (empty($productIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'product_ids parameter is required',
+            ], 422);
+        }
+
+        $discountService = app(AutomaticDiscountService::class);
+        $discounts = $discountService->getActiveDiscountsForProducts($productIds);
+        
+        $result = [];
+        foreach ($productIds as $productId) {
+            $productDiscounts = $discounts->filter(function($discount) use ($productId) {
+                $applicableProducts = $discount->applicable_products ?? [];
+                if (in_array($productId, $applicableProducts) || in_array((string)$productId, $applicableProducts)) {
+                    return true;
+                }
+                
+                // Check category
+                $product = \App\Models\Product::find($productId);
+                if ($product && $product->category_id) {
+                    $applicableCategories = $discount->applicable_categories ?? [];
+                    if (in_array($product->category_id, $applicableCategories) || 
+                        in_array((string)$product->category_id, $applicableCategories)) {
+                        return true;
+                    }
+                }
+                
+                return false;
+            })->map(function($discount) {
+                return [
+                    'id' => $discount->id,
+                    'name' => $discount->name,
+                    'type' => $discount->type,
+                    'discount_value' => $discount->discount_value,
+                ];
+            })->values();
+            
+            $result[$productId] = $productDiscounts;
+        }
+        
+        return response()->json([
+            'success' => true,
+            'data' => $result,
+        ]);
     }
 
     private function generateUniqueCode(): string

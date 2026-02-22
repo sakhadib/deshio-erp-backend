@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
+use App\Services\AutomaticDiscountService;
 use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -266,11 +267,26 @@ class EcommerceOrderController extends Controller
 
                 $deliveryCharge = $this->calculateDeliveryCharge($shippingAddress);
                 
-                // Apply coupon discount if provided
-                $discountAmount = 0;
+                // Calculate automatic campaign discounts
+                $discountService = app(AutomaticDiscountService::class);
+                $cartItemsForDiscount = $cartItems->map(function($item) {
+                    return [
+                        'product_id' => $item->product_id,
+                        'quantity' => $item->quantity,
+                        'unit_price' => $item->unit_price,
+                    ];
+                })->toArray();
+                
+                $discountResult = $discountService->calculateCartDiscounts($cartItemsForDiscount);
+                $automaticDiscount = $discountResult['total_discount'];
+                
+                // Apply coupon discount if provided (in addition to automatic discounts)
+                $couponDiscount = 0;
                 if ($request->coupon_code) {
-                    $discountAmount = $this->applyCoupon($request->coupon_code, $subtotal);
+                    $couponDiscount = $this->applyCoupon($request->coupon_code, $subtotal);
                 }
+                
+                $discountAmount = $automaticDiscount + $couponDiscount;
                 
                 // Tax is already extracted from item prices (inclusive)
                 $totalAmount = $subtotal + $deliveryCharge - $discountAmount;
@@ -299,6 +315,9 @@ class EcommerceOrderController extends Controller
                         'delivery_preference' => $request->delivery_preference ?? 'standard',
                         'scheduled_delivery_date' => $request->scheduled_delivery_date,
                         'coupon_code' => $request->coupon_code,
+                        'automatic_discount' => $automaticDiscount,
+                        'coupon_discount' => $couponDiscount,
+                        'campaigns_applied' => $discountResult['campaigns_applied'],
                     ],
                 ]);
 
@@ -315,6 +334,15 @@ class EcommerceOrderController extends Controller
                         ? round($itemTotal - ($itemTotal / (1 + ($taxPercentage / 100))), 2)
                         : 0;
                     
+                    // Find matching discount item
+                    $itemDiscount = 0;
+                    foreach ($discountResult['items'] as $discountItem) {
+                        if ($discountItem['product_id'] == $cartItem->product_id) {
+                            $itemDiscount = $discountItem['discount_amount_total'] ?? 0;
+                            break;
+                        }
+                    }
+                    
                     OrderItem::create([
                         'order_id' => $order->id,
                         'product_id' => $cartItem->product_id,
@@ -323,8 +351,8 @@ class EcommerceOrderController extends Controller
                         'quantity' => $cartItem->quantity,
                         'unit_price' => $cartItem->unit_price,
                         'tax_amount' => $itemTax,
-                        'discount_amount' => 0,
-                        'total_amount' => $itemTotal,
+                        'discount_amount' => $itemDiscount,
+                        'total_amount' => $itemTotal - $itemDiscount,
                         'notes' => $cartItem->notes,
                     ]);
 

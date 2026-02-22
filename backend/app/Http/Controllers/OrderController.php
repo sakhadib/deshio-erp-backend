@@ -11,6 +11,7 @@ use App\Models\Store;
 use App\Models\Employee;
 use App\Models\PaymentMethod;
 use App\Models\Transaction;
+use App\Services\AutomaticDiscountService;
 use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -359,6 +360,23 @@ class OrderController extends Controller
                 $initialStatus = 'pending_assignment'; // Waiting for store assignment
             }
 
+            // Calculate automatic campaign discounts for all items
+            $discountService = app(AutomaticDiscountService::class);
+            $itemsForDiscount = array_map(function($item) {
+                return [
+                    'product_id' => $item['product_id'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                ];
+            }, $request->items);
+            
+            $discountResult = $discountService->calculateCartDiscounts($itemsForDiscount);
+            $automaticDiscount = $discountResult['total_discount'];
+            
+            // Combine automatic discount with manual discount if provided
+            $manualDiscount = $request->discount_amount ?? 0;
+            $totalDiscount = $automaticDiscount + $manualDiscount;
+
             // Create order
             $order = Order::create([
                 'customer_id' => $customer->id,
@@ -367,7 +385,7 @@ class OrderController extends Controller
                 'status' => $initialStatus,
                 'payment_status' => 'pending',
                 'fulfillment_status' => $fulfillmentStatus,
-                'discount_amount' => $request->discount_amount ?? 0,
+                'discount_amount' => $totalDiscount,
                 'shipping_amount' => $request->shipping_amount ?? 0,
                 'notes' => $request->notes,
                 'shipping_address' => $request->shipping_address,
@@ -475,7 +493,19 @@ class OrderController extends Controller
 
                 $quantity = $itemData['quantity'];
                 $unitPrice = $itemData['unit_price'];
-                $discount = $itemData['discount_amount'] ?? 0;
+                
+                // Find matching automatic discount for this product
+                $automaticItemDiscount = 0;
+                foreach ($discountResult['items'] as $discountItem) {
+                    if ($discountItem['product_id'] == $itemData['product_id']) {
+                        $automaticItemDiscount = $discountItem['discount_amount_total'] ?? 0;
+                        break;
+                    }
+                }
+                
+                // Combine automatic discount with manual item discount if provided
+                $manualItemDiscount = $itemData['discount_amount'] ?? 0;
+                $discount = $automaticItemDiscount + $manualItemDiscount;
                 
                 // Calculate tax using the helper method (respects TAX_MODE)
                 // Priority: Category tax > Batch tax
@@ -486,7 +516,7 @@ class OrderController extends Controller
                 // For inclusive mode: subtotal includes tax
                 // For exclusive mode: subtotal is base, tax added separately
                 $itemSubtotal = $quantity * $unitPrice;
-                $itemTotal = $itemSubtotal - $discount;
+                $itemTotal = $itemSubtotal -$discount;
 
                 // Calculate COGS from batch cost price (0 if no batch - pre-order)
                 $cogs = $batch ? round(($batch->cost_price ?? 0) * $quantity, 2) : 0;
