@@ -502,4 +502,167 @@ class ProductBarcodeController extends Controller
             ]
         ]);
     }
+
+    /**
+     * Transfer/Migrate a barcode to a different store
+     * Creates or updates batch at target store automatically
+     * 
+     * POST /api/employee/barcodes/transfer-to-store
+     * Body: {
+     *   "barcode": "123456789012",
+     *   "store_id": 5
+     * }
+     */
+    public function transferToStore(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'barcode' => 'required|string',
+            'store_id' => 'required|exists:stores,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Find the barcode
+            $barcodeRecord = ProductBarcode::with(['batch', 'product', 'currentStore'])
+                ->where('barcode', $request->barcode)
+                ->first();
+
+            if (!$barcodeRecord) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Barcode not found'
+                ], 404);
+            }
+
+            // Check if barcode is sold but not returned
+            if (in_array($barcodeRecord->current_status, ['with_customer', 'sold']) && !$barcodeRecord->is_active) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot transfer sold products that are with customer'
+                ], 422);
+            }
+
+            $targetStoreId = $request->store_id;
+            $product = $barcodeRecord->product;
+            $currentBatch = $barcodeRecord->batch;
+
+            if (!$currentBatch) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Barcode has no associated batch. Cannot transfer.'
+                ], 422);
+            }
+
+            // Check if a batch exists for this product at the target store
+            $targetBatch = ProductBatch::where('product_id', $product->id)
+                ->where('store_id', $targetStoreId)
+                ->where('sell_price', $currentBatch->sell_price)
+                ->where('cost_price', $currentBatch->cost_price)
+                ->first();
+
+            $oldStoreId = $barcodeRecord->current_store_id;
+            $oldBatchId = $barcodeRecord->batch_id;
+
+            // If no matching batch exists at target store, create one
+            if (!$targetBatch) {
+                $targetBatch = ProductBatch::create([
+                    'product_id' => $product->id,
+                    'store_id' => $targetStoreId,
+                    'quantity' => 0, // Will be incremented below
+                    'cost_price' => $currentBatch->cost_price,
+                    'sell_price' => $currentBatch->sell_price,
+                    'tax_percentage' => $currentBatch->tax_percentage,
+                    'base_price' => $currentBatch->base_price,
+                    'tax_amount' => $currentBatch->tax_amount,
+                    'manufactured_date' => $currentBatch->manufactured_date,
+                    'expiry_date' => $currentBatch->expiry_date,
+                    'is_active' => true,
+                    'notes' => "Auto-created during barcode transfer from store {$oldStoreId}",
+                ]);
+            }
+
+            // Update barcode's batch and location
+            $barcodeRecord->update([
+                'batch_id' => $targetBatch->id,
+                'current_store_id' => $targetStoreId,
+                'current_status' => 'in_warehouse', // Default to warehouse when transferred
+                'location_updated_at' => now(),
+                'location_metadata' => array_merge($barcodeRecord->location_metadata ?? [], [
+                    'transferred_at' => now()->toDateTimeString(),
+                    'transferred_from_store' => $oldStoreId,
+                    'transferred_by' => auth()->id(),
+                ]),
+            ]);
+
+            // Increment target batch quantity
+            $targetBatch->increment('quantity', 1);
+
+            // Decrement old batch quantity (if different from target)
+            if ($oldBatchId && $oldBatchId !== $targetBatch->id) {
+                ProductBatch::where('id', $oldBatchId)
+                    ->where('quantity', '>', 0)
+                    ->decrement('quantity', 1);
+            }
+
+            // Create movement record for audit trail
+            ProductMovement::create([
+                'product_batch_id' => $targetBatch->id,
+                'product_barcode_id' => $barcodeRecord->id,
+                'from_store_id' => $oldStoreId,
+                'to_store_id' => $targetStoreId,
+                'movement_type' => 'transfer',
+                'quantity' => 1,
+                'unit_cost' => $currentBatch->cost_price,
+                'unit_price' => $currentBatch->sell_price,
+                'total_cost' => $currentBatch->cost_price,
+                'total_value' => $currentBatch->sell_price,
+                'status_before' => $barcodeRecord->current_status,
+                'status_after' => 'in_warehouse',
+                'notes' => "Barcode transferred to store {$targetStoreId}",
+                'performed_by' => auth()->id(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product transferred successfully',
+                'data' => [
+                    'barcode' => $barcodeRecord->barcode,
+                    'product' => [
+                        'id' => $product->id,
+                        'name' => $product->name,
+                        'sku' => $product->sku,
+                    ],
+                    'from_store' => [
+                        'id' => $oldStoreId,
+                        'name' => $barcodeRecord->currentStore ? $barcodeRecord->currentStore->name : 'Unknown',
+                    ],
+                    'to_store' => [
+                        'id' => $targetStoreId,
+                        'name' => \App\Models\Store::find($targetStoreId)->name,
+                    ],
+                    'batch' => [
+                        'id' => $targetBatch->id,
+                        'batch_number' => $targetBatch->batch_number,
+                        'quantity' => $targetBatch->quantity,
+                        'sell_price' => $targetBatch->sell_price,
+                    ],
+                    'current_status' => 'in_warehouse',
+                    'transferred_at' => now()->toIso8601String(),
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transfer failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

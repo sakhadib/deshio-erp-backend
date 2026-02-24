@@ -281,6 +281,52 @@ class ProductDispatch extends Model
             throw new \Exception('Cannot cancel a delivered or already cancelled dispatch.');
         }
 
+        // ✅ FIX: Reset barcode statuses before marking dispatch as cancelled
+        foreach ($this->items as $item) {
+            $item->load('scannedBarcodes');
+            
+            if ($item->scannedBarcodes && $item->scannedBarcodes->count() > 0) {
+                // Reset each scanned barcode back to available status
+                foreach ($item->scannedBarcodes as $barcode) {
+                    $oldStatus = $barcode->current_status;
+                    
+                    $barcode->update([
+                        'current_status' => 'available',
+                        'current_store_id' => $this->source_store_id, // Keep at source store
+                        'location_updated_at' => now(),
+                        'location_metadata' => array_merge($barcode->location_metadata ?? [], [
+                            'dispatch_cancelled_at' => now()->toISOString(),
+                            'previous_status' => $oldStatus,
+                            'cancelled_dispatch_number' => $this->dispatch_number,
+                            'returned_to_available' => now()->toISOString(),
+                        ])
+                    ]);
+                    
+                    // Create movement record for audit trail
+                    ProductMovement::create([
+                        'product_batch_id' => $item->product_batch_id,
+                        'product_barcode_id' => $barcode->id,
+                        'from_store_id' => $this->source_store_id,
+                        'to_store_id' => $this->source_store_id, // Stays at source
+                        'movement_type' => 'dispatch_cancelled',
+                        'quantity' => 1,
+                        'unit_cost' => $item->unit_cost,
+                        'unit_price' => $item->unit_price,
+                        'total_cost' => $item->unit_cost,
+                        'total_value' => $item->unit_price,
+                        'status_before' => $oldStatus,
+                        'status_after' => 'available',
+                        'notes' => "Dispatch {$this->dispatch_number} cancelled - barcode returned to available",
+                        'performed_by' => auth()->id(),
+                        'movement_date' => now(),
+                    ]);
+                }
+            }
+            
+            // Update item status to cancelled
+            $item->update(['status' => 'cancelled']);
+        }
+
         $this->update(['status' => 'cancelled']);
 
         return $this;
