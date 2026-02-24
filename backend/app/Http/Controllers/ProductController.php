@@ -760,4 +760,181 @@ class ProductController extends Controller
             ->selectRaw('SUM(product_batches.quantity * product_batches.cost_price) as total_value')
             ->value('total_value') ?? 0;
     }
+
+    /**
+     * Force delete product with all related data
+     * ⚠️ ADMIN ONLY - This permanently deletes product and ALL inventory
+     * 
+     * DELETE /api/employee/products/{id}/force-delete
+     */
+    public function forceDelete($id)
+    {
+        $product = Product::withTrashed()->find($id);
+
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found'
+            ], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            $deletionSummary = [
+                'product_id' => $product->id,
+                'product_name' => $product->name,
+                'product_sku' => $product->sku,
+                'deleted_at' => now()->toISOString(),
+            ];
+
+            // Check for purchase orders (these have RESTRICT constraint)
+            $purchaseOrderItems = DB::table('purchase_order_items')
+                ->where('product_id', $product->id)
+                ->count();
+            
+            if ($purchaseOrderItems > 0) {
+                // Remove foreign key constraint temporarily by setting product_id to null
+                DB::table('purchase_order_items')
+                    ->where('product_id', $product->id)
+                    ->update(['product_id' => null]);
+                $deletionSummary['purchase_order_items_unlinked'] = $purchaseOrderItems;
+            }
+
+            // 1. Delete product movements (linked via batches/barcodes)
+            $movements = DB::table('product_movements')
+                ->whereIn('product_batch_id', function($query) use ($product) {
+                    $query->select('id')
+                        ->from('product_batches')
+                        ->where('product_id', $product->id);
+                })
+                ->orWhereIn('product_barcode_id', function($query) use ($product) {
+                    $query->select('id')
+                        ->from('product_barcodes')
+                        ->where('product_id', $product->id);
+                })
+                ->delete();
+            $deletionSummary['movements_deleted'] = $movements;
+
+            // 2. Delete dispatch item barcodes (pivot table)
+            $dispatchItemBarcodes = DB::table('product_dispatch_item_barcodes')
+                ->whereIn('product_barcode_id', function($query) use ($product) {
+                    $query->select('id')
+                        ->from('product_barcodes')
+                        ->where('product_id', $product->id);
+                })
+                ->delete();
+            $deletionSummary['dispatch_item_barcodes_deleted'] = $dispatchItemBarcodes;
+
+            // 3. Delete defective products
+            $defectiveProducts = DB::table('defective_products')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['defective_products_deleted'] = $defectiveProducts;
+
+            // 4. Delete inventory rebalancings
+            $rebalancings = DB::table('inventory_rebalancings')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['rebalancings_deleted'] = $rebalancings;
+
+            // 5. Delete master inventories
+            $masterInventories = DB::table('master_inventories')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['master_inventories_deleted'] = $masterInventories;
+
+            // 6. Delete cart items
+            $cartItems = DB::table('carts')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['cart_items_deleted'] = $cartItems;
+
+            // 7. Delete wishlist items
+            $wishlistItems = DB::table('wishlists')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['wishlist_items_deleted'] = $wishlistItems;
+
+            // 8. Delete collection products (pivot)
+            $collectionProducts = DB::table('collection_products')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['collection_products_deleted'] = $collectionProducts;
+
+            // 9. Delete ad campaign products
+            $adCampaignProducts = DB::table('ad_campaign_products')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['ad_campaign_products_deleted'] = $adCampaignProducts;
+
+            // 10. Delete order items (will cascade delete via database)
+            $orderItems = DB::table('order_items')
+                ->where('product_id', $product->id)
+                ->count();
+            $deletionSummary['order_items_affected'] = $orderItems;
+
+            // 11. Delete product batches (this will cascade to dispatch items)
+            $batches = DB::table('product_batches')
+                ->where('product_id', $product->id)
+                ->count();
+            DB::table('product_batches')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['batches_deleted'] = $batches;
+
+            // 12. Delete product barcodes
+            $barcodes = DB::table('product_barcodes')
+                ->where('product_id', $product->id)
+                ->count();
+            DB::table('product_barcodes')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['barcodes_deleted'] = $barcodes;
+
+            // 13. Delete product images
+            $images = DB::table('product_images')
+                ->where('product_id', $product->id)
+                ->count();
+            DB::table('product_images')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['images_deleted'] = $images;
+
+            // 14. Delete product fields
+            $fields = DB::table('product_fields')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['fields_deleted'] = $fields;
+
+            // 15. Delete product price overrides
+            $priceOverrides = DB::table('product_price_overrides')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['price_overrides_deleted'] = $priceOverrides;
+
+            // 16. Delete product variants
+            $variants = DB::table('product_variants')
+                ->where('product_id', $product->id)
+                ->delete();
+            $deletionSummary['variants_deleted'] = $variants;
+
+            // 17. Finally, force delete the product itself (even if soft deleted)
+            $product->forceDelete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product and all related data permanently deleted',
+                'data' => $deletionSummary
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete product: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

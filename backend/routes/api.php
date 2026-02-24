@@ -1160,6 +1160,10 @@ Route::middleware('auth:api')->group(function () {
             // Common Edit - Update base_name across all SKU group products
             Route::put('/common-info', [ProductController::class, 'updateCommonInfo']);
             Route::get('/sku-group', [ProductController::class, 'getSkuGroup']);
+            
+            // ⚠️ ADMIN ONLY: Force delete with all stock/barcodes/batches
+            Route::delete('/force-delete', [ProductController::class, 'forceDelete'])
+                ->middleware('permission:system.settings.edit'); // Admin-level permission
         });
     });
 
