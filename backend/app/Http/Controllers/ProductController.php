@@ -788,16 +788,17 @@ class ProductController extends Controller
             ];
 
             // Check for purchase orders (these have RESTRICT constraint)
+            // We can't delete purchase order items, so we'll fail if they exist
             $purchaseOrderItems = DB::table('purchase_order_items')
                 ->where('product_id', $product->id)
                 ->count();
             
             if ($purchaseOrderItems > 0) {
-                // Remove foreign key constraint temporarily by setting product_id to null
-                DB::table('purchase_order_items')
-                    ->where('product_id', $product->id)
-                    ->update(['product_id' => null]);
-                $deletionSummary['purchase_order_items_unlinked'] = $purchaseOrderItems;
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => "Cannot delete product: {$purchaseOrderItems} purchase order item(s) reference this product. Delete purchase orders first or use archive feature instead."
+                ], 422);
             }
 
             // 1. Delete product movements (linked via batches/barcodes)
