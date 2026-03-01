@@ -787,18 +787,45 @@ class ProductController extends Controller
                 'deleted_at' => now()->toISOString(),
             ];
 
-            // Check for purchase orders (these have RESTRICT constraint)
-            // We can't delete purchase order items, so we'll fail if they exist
+            // Delete purchase order items (these have RESTRICT constraint)
             $purchaseOrderItems = DB::table('purchase_order_items')
                 ->where('product_id', $product->id)
-                ->count();
+                ->get();
             
-            if ($purchaseOrderItems > 0) {
-                DB::rollBack();
-                return response()->json([
-                    'success' => false,
-                    'message' => "Cannot delete product: {$purchaseOrderItems} purchase order item(s) reference this product. Delete purchase orders first or use archive feature instead."
-                ], 422);
+            if ($purchaseOrderItems->count() > 0) {
+                // Get affected purchase order IDs before deletion
+                $affectedPOIds = $purchaseOrderItems->pluck('purchase_order_id')->unique();
+                
+                // Delete purchase order items containing this product
+                DB::table('purchase_order_items')
+                    ->where('product_id', $product->id)
+                    ->delete();
+                $deletionSummary['purchase_order_items_deleted'] = $purchaseOrderItems->count();
+                
+                // Update totals for affected purchase orders
+                foreach ($affectedPOIds as $poId) {
+                    // Recalculate purchase order totals
+                    $poItems = DB::table('purchase_order_items')
+                        ->where('purchase_order_id', $poId)
+                        ->get();
+                    
+                    if ($poItems->isEmpty()) {
+                        // If no items left, optionally mark PO as cancelled or delete it
+                        $deletionSummary['empty_purchase_orders'] = ($deletionSummary['empty_purchase_orders'] ?? 0) + 1;
+                        continue;
+                    }
+                    
+                    $subtotal = $poItems->sum(function($item) {
+                        return $item->quantity * $item->unit_cost;
+                    });
+                    
+                    DB::table('purchase_orders')
+                        ->where('id', $poId)
+                        ->update([
+                            'subtotal' => $subtotal,
+                            'total_amount' => $subtotal, // Simplified
+                        ]);
+                }
             }
 
             // 1. Delete product movements (linked via batches/barcodes)

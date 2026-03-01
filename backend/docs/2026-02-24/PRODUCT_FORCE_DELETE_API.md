@@ -78,7 +78,9 @@ curl -X DELETE https://api.example.com/api/employee/products/123/force-delete \
     "ad_campaign_products_deleted": 0,
     "fields_deleted": 2,
     "price_overrides_deleted": 1,
-    "variants_deleted": 0
+    "variants_deleted": 0,
+    "purchase_order_items_deleted": 2,
+    "empty_purchase_orders": 0
   }
 }
 ```
@@ -110,15 +112,6 @@ curl -X DELETE https://api.example.com/api/employee/products/123/force-delete \
 {
   "success": false,
   "message": "Failed to delete product: {error_details}"
-}
-```
-
-#### Product Has Purchase Orders (422)
-
-```json
-{
-  "success": false,
-  "message": "Cannot delete product: 3 purchase order item(s) reference this product. Delete purchase orders first or use archive feature instead."
 }
 ```
 
@@ -156,9 +149,9 @@ This endpoint permanently removes:
 - ✅ Ad campaign associations
 
 ### 6. Purchase Orders
-- ⚠️ **Purchase order items BLOCK deletion** (product_id has RESTRICT constraint)
-- If product is in any purchase order, deletion fails with error
-- **Recommendation:** Archive product instead if it has purchase history
+- ✅ Purchase order items deleted (items referencing this product)
+- ✅ Purchase order totals automatically recalculated
+- ⚠️ If purchase order has only this product, PO becomes empty (no items left)
 
 ---
 
