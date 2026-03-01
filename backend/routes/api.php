@@ -1301,6 +1301,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [ProductDispatchController::class, 'index']);
         Route::post('/', [ProductDispatchController::class, 'create']);
         Route::get('/statistics', [ProductDispatchController::class, 'getStatistics']);
+        Route::get('/export-csv', [ProductDispatchController::class, 'exportCSV']);
         
         // Pathao delivery integration
         Route::get('/pending-shipment', [ProductDispatchController::class, 'getPendingShipment']);

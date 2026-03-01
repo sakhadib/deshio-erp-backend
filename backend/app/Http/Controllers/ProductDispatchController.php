@@ -1360,5 +1360,182 @@ class ProductDispatchController extends Controller
             'data' => $results
         ]);
     }
+
+    /**
+     * Export dispatch report as CSV
+     * 
+     * GET /api/dispatches/export-csv
+     * 
+     * Exports dispatch data with:
+     * - Product base name
+     * - Category
+     * - Vendor
+     * - Date
+     * - Barcode (grouped by product)
+     * - Unit price (of each barcode product)
+     */
+    public function exportCSV(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'dispatch_id' => 'nullable|exists:product_dispatches,id',
+            'status' => 'nullable|in:draft,pending,approved,in_transit,delivered,cancelled',
+            'source_store_id' => 'nullable|exists:stores,id',
+            'destination_store_id' => 'nullable|exists:stores,id',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $query = ProductDispatch::with([
+                'sourceStore',
+                'destinationStore',
+                'items.batch.product.category',
+                'items.batch.product.vendor',
+                'items.scannedBarcodes'
+            ]);
+
+            // Apply filters
+            if ($request->filled('dispatch_id')) {
+                $query->where('id', $request->dispatch_id);
+            }
+
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+
+            if ($request->filled('source_store_id')) {
+                $query->where('source_store_id', $request->source_store_id);
+            }
+
+            if ($request->filled('destination_store_id')) {
+                $query->where('destination_store_id', $request->destination_store_id);
+            }
+
+            if ($request->filled('date_from')) {
+                $query->whereDate('dispatch_date', '>=', $request->date_from);
+            }
+
+            if ($request->filled('date_to')) {
+                $query->whereDate('dispatch_date', '<=', $request->date_to);
+            }
+
+            $dispatches = $query->orderBy('dispatch_date', 'desc')->get();
+
+            // Generate CSV data
+            $csvData = [];
+            
+            // CSV Header
+            $csvData[] = [
+                'Dispatch Number',
+                'Dispatch Date',
+                'Source Store',
+                'Destination Store',
+                'Status',
+                'Product Name',
+                'Category',
+                'Vendor',
+                'Barcode',
+                'Unit Price',
+                'Quantity',
+            ];
+
+            // Group barcodes by product
+            foreach ($dispatches as $dispatch) {
+                $dispatchDate = $dispatch->dispatch_date ? $dispatch->dispatch_date->format('Y-m-d H:i:s') : 'N/A';
+                $sourceStore = $dispatch->sourceStore ? $dispatch->sourceStore->name : 'N/A';
+                $destinationStore = $dispatch->destinationStore ? $dispatch->destinationStore->name : 'N/A';
+
+                foreach ($dispatch->items as $item) {
+                    $product = $item->batch->product ?? null;
+                    
+                    if (!$product) {
+                        continue; // Skip if product not found
+                    }
+
+                    $productName = $product->name ?? 'N/A';
+                    $categoryName = $product->category ? $product->category->name : 'N/A';
+                    $vendorName = $product->vendor ? $product->vendor->name : 'N/A';
+                    $unitPrice = number_format($item->unit_price, 2);
+
+                    // Get all scanned barcodes for this item
+                    $scannedBarcodes = $item->scannedBarcodes;
+
+                    if ($scannedBarcodes && $scannedBarcodes->count() > 0) {
+                        // Group barcodes by product - one row per barcode
+                        foreach ($scannedBarcodes as $barcode) {
+                            $csvData[] = [
+                                $dispatch->dispatch_number,
+                                $dispatchDate,
+                                $sourceStore,
+                                $destinationStore,
+                                ucfirst($dispatch->status),
+                                $productName,
+                                $categoryName,
+                                $vendorName,
+                                $barcode->barcode_string ?? 'N/A',
+                                $unitPrice,
+                                1, // Each barcode represents 1 unit
+                            ];
+                        }
+                    } else {
+                        // If no barcodes scanned, show item without barcode
+                        $csvData[] = [
+                            $dispatch->dispatch_number,
+                            $dispatchDate,
+                            $sourceStore,
+                            $destinationStore,
+                            ucfirst($dispatch->status),
+                            $productName,
+                            $categoryName,
+                            $vendorName,
+                            'No barcode scanned',
+                            $unitPrice,
+                            $item->quantity,
+                        ];
+                    }
+                }
+            }
+
+            // Generate CSV filename
+            $filename = 'dispatch_report_' . date('Y-m-d_His') . '.csv';
+
+            // Create CSV response
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+                'Pragma' => 'no-cache',
+                'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+                'Expires' => '0',
+            ];
+
+            $callback = function() use ($csvData) {
+                $file = fopen('php://output', 'w');
+                
+                // Add BOM for UTF-8 to support special characters in Excel
+                fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+                
+                foreach ($csvData as $row) {
+                    fputcsv($file, $row);
+                }
+                
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export CSV: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
 
