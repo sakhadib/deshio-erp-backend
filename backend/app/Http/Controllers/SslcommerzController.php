@@ -11,6 +11,48 @@ use Illuminate\Support\Facades\Log;
 
 class SslcommerzController extends Controller
 {
+    /**
+     * Map SSLCommerz card_type to internal payment method
+     * 
+     * SSLCommerz returns card_type values like:
+     * - "NAGADMFS" or "NAGAD-Nagad" for Nagad
+     * - "ROCKETMFS" or "ROCKET-DBBL" for Rocket  
+     * - "DBBLMOBILEBANKING" or "BKASH-BKash" for bKash
+     * - "VISA-Dutch Bangla", "MASTERCARD", "AMEX" for cards
+     * - "INTERNETBANKING" for online banking
+     */
+    private function detectPaymentMethod(string $cardType): string
+    {
+        $cardTypeUpper = strtoupper($cardType);
+        
+        // Mobile Banking Detection
+        if (str_contains($cardTypeUpper, 'NAGAD')) {
+            return 'nagad';
+        }
+        if (str_contains($cardTypeUpper, 'ROCKET')) {
+            return 'rocket';
+        }
+        if (str_contains($cardTypeUpper, 'BKASH') || str_contains($cardTypeUpper, 'DBBLMOBILEBANKING')) {
+            return 'bkash';
+        }
+        
+        // Card Detection
+        if (str_contains($cardTypeUpper, 'VISA') || 
+            str_contains($cardTypeUpper, 'MASTERCARD') || 
+            str_contains($cardTypeUpper, 'MASTER CARD') ||
+            str_contains($cardTypeUpper, 'AMEX') || 
+            str_contains($cardTypeUpper, 'AMERICANEXPRESS')) {
+            return 'card';
+        }
+        
+        // Internet Banking
+        if (str_contains($cardTypeUpper, 'INTERNETBANKING') || str_contains($cardTypeUpper, 'ONLINE')) {
+            return 'online_banking';
+        }
+        
+        // Default fallback
+        return 'sslcommerz';
+    }
     public function success(Request $request)
     {
         // Verify hash
@@ -40,10 +82,35 @@ class SslcommerzController extends Controller
                 ->first();
 
             if ($payment) {
+                // Calculate fee from SSLCommerz response
+                $amount = floatval($request->input('amount'));
+                $storeAmount = floatval($request->input('store_amount', $amount));
+                $fee = $amount - $storeAmount;
+
+                // Detect actual payment method from card_type
+                $cardType = $request->input('card_type', '');
+                $actualPaymentMethod = $this->detectPaymentMethod($cardType);
+
                 $payment->update([
                     'status' => 'completed',
-                    'payment_details' => $request->all()
+                    'completed_at' => now(),
+                    'fee_amount' => $fee,
+                    'net_amount' => $storeAmount,
+                    'external_reference' => $request->input('bank_tran_id'),
+                    'payment_details' => $request->all(),
+                    'metadata' => array_merge($payment->metadata ?? [], [
+                        'actual_payment_method' => $actualPaymentMethod,
+                        'card_type' => $cardType,
+                        'card_issuer' => $request->input('card_issuer'),
+                        'card_brand' => $request->input('card_brand'),
+                    ])
                 ]);
+
+                // CRITICAL: Update order payment status and payment method
+                $order->updatePaymentStatus();
+                
+                // Update order's payment_method to reflect actual method used
+                $order->update(['payment_method' => $actualPaymentMethod]);
             }
 
             // Update order status
@@ -79,8 +146,13 @@ class SslcommerzController extends Controller
                 if ($payment) {
                     $payment->update([
                         'status' => 'failed',
+                        'failed_at' => now(),
+                        'failure_reason' => $request->input('error', 'Payment failed'),
                         'payment_details' => $request->all()
                     ]);
+
+                    // Update order payment status
+                    $order->updatePaymentStatus();
                 }
 
                 $order->update(['status' => 'payment_failed']);
@@ -117,6 +189,9 @@ class SslcommerzController extends Controller
                         'status' => 'cancelled',
                         'payment_details' => $request->all()
                     ]);
+
+                    // Update order payment status
+                    $order->updatePaymentStatus();
                 }
 
                 $order->update(['status' => 'cancelled']);
@@ -162,10 +237,43 @@ class SslcommerzController extends Controller
                         default => 'pending'
                     };
 
-                    $payment->update([
+                    // Calculate fee for completed payments
+                    $updateData = [
                         'status' => $paymentStatus,
                         'payment_details' => $request->all()
-                    ]);
+                    ];
+
+                    if ($paymentStatus === 'completed') {
+                        $amount = floatval($request->input('amount'));
+                        $storeAmount = floatval($request->input('store_amount', $amount));
+                        $fee = $amount - $storeAmount;
+
+                        // Detect actual payment method from card_type
+                        $cardType = $request->input('card_type', '');
+                        $actualPaymentMethod = $this->detectPaymentMethod($cardType);
+
+                        $updateData['completed_at'] = now();
+                        $updateData['fee_amount'] = $fee;
+                        $updateData['net_amount'] = $storeAmount;
+                        $updateData['external_reference'] = $request->input('bank_tran_id');
+                        $updateData['metadata'] = array_merge($payment->metadata ?? [], [
+                            'actual_payment_method' => $actualPaymentMethod,
+                            'card_type' => $cardType,
+                            'card_issuer' => $request->input('card_issuer'),
+                            'card_brand' => $request->input('card_brand'),
+                        ]);
+                        
+                        // Update order's payment_method
+                        $order->update(['payment_method' => $actualPaymentMethod]);
+                    } elseif ($paymentStatus === 'failed') {
+                        $updateData['failed_at'] = now();
+                        $updateData['failure_reason'] = $request->input('error', 'Payment failed');
+                    }
+
+                    $payment->update($updateData);
+
+                    // Update order payment status
+                    $order->updatePaymentStatus();
                 }
 
                 if ($status === 'VALID' || $status === 'VALIDATED') {
