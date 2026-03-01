@@ -15,14 +15,38 @@ class ProductImageController extends Controller
      * Get all images for a product
      * 
      * GET /api/products/{productId}/images
+     * 
+     * If the product has no images and has a base_name, this endpoint will
+     * fallback to images from other products with the same base_name.
+     * The 'fallback_used' flag indicates if fallback images were returned.
      */
     public function index($productId)
     {
         $product = Product::findOrFail($productId);
 
+        // Try to get images for this specific product
         $images = ProductImage::byProduct($productId)
             ->ordered()
             ->get();
+
+        $fallbackUsed = false;
+
+        // If no images found, fallback to sibling products with same base_name
+        if ($images->isEmpty() && !empty($product->base_name)) {
+            // Find a sibling product with the same base_name that has images
+            $siblingProductId = Product::where('base_name', $product->base_name)
+                ->where('id', '!=', $productId)
+                ->whereHas('images')  // Only products that have images
+                ->orderBy('id')  // Deterministic selection (first by ID)
+                ->value('id');
+
+            if ($siblingProductId) {
+                $images = ProductImage::byProduct($siblingProductId)
+                    ->ordered()
+                    ->get();
+                $fallbackUsed = true;
+            }
+        }
 
         return response()->json([
             'success' => true,
@@ -31,7 +55,9 @@ class ProductImageController extends Controller
                 'id' => $product->id,
                 'name' => $product->name,
                 'sku' => $product->sku,
-            ]
+                'base_name' => $product->base_name,
+            ],
+            'fallback_used' => $fallbackUsed,
         ]);
     }
 
