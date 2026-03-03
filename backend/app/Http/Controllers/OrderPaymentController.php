@@ -596,6 +596,317 @@ class OrderPaymentController extends Controller
     }
 
     /**
+     * Update/Edit a payment (amount, date, notes)
+     * 
+     * PUT /api/orders/{orderId}/payments/{paymentId}
+     * 
+     * Allows editing payment details for completed payments.
+     * Useful for correcting data entry errors or adjusting amounts.
+     * 
+     * Restrictions:
+     * - Cannot edit split payments (payment_method_id is null)
+     * - Cannot edit if payment is refunded or cancelled
+     * - Edit history is tracked in metadata
+     */
+    public function update(Request $request, $orderId, $paymentId)
+    {
+        $validator = Validator::make($request->all(), [
+            'amount' => 'nullable|numeric|min:0.01',
+            'payment_received_date' => 'nullable|date',
+            'notes' => 'nullable|string|max:1000',
+            'transaction_reference' => 'nullable|string|max:255',
+            'external_reference' => 'nullable|string|max:255',
+            'reason' => 'required|string|max:500', // Reason for editing
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $payment = OrderPayment::with('order')->findOrFail($paymentId);
+            $employee = auth()->user();
+
+            // Validate payment belongs to order
+            if ($payment->order_id != $orderId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payment not found for this order',
+                ], 404);
+            }
+
+            // Cannot edit split payments (too complex)
+            if ($payment->isSplitPayment()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Split payments cannot be edited. Please void and recreate.',
+                ], 422);
+            }
+
+            // Cannot edit refunded or cancelled payments
+            if (in_array($payment->status, ['refunded', 'partially_refunded', 'cancelled'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot edit refunded or cancelled payments',
+                ], 422);
+            }
+
+            // Cannot edit incomplete payments directly
+            if (!in_array($payment->status, ['completed'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Can only edit completed payments. Process/complete the payment first.',
+                ], 422);
+            }
+
+            $order = $payment->order;
+            $oldAmount = $payment->amount;
+            $newAmount = $request->filled('amount') ? $request->amount : $oldAmount;
+
+            // Validate new amount doesn't cause negative outstanding
+            $amountDifference = $newAmount - $oldAmount;
+            $newOutstanding = $order->outstanding_amount - $amountDifference;
+
+            if ($newOutstanding < 0 && abs($newOutstanding) > 0.01) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "New amount would cause order overpayment (outstanding: {$order->outstanding_amount}, change: {$amountDifference})",
+                ], 422);
+            }
+
+            // Build edit history record
+            $editRecord = [
+                'edited_at' => now()->toISOString(),
+                'edited_by' => $employee ? $employee->id : null,
+                'edited_by_name' => $employee ? $employee->name : 'System',
+                'reason' => $request->reason,
+                'changes' => [],
+            ];
+
+            $updates = [];
+
+            // Track amount change
+            if ($request->filled('amount') && $newAmount != $oldAmount) {
+                $editRecord['changes']['amount'] = [
+                    'old' => (float) $oldAmount,
+                    'new' => (float) $newAmount,
+                ];
+                $updates['amount'] = $newAmount;
+
+                // Recalculate fees based on new amount
+                if ($payment->paymentMethod) {
+                    $newFee = $payment->paymentMethod->calculateFee($newAmount);
+                    $updates['fee_amount'] = $newFee;
+                    $updates['net_amount'] = $newAmount - $newFee;
+                    
+                    $editRecord['changes']['fee_amount'] = [
+                        'old' => (float) $payment->fee_amount,
+                        'new' => (float) $newFee,
+                    ];
+                }
+            }
+
+            // Track date change
+            if ($request->filled('payment_received_date')) {
+                $oldDate = $payment->payment_received_date?->format('Y-m-d');
+                $newDate = $request->payment_received_date;
+                
+                if ($oldDate != $newDate) {
+                    $editRecord['changes']['payment_received_date'] = [
+                        'old' => $oldDate,
+                        'new' => $newDate,
+                    ];
+                    $updates['payment_received_date'] = $newDate;
+                }
+            }
+
+            // Track notes change
+            if ($request->filled('notes') && $request->notes != $payment->notes) {
+                $editRecord['changes']['notes'] = [
+                    'old' => $payment->notes,
+                    'new' => $request->notes,
+                ];
+                $updates['notes'] = $request->notes;
+            }
+
+            // Track references change
+            if ($request->filled('transaction_reference') && $request->transaction_reference != $payment->transaction_reference) {
+                $editRecord['changes']['transaction_reference'] = [
+                    'old' => $payment->transaction_reference,
+                    'new' => $request->transaction_reference,
+                ];
+                $updates['transaction_reference'] = $request->transaction_reference;
+            }
+
+            if ($request->filled('external_reference') && $request->external_reference != $payment->external_reference) {
+                $editRecord['changes']['external_reference'] = [
+                    'old' => $payment->external_reference,
+                    'new' => $request->external_reference,
+                ];
+                $updates['external_reference'] = $request->external_reference;
+            }
+
+            // If no changes detected
+            if (empty($editRecord['changes'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No changes detected',
+                ], 422);
+            }
+
+            // Append to edit history in metadata
+            $metadata = $payment->metadata ?? [];
+            $metadata['edit_history'] = $metadata['edit_history'] ?? [];
+            $metadata['edit_history'][] = $editRecord;
+            $updates['metadata'] = $metadata;
+
+            // Update payment
+            $payment->update($updates);
+
+            // Recalculate order payment status
+            $order->updatePaymentStatus();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment updated successfully',
+                'data' => [
+                    'payment' => $payment->fresh()->load(['paymentMethod', 'processedBy']),
+                    'order' => [
+                        'id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'total_amount' => $order->total_amount,
+                        'paid_amount' => $order->paid_amount,
+                        'outstanding_amount' => $order->outstanding_amount,
+                        'payment_status' => $order->payment_status,
+                    ],
+                    'edit_summary' => $editRecord,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update payment: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Void/Delete a payment
+     * 
+     * DELETE /api/orders/{orderId}/payments/{paymentId}
+     * 
+     * Marks a payment as voided (soft delete).
+     * Use this to cancel incorrect payments before recreating them.
+     * 
+     * Restrictions:
+     * - Cannot void already refunded payments
+     * - Requires a reason for audit trail
+     * - Recalculates order totals after voiding
+     */
+    public function destroy(Request $request, $orderId, $paymentId)
+    {
+        $validator = Validator::make($request->all(), [
+            'reason' => 'required|string|max:1000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $payment = OrderPayment::with('order')->findOrFail($paymentId);
+            $employee = auth()->user();
+
+            // Validate payment belongs to order
+            if ($payment->order_id != $orderId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payment not found for this order',
+                ], 404);
+            }
+
+            // Cannot void refunded payments (must use refund process)
+            if (in_array($payment->status, ['refunded', 'partially_refunded'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot void refunded payments. Use refund endpoint instead.',
+                ], 422);
+            }
+
+            // Already cancelled/voided
+            if ($payment->status === 'cancelled') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payment is already voided',
+                ], 422);
+            }
+
+            $order = $payment->order;
+            $voidedAmount = $payment->amount;
+
+            // Record void details in metadata
+            $metadata = $payment->metadata ?? [];
+            $metadata['void_details'] = [
+                'voided_at' => now()->toISOString(),
+                'voided_by' => $employee ? $employee->id : null,
+                'voided_by_name' => $employee ? $employee->name : 'System',
+                'reason' => $request->reason,
+                'original_amount' => (float) $voidedAmount,
+                'original_status' => $payment->status,
+            ];
+
+            // Update payment status to cancelled
+            $payment->update([
+                'status' => 'cancelled',
+                'failure_reason' => $request->reason,
+                'metadata' => $metadata,
+                'status_history' => $payment->addStatusToHistory('cancelled', $employee?->id, 'Voided: ' . $request->reason),
+            ]);
+
+            // Recalculate order payment status
+            $order->updatePaymentStatus();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment voided successfully',
+                'data' => [
+                    'payment' => $payment->fresh(),
+                    'order' => [
+                        'id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'total_amount' => $order->total_amount,
+                        'paid_amount' => $order->paid_amount,
+                        'outstanding_amount' => $order->outstanding_amount,
+                        'payment_status' => $order->payment_status,
+                    ],
+                    'voided_amount' => $voidedAmount,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to void payment: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Get cash denomination summary for a payment
      */
     public function getCashDenominations($orderId, $paymentId)

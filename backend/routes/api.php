@@ -1128,6 +1128,10 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{payment}/fail', [OrderPaymentController::class, 'fail']);
         Route::post('/{payment}/refund', [OrderPaymentController::class, 'refund']);
         
+        // Payment editing and voiding (for corrections)
+        Route::put('/{payment}', [OrderPaymentController::class, 'update']);
+        Route::delete('/{payment}', [OrderPaymentController::class, 'destroy']);
+        
         // Cash denomination tracking
         Route::get('/{payment}/cash-denominations', [OrderPaymentController::class, 'getCashDenominations']);
     });
