@@ -1017,6 +1017,9 @@ Route::middleware('auth:api')->group(function () {
             Route::put('/', [OrderController::class, 'update']);
             Route::patch('/', [OrderController::class, 'update']);
             
+            // Update customer info (phone as prime identifier)
+            Route::patch('/customer-info', [OrderController::class, 'updateCustomerInfo']);
+            
             // Item management (before completion)
             Route::post('/items', [OrderController::class, 'addItem']);
             Route::put('/items/{itemId}', [OrderController::class, 'updateItem']);

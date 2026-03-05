@@ -777,6 +777,215 @@ class OrderController extends Controller
     }
 
     /**
+     * Update customer information for an order
+     * 
+     * PATCH /api/orders/{id}/customer-info
+     * 
+     * Phone number is the prime identifier:
+     * - If phone changes: Find or create new customer → Reassign order
+     * - If phone same: Update existing customer info
+     * 
+     * Request Body:
+     * {
+     *   "customer_name": "John Smith",
+     *   "customer_phone": "+8801722222222",
+     *   "customer_address": "123 New Street, Dhaka"
+     * }
+     * 
+     * Use Cases:
+     * - Correct wrong phone number entered at order time
+     * - Update customer details after order placed
+     * - Customer changed phone number
+     * - Transfer order to different customer (with proper authorization)
+     */
+    public function updateCustomerInfo(Request $request, $id)
+    {
+        $order = Order::with(['customer'])->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found'
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'customer_name' => 'required|string|max:255',
+            'customer_phone' => 'required|string|max:20',
+            'customer_address' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $oldCustomer = $order->customer;
+        $newPhone = $request->customer_phone;
+        $newName = $request->customer_name;
+        $newAddress = $request->customer_address;
+
+        // Store old customer info for activity log
+        $oldCustomerInfo = [
+            'id' => $oldCustomer?->id,
+            'name' => $oldCustomer?->name,
+            'phone' => $oldCustomer?->phone,
+            'address' => $oldCustomer?->address,
+        ];
+
+        DB::beginTransaction();
+        try {
+            $actionTaken = '';
+            $newCustomer = null;
+
+            // CASE 1: Phone number changed → Create/Find new customer and reassign order
+            if ($oldCustomer && $oldCustomer->phone !== $newPhone) {
+                // Find or create customer with new phone number
+                $newCustomer = Customer::where('phone', $newPhone)->first();
+
+                if (!$newCustomer) {
+                    // Create new customer
+                    $newCustomer = Customer::create([
+                        'name' => $newName,
+                        'phone' => $newPhone,
+                        'address' => $newAddress,
+                        'customer_type' => $oldCustomer->customer_type ?? 'counter',
+                        'status' => 'active',
+                        'created_by' => Auth::guard('employee')->id(),
+                    ]);
+                    $actionTaken = 'customer_created_and_order_reassigned';
+                } else {
+                    // Update existing customer's info
+                    $newCustomer->name = $newName;
+                    if ($newAddress) {
+                        $newCustomer->address = $newAddress;
+                    }
+                    $newCustomer->save();
+                    $actionTaken = 'order_reassigned_to_existing_customer';
+                }
+
+                // Reassign order to new customer
+                $order->customer_id = $newCustomer->id;
+                $order->save();
+
+                // Log the customer change in order metadata
+                $metadata = $order->metadata ?? [];
+                $metadata['customer_changes'] = $metadata['customer_changes'] ?? [];
+                $metadata['customer_changes'][] = [
+                    'changed_at' => now()->toIso8601String(),
+                    'changed_by' => Auth::guard('employee')->id() ?? 'system',
+                    'old_customer' => $oldCustomerInfo,
+                    'new_customer' => [
+                        'id' => $newCustomer->id,
+                        'name' => $newCustomer->name,
+                        'phone' => $newCustomer->phone,
+                        'address' => $newCustomer->address,
+                    ],
+                    'reason' => 'phone_number_changed',
+                ];
+                $order->metadata = $metadata;
+                $order->save();
+
+            } 
+            // CASE 2: Phone same, but name/address changed → Update existing customer
+            else if ($oldCustomer && $oldCustomer->phone === $newPhone) {
+                $changes = [];
+
+                if ($oldCustomer->name !== $newName) {
+                    $oldCustomer->name = $newName;
+                    $changes[] = 'name';
+                }
+
+                if ($newAddress && $oldCustomer->address !== $newAddress) {
+                    $oldCustomer->address = $newAddress;
+                    $changes[] = 'address';
+                }
+
+                if (!empty($changes)) {
+                    $oldCustomer->save();
+                    $actionTaken = 'customer_info_updated';
+
+                    // Log the info update in order metadata
+                    $metadata = $order->metadata ?? [];
+                    $metadata['customer_changes'] = $metadata['customer_changes'] ?? [];
+                    $metadata['customer_changes'][] = [
+                        'changed_at' => now()->toIso8601String(),
+                        'changed_by' => Auth::guard('employee')->id() ?? 'system',
+                        'old_info' => $oldCustomerInfo,
+                        'new_info' => [
+                            'id' => $oldCustomer->id,
+                            'name' => $oldCustomer->name,
+                            'phone' => $oldCustomer->phone,
+                            'address' => $oldCustomer->address,
+                        ],
+                        'reason' => 'customer_info_correction',
+                        'fields_changed' => $changes,
+                    ];
+                    $order->metadata = $metadata;
+                    $order->save();
+                } else {
+                    $actionTaken = 'no_changes_needed';
+                }
+
+                $newCustomer = $oldCustomer;
+            }
+            // CASE 3: No old customer (shouldn't happen, but handle gracefully)
+            else {
+                $newCustomer = Customer::where('phone', $newPhone)->first();
+
+                if (!$newCustomer) {
+                    $newCustomer = Customer::create([
+                        'name' => $newName,
+                        'phone' => $newPhone,
+                        'address' => $newAddress,
+                        'customer_type' => 'counter',
+                        'status' => 'active',
+                        'created_by' => Auth::guard('employee')->id(),
+                    ]);
+                    $actionTaken = 'customer_created_for_order';
+                } else {
+                    $actionTaken = 'customer_assigned_to_order';
+                }
+
+                $order->customer_id = $newCustomer->id;
+                $order->save();
+            }
+
+            DB::commit();
+
+            // Reload order with fresh customer relationship
+            $order->load(['customer', 'items.product', 'payments']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Customer information updated successfully',
+                'data' => [
+                    'order' => $order,
+                    'action_taken' => $actionTaken,
+                    'old_customer' => $oldCustomerInfo,
+                    'new_customer' => [
+                        'id' => $newCustomer?->id,
+                        'name' => $newCustomer?->name,
+                        'phone' => $newCustomer?->phone,
+                        'address' => $newCustomer?->address,
+                    ],
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update customer information',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Add item to existing order (before completion)
      * 
      * UPDATED: Supports both barcode scanning (for counter orders) and product selection (for social/ecommerce)
