@@ -746,4 +746,301 @@ class PurchaseOrderController extends Controller
 
         return $pdf->download($filename);
     }
+
+    /**
+     * Export single purchase order as detailed CSV
+     * 
+     * GET /api/purchase-orders/{id}/csv
+     * 
+     * Returns comprehensive CSV with all purchase order details:
+     * - PO header information (vendor, dates, financial summary)
+     * - Detailed line items (products, quantities, pricing, batches)
+     * - Employee information (creator, approver, receiver)
+     * - Payment status and tracking
+     * 
+     * Each row represents one line item with full PO context for easy analysis.
+     */
+    public function exportCsv($id)
+    {
+        $po = PurchaseOrder::with([
+            'vendor',
+            'store',
+            'createdBy',
+            'approvedBy',
+            'receivedBy',
+            'items.product.category',
+            'items.productBatch'
+        ])->findOrFail($id);
+
+        $filename = "PO-{$po->po_number}-" . now()->format('Ymd-His') . ".csv";
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function() use ($po) {
+            $file = fopen('php://output', 'w');
+            
+            // Add BOM for Excel UTF-8 support
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            // CSV Headers - Comprehensive column set
+            fputcsv($file, [
+                // PO Information
+                'PO Number',
+                'PO Date',
+                'PO Status',
+                'Payment Status',
+                
+                // Vendor Information
+                'Vendor Name',
+                'Vendor Email',
+                'Vendor Phone',
+                'Vendor Address',
+                
+                // Store/Warehouse Information
+                'Warehouse/Store',
+                'Store Location',
+                
+                // Dates
+                'Expected Delivery',
+                'Actual Delivery',
+                'Payment Due Date',
+                
+                // Employee Information
+                'Created By',
+                'Approved By',
+                'Received By',
+                'Approved Date',
+                'Received Date',
+                
+                // Item Details
+                'Item #',
+                'Product Name',
+                'Product SKU',
+                'Category',
+                'Batch Number',
+                'Manufactured Date',
+                'Expiry Date',
+                
+                // Quantities
+                'Qty Ordered',
+                'Qty Received',
+                'Qty Pending',
+                'Receive Status',
+                
+                // Pricing
+                'Unit Cost',
+                'Unit Sell Price',
+                'Item Discount',
+                'Item Tax',
+                'Item Total Cost',
+                
+                // Financial Summary (PO Level)
+                'PO Subtotal',
+                'PO Discount',
+                'PO Tax',
+                'PO Shipping',
+                'PO Other Charges',
+                'PO Total Amount',
+                'PO Paid Amount',
+                'PO Outstanding',
+                
+                // Additional Info
+                'Reference Number',
+                'Item Notes',
+                'PO Notes',
+            ]);
+
+            // CSV Rows - One row per item
+            if (count($po->items) === 0) {
+                // If no items, show PO summary only
+                $this->writePORow($file, $po, null, 0);
+            } else {
+                foreach ($po->items as $index => $item) {
+                    $this->writePORow($file, $po, $item, $index + 1);
+                }
+            }
+
+            fclose($file);
+        };
+
+        return \Illuminate\Support\Facades\Response::stream($callback, 200, $headers);
+    }
+
+    /**
+     * Helper method to write a single CSV row
+     */
+    private function writePORow($file, $po, $item, $itemNumber)
+    {
+        fputcsv($file, [
+            // PO Information
+            $po->po_number,
+            $po->order_date ? $po->order_date->format('Y-m-d') : '',
+            $po->status,
+            $po->payment_status,
+            
+            // Vendor Information
+            $po->vendor->name ?? '',
+            $po->vendor->email ?? '',
+            $po->vendor->phone ?? '',
+            $po->vendor->address ?? '',
+            
+            // Store/Warehouse Information
+            $po->store->name ?? '',
+            $po->store->address ?? '',
+            
+            // Dates
+            $po->expected_delivery_date ? $po->expected_delivery_date->format('Y-m-d') : '',
+            $po->actual_delivery_date ? $po->actual_delivery_date->format('Y-m-d') : '',
+            $po->payment_due_date ? $po->payment_due_date->format('Y-m-d') : '',
+            
+            // Employee Information
+            $po->createdBy->name ?? '',
+            $po->approvedBy->name ?? '',
+            $po->receivedBy->name ?? '',
+            $po->approved_at ? $po->approved_at->format('Y-m-d H:i') : '',
+            $po->received_at ? $po->received_at->format('Y-m-d H:i') : '',
+            
+            // Item Details (empty if no item)
+            $item ? $itemNumber : '',
+            $item ? $item->product_name : '',
+            $item ? $item->product_sku : '',
+            $item && $item->product ? ($item->product->category->title ?? '') : '',
+            $item ? $item->batch_number : '',
+            $item && $item->manufactured_date ? $item->manufactured_date->format('Y-m-d') : '',
+            $item && $item->expiry_date ? $item->expiry_date->format('Y-m-d') : '',
+            
+            // Quantities
+            $item ? number_format($item->quantity_ordered, 0) : '',
+            $item ? number_format($item->quantity_received, 0) : '',
+            $item ? number_format($item->quantity_pending, 0) : '',
+            $item ? $item->receive_status : '',
+            
+            // Pricing
+            $item ? number_format($item->unit_cost, 2) : '',
+            $item ? number_format($item->unit_sell_price ?? 0, 2) : '',
+            $item ? number_format($item->discount_amount, 2) : '',
+            $item ? number_format($item->tax_amount, 2) : '',
+            $item ? number_format($item->total_cost, 2) : '',
+            
+            // Financial Summary (PO Level - same for all rows)
+            number_format($po->subtotal, 2),
+            number_format($po->discount_amount, 2),
+            number_format($po->tax_amount, 2),
+            number_format($po->shipping_cost, 2),
+            number_format($po->other_charges, 2),
+            number_format($po->total_amount, 2),
+            number_format($po->paid_amount, 2),
+            number_format($po->outstanding_amount, 2),
+            
+            // Additional Info
+            $po->reference_number ?? '',
+            $item ? $item->notes : '',
+            $po->notes ?? '',
+        ]);
+    }
+
+    /**
+     * Export purchase order barcodes to CSV
+     * 
+     * Generates a CSV file containing all physical product barcodes for a purchase order.
+     * When a PO is received, batches are created and barcodes are generated for each physical unit.
+     * This export provides an atomic list of all barcodes with product information.
+     * 
+     * @param int $id Purchase Order ID
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse
+     */
+    public function exportBarcodesCsv($id)
+    {
+        // Load PO with items, batches, and barcodes
+        $po = PurchaseOrder::with([
+            'items.product.category',
+            'items.productBatch.barcodes' => function($query) {
+                $query->orderBy('barcode');
+            }
+        ])->findOrFail($id);
+
+        $filename = "PO-{$po->po_number}-Barcodes-" . date('Y-m-d') . ".csv";
+
+        return response()->stream(function() use ($po) {
+            $file = fopen('php://output', 'w');
+
+            // UTF-8 BOM for Excel compatibility
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            // CSV Header
+            fputcsv($file, [
+                'PO Number',
+                'Line No',
+                'Product Name',
+                'Product SKU',
+                'Category',
+                'Batch Number',
+                'Barcode',
+                'Barcode Type',
+                'Is Primary',
+                'Is Active',
+                'Is Defective',
+                'Current Status',
+                'Current Store',
+                'Generated At',
+            ]);
+
+            // Process each item
+            $lineNo = 1;
+            foreach ($po->items as $item) {
+                $product = $item->product;
+                $batch = $item->productBatch;
+                
+                if (!$batch || !$batch->barcodes || $batch->barcodes->isEmpty()) {
+                    // No barcodes yet - show item without barcode info
+                    fputcsv($file, [
+                        $po->po_number,
+                        $lineNo,
+                        $item->product_name,
+                        $item->product_sku,
+                        $product ? ($product->category->title ?? '') : '',
+                        $item->batch_number,
+                        'NO BARCODES',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                    ]);
+                } else {
+                    // Output one row per barcode
+                    foreach ($batch->barcodes as $barcode) {
+                        fputcsv($file, [
+                            $po->po_number,
+                            $lineNo,
+                            $item->product_name,
+                            $item->product_sku,
+                            $product ? ($product->category->title ?? '') : '',
+                            $item->batch_number,
+                            $barcode->barcode,
+                            $barcode->type,
+                            $barcode->is_primary ? 'Yes' : 'No',
+                            $barcode->is_active ? 'Yes' : 'No',
+                            $barcode->is_defective ? 'Yes' : 'No',
+                            $barcode->current_status ?? '',
+                            $barcode->currentStore->name ?? '',
+                            $barcode->generated_at ? $barcode->generated_at->format('Y-m-d H:i') : '',
+                        ]);
+                    }
+                }
+                
+                $lineNo++;
+            }
+
+            fclose($file);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
 }

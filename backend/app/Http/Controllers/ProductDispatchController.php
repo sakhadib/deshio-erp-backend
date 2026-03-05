@@ -1537,5 +1537,188 @@ class ProductDispatchController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Export dispatch barcode breakdown with detailed information
+     * 
+     * GET /api/dispatches/barcodes/csv
+     * 
+     * Generates comprehensive CSV with atomic barcode-level details for dispatches.
+     * When products are dispatched, individual barcodes are scanned and tracked.
+     * This report provides a detailed breakdown of all barcodes sent in dispatches.
+     * 
+     * Filters:
+     * - date_from, date_to: Date range for dispatch_date (required)
+     * - store_id: Filter by source OR destination store (optional, defaults to all)
+     * - status: Filter by dispatch status (optional)
+     * 
+     * @param Request $request
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse|\Illuminate\Http\JsonResponse
+     */
+    public function exportBarcodesDetailedCsv(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'date_from' => 'required|date',
+            'date_to' => 'required|date|after_or_equal:date_from',
+            'store_id' => 'nullable|exists:stores,id',
+            'status' => 'nullable|in:pending,in_transit,delivered,cancelled',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $query = ProductDispatch::with([
+                'sourceStore',
+                'destinationStore',
+                'createdBy',
+                'approvedBy',
+                'items.batch.product.category',
+                'items.scannedBarcodes.currentStore'
+            ]);
+
+            // Date range filter (required)
+            $query->whereDate('dispatch_date', '>=', $request->date_from)
+                  ->whereDate('dispatch_date', '<=', $request->date_to);
+
+            // Store filter (optional - either source or destination)
+            if ($request->filled('store_id')) {
+                $query->where(function($q) use ($request) {
+                    $q->where('source_store_id', $request->store_id)
+                      ->orWhere('destination_store_id', $request->store_id);
+                });
+            }
+
+            // Status filter (optional)
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+
+            $dispatches = $query->orderBy('dispatch_date', 'desc')->get();
+
+            $filename = "Dispatch-Barcodes-" . $request->date_from . "-to-" . $request->date_to . ".csv";
+
+            return response()->stream(function() use ($dispatches) {
+                $file = fopen('php://output', 'w');
+
+                // UTF-8 BOM for Excel compatibility
+                fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+
+                // CSV Header
+                fputcsv($file, [
+                    'Dispatch Number',
+                    'Dispatch Date',
+                    'Status',
+                    'Source Store',
+                    'Destination Store',
+                    'Expected Delivery',
+                    'Actual Delivery',
+                    'Carrier',
+                    'Tracking Number',
+                    'Created By',
+                    'Approved By',
+                    'Product Name',
+                    'Product SKU',
+                    'Category',
+                    'Batch Number',
+                    'Barcode',
+                    'Barcode Type',
+                    'Is Primary',
+                    'Is Active',
+                    'Is Defective',
+                    'Current Status',
+                    'Current Store',
+                    'Scanned At',
+                    'Scanned By',
+                    'Unit Price',
+                ]);
+
+                // Process each dispatch
+                foreach ($dispatches as $dispatch) {
+                    foreach ($dispatch->items as $item) {
+                        $product = $item->batch->product ?? null;
+                        $scannedBarcodes = $item->scannedBarcodes;
+
+                        if (!$scannedBarcodes || $scannedBarcodes->isEmpty()) {
+                            // No barcodes scanned - show item without barcode details
+                            fputcsv($file, [
+                                $dispatch->dispatch_number,
+                                $dispatch->dispatch_date ? $dispatch->dispatch_date->format('Y-m-d H:i') : '',
+                                ucfirst($dispatch->status),
+                                $dispatch->sourceStore->name ?? '',
+                                $dispatch->destinationStore->name ?? '',
+                                $dispatch->expected_delivery_date ? $dispatch->expected_delivery_date->format('Y-m-d') : '',
+                                $dispatch->actual_delivery_date ? $dispatch->actual_delivery_date->format('Y-m-d') : '',
+                                $dispatch->carrier_name ?? '',
+                                $dispatch->tracking_number ?? '',
+                                $dispatch->createdBy->name ?? '',
+                                $dispatch->approvedBy->name ?? '',
+                                $product ? $product->name : '',
+                                $product ? $product->sku : '',
+                                $product && $product->category ? $product->category->title : '',
+                                $item->batch->batch_number ?? '',
+                                'NO BARCODES SCANNED',
+                                '',
+                                '',
+                                '',
+                                '',
+                                '',
+                                '',
+                                '',
+                                '',
+                                number_format($item->unit_price, 2),
+                            ]);
+                        } else {
+                            // One row per scanned barcode
+                            foreach ($scannedBarcodes as $barcode) {
+                                fputcsv($file, [
+                                    $dispatch->dispatch_number,
+                                    $dispatch->dispatch_date ? $dispatch->dispatch_date->format('Y-m-d H:i') : '',
+                                    ucfirst($dispatch->status),
+                                    $dispatch->sourceStore->name ?? '',
+                                    $dispatch->destinationStore->name ?? '',
+                                    $dispatch->expected_delivery_date ? $dispatch->expected_delivery_date->format('Y-m-d') : '',
+                                    $dispatch->actual_delivery_date ? $dispatch->actual_delivery_date->format('Y-m-d') : '',
+                                    $dispatch->carrier_name ?? '',
+                                    $dispatch->tracking_number ?? '',
+                                    $dispatch->createdBy->name ?? '',
+                                    $dispatch->approvedBy->name ?? '',
+                                    $product ? $product->name : '',
+                                    $product ? $product->sku : '',
+                                    $product && $product->category ? $product->category->title : '',
+                                    $item->batch->batch_number ?? '',
+                                    $barcode->barcode,
+                                    $barcode->type,
+                                    $barcode->is_primary ? 'Yes' : 'No',
+                                    $barcode->is_active ? 'Yes' : 'No',
+                                    $barcode->is_defective ? 'Yes' : 'No',
+                                    $barcode->current_status ?? '',
+                                    $barcode->currentStore->name ?? '',
+                                    $barcode->pivot->scanned_at ? $barcode->pivot->scanned_at->format('Y-m-d H:i') : '',
+                                    $barcode->pivot->scannedByEmployee->name ?? '',
+                                    number_format($item->unit_price, 2),
+                                ]);
+                            }
+                        }
+                    }
+                }
+
+                fclose($file);
+            }, 200, [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export dispatch barcodes CSV: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
 

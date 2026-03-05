@@ -433,6 +433,8 @@ Route::middleware('auth:api')->group(function () {
             Route::delete('/', [PurchaseOrderController::class, 'destroy']); // Hard delete
             Route::get('/can-delete', [PurchaseOrderController::class, 'canDelete']); // Check before delete
             Route::get('/pdf', [PurchaseOrderController::class, 'exportPdf']); // Individual PO PDF
+            Route::get('/csv', [PurchaseOrderController::class, 'exportCsv']); // Individual PO CSV with detailed breakdown
+            Route::get('/barcodes/csv', [PurchaseOrderController::class, 'exportBarcodesCsv']); // Individual PO barcodes CSV
             
             // PO Actions
             Route::post('/approve', [PurchaseOrderController::class, 'approve']);
@@ -1306,6 +1308,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/', [ProductDispatchController::class, 'create']);
         Route::get('/statistics', [ProductDispatchController::class, 'getStatistics']);
         Route::get('/export-csv', [ProductDispatchController::class, 'exportCSV']);
+        Route::get('/barcodes/csv', [ProductDispatchController::class, 'exportBarcodesDetailedCsv']); // Detailed barcode breakdown CSV
         
         // Pathao delivery integration
         Route::get('/pending-shipment', [ProductDispatchController::class, 'getPendingShipment']);
@@ -1596,6 +1599,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/csv/booking', [\App\Http\Controllers\ReportingController::class, 'exportBookingCsv']);
         // Payment Breakdown Report
         Route::get('/csv/payment-breakdown', [\App\Http\Controllers\ReportingController::class, 'exportPaymentBreakdownCsv']);
+        // Installment/Partial Payment Report
+        Route::get('/csv/installments', [\App\Http\Controllers\ReportingController::class, 'exportInstallmentsCsv']);
     });
 
     // ============================================

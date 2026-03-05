@@ -25,18 +25,24 @@ class ReportingController extends Controller
      * - date_from: Start date (YYYY-MM-DD) - optional
      * - date_to: End date (YYYY-MM-DD) - optional
      * - store_id: Filter by specific store - optional
-     * - status: Filter by order status (completed, pending, etc.) - optional, default: completed
+     * - status: Filter by order status (confirmed, pending_assignment, pending) - optional
+     *           Default: includes confirmed and pending_assignment orders
      * 
      * Response: CSV file download with columns:
      * - Category
      * - Sold Qty
-     * - SUB Total
-     * - Discount Amount
-     * - Exchange Amount
-     * - Return Amount
-     * - Net Sales (without VAT)
-     * - VAT Amount (7.5)
-     * - Net Amount
+     * - SUB Total (quantity × unit_price)
+     * - Discount Amount (total discounts applied)
+     * - Exchange Amount (value of exchanged items)
+     * - Return Amount (value of returned items)
+     * - Net Sales (without VAT) = Subtotal - Discount - Returns - Exchanges
+     * - VAT Amount (actual tax from orders)
+     * - Net Amount (final revenue including VAT)
+     * 
+     * Accounting Formula:
+     * - Subtotal = SUM(quantity × unit_price) for all items in category
+     * - Net Sales = Subtotal - Discounts - Returns - Exchanges
+     * - Net Amount = Net Sales + VAT
      */
     public function exportCategorySalesCsv(Request $request)
     {
@@ -63,9 +69,12 @@ class ReportingController extends Controller
             ->whereNull('products.deleted_at')
             ->whereNull('categories.deleted_at');
 
-        // Filter by order status (optional - if not provided, includes all statuses)
+        // Filter by order status (default: confirmed orders only)
         if ($request->filled('status')) {
             $query->where('orders.status', $request->status);
+        } else {
+            // Default: include confirmed orders (real statuses: confirmed, pending_assignment, pending)
+            $query->whereIn('orders.status', ['confirmed', 'pending_assignment']);
         }
 
         // Date range filter
@@ -88,7 +97,7 @@ class ReportingController extends Controller
             'categories.title as category_name',
             DB::raw('SUM(order_items.quantity) as total_quantity'),
             DB::raw('SUM(order_items.quantity * order_items.unit_price) as subtotal'),
-            DB::raw('SUM(order_items.discount_amount * order_items.quantity) as total_discount'),
+            DB::raw('SUM(order_items.discount_amount) as total_discount'),  // Fixed: Don't multiply by quantity
             DB::raw('SUM(order_items.tax_amount) as total_tax')
         )
         ->groupBy('categories.id', 'categories.title')
@@ -219,15 +228,15 @@ class ReportingController extends Controller
                 $returnAmount = $returnsByCategory[$categoryId] ?? 0;
                 $exchangeAmount = $exchangesByCategory[$categoryId] ?? 0;
                 
-                // Calculate net sales (subtotal - discount - returns - exchanges)
+                // Accounting Logic:
+                // Net Sales (without VAT) = Subtotal - Discount - Returns - Exchanges
                 $netSalesWithoutVAT = $subtotal - $discount - $returnAmount - $exchangeAmount;
                 
-                // If tax is already in subtotal (inclusive), extract it
-                // Otherwise VAT = 7.5% of net sales
-                $vatAmount = $taxAmount > 0 ? $taxAmount : ($netSalesWithoutVAT * 0.075);
+                // VAT Amount: Use actual tax from order items
+                $vatAmount = $taxAmount;
                 
-                // Net amount = net sales + VAT (or net sales if VAT already included)
-                $netAmount = $taxAmount > 0 ? $netSalesWithoutVAT : ($netSalesWithoutVAT * 1.075);
+                // Net Amount = Net Sales + VAT (total revenue after all deductions)
+                $netAmount = $netSalesWithoutVAT + $vatAmount;
                 
                 fputcsv($file, [
                     $sale->category_name,
@@ -1018,5 +1027,199 @@ class ReportingController extends Controller
         };
 
         return Response::stream($callback, 200, $headers);
+    }
+
+    /**
+     * Export customer installment/partial payment report as CSV
+     * 
+     * GET /api/reporting/csv/installments
+     * 
+     * Generates detailed report of all orders with installment/partial payments.
+     * Shows customer information, order details, payment history, and outstanding balances.
+     * Each row represents one payment made by a customer.
+     * 
+     * Filters:
+     * - date_from, date_to: Order date range (optional)
+     * - customer_id: Specific customer (optional)
+     * - store_id: Specific store (optional)
+     * - payment_status: Filter by payment status (optional: unpaid, partial, paid, overdue)
+     * 
+     * @param Request $request
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse|\Illuminate\Http\JsonResponse
+     */
+    public function exportInstallmentsCsv(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from',
+            'customer_id' => 'nullable|exists:customers,id',
+            'store_id' => 'nullable|exists:stores,id',
+            'payment_status' => 'nullable|in:unpaid,partial,paid,overdue',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // Query orders with partial payments or installments
+        $query = Order::with([
+            'customer',
+            'store',
+            'items.product',
+            'payments' => function($q) {
+                $q->whereNull('deleted_at')->orderBy('payment_received_date', 'asc');
+            }
+        ])
+        ->where(function($q) {
+            $q->where('allow_partial_payments', true)
+              ->orWhere('is_installment_payment', true)
+              ->orWhere('payment_status', 'partial');
+        });
+
+        // Apply filters
+        if ($request->filled('date_from')) {
+            $query->whereDate('order_date', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('order_date', '<=', $request->date_to);
+        }
+
+        if ($request->filled('customer_id')) {
+            $query->where('customer_id', $request->customer_id);
+        }
+
+        if ($request->filled('store_id')) {
+            $query->where('store_id', $request->store_id);
+        }
+
+        if ($request->filled('payment_status')) {
+            $query->where('payment_status', $request->payment_status);
+        }
+
+        $orders = $query->orderBy('order_date', 'desc')->get();
+
+        $filename = "Installment-Report-" . now()->format('Y-m-d') . ".csv";
+
+        return response()->stream(function() use ($orders) {
+            $file = fopen('php://output', 'w');
+
+            // UTF-8 BOM for Excel compatibility
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            // CSV Header
+            fputcsv($file, [
+                'Order Number',
+                'Order Date',
+                'Store',
+                'Customer Name',
+                'Customer Phone',
+                'Customer Email',
+                'Customer Address',
+                'Products',
+                'Total Items',
+                'Order Total',
+                'Total Paid',
+                'Outstanding',
+                'Payment Status',
+                'Next Payment Due',
+                'Payment Number',
+                'Payment Date',
+                'Payment Amount',
+                'Payment Method',
+                'Payment Type',
+                'Installment Number',
+                'Balance Before',
+                'Balance After',
+                'Processed By',
+                'Payment Notes',
+            ]);
+
+            // Process each order
+            foreach ($orders as $order) {
+                $customer = $order->customer;
+                $store = $order->store;
+                
+                // Product summary
+                $products = [];
+                $totalItems = 0;
+                foreach ($order->items as $item) {
+                    $products[] = ($item->product->name ?? 'N/A') . ' (x' . $item->quantity . ')';
+                    $totalItems += $item->quantity;
+                }
+                $productsSummary = implode(', ', $products);
+
+                // Payment status display
+                $paymentStatus = ucfirst($order->payment_status ?? 'N/A');
+                
+                // If order has no payments yet, show order info with empty payment fields
+                if ($order->payments->isEmpty()) {
+                    fputcsv($file, [
+                        $order->order_number,
+                        $order->order_date ? $order->order_date->format('Y-m-d H:i') : '',
+                        $store->name ?? '',
+                        $customer->name ?? '',
+                        $customer->phone ?? '',
+                        $customer->email ?? '',
+                        $customer->address ?? '',
+                        $productsSummary,
+                        $totalItems,
+                        number_format($order->total_amount, 2),
+                        number_format($order->paid_amount, 2),
+                        number_format($order->outstanding_amount, 2),
+                        $paymentStatus,
+                        $order->next_payment_due ? $order->next_payment_due->format('Y-m-d') : '',
+                        'NO PAYMENTS YET',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                    ]);
+                } else {
+                    // One row per payment
+                    foreach ($order->payments as $payment) {
+                        fputcsv($file, [
+                            $order->order_number,
+                            $order->order_date ? $order->order_date->format('Y-m-d H:i') : '',
+                            $store->name ?? '',
+                            $customer->name ?? '',
+                            $customer->phone ?? '',
+                            $customer->email ?? '',
+                            $customer->address ?? '',
+                            $productsSummary,
+                            $totalItems,
+                            number_format($order->total_amount, 2),
+                            number_format($order->paid_amount, 2),
+                            number_format($order->outstanding_amount, 2),
+                            $paymentStatus,
+                            $order->next_payment_due ? $order->next_payment_due->format('Y-m-d') : '',
+                            $payment->payment_number ?? '',
+                            $payment->payment_received_date ? $payment->payment_received_date->format('Y-m-d') : '',
+                            number_format($payment->amount, 2),
+                            $payment->paymentMethod->name ?? 'N/A',
+                            ucfirst($payment->payment_type ?? 'N/A'),
+                            $payment->installment_number ?? '',
+                            number_format($payment->order_balance_before ?? 0, 2),
+                            number_format($payment->order_balance_after ?? 0, 2),
+                            $payment->processedBy->name ?? '',
+                            $payment->notes ?? '',
+                        ]);
+                    }
+                }
+            }
+
+            fclose($file);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
     }
 }
