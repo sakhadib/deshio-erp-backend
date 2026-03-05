@@ -425,16 +425,30 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [PurchaseOrderController::class, 'index']);
         Route::post('/', [PurchaseOrderController::class, 'create']);
         Route::get('/stats', [PurchaseOrderController::class, 'statistics']);
-        Route::get('/report/pdf', [PurchaseOrderController::class, 'exportSummaryPdf']); // Summary report PDF
+        
+        // JSON Report endpoints (API responses)
+        Route::get('/report/summary', [PurchaseOrderController::class, 'getReportSummary']); // Summary report JSON
+        
+        // PDF endpoints (DEPRECATED - Returns PDF/HTML, not JSON)
+        // Use JSON endpoints above for API integration. Generate PDFs client-side if needed.
+        // Route::get('/report/pdf', [PurchaseOrderController::class, 'exportSummaryPdf']); // DEPRECATED
 
         Route::prefix('{id}')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'show']);
             Route::put('/', [PurchaseOrderController::class, 'update']);
             Route::delete('/', [PurchaseOrderController::class, 'destroy']); // Hard delete
             Route::get('/can-delete', [PurchaseOrderController::class, 'canDelete']); // Check before delete
-            Route::get('/pdf', [PurchaseOrderController::class, 'exportPdf']); // Individual PO PDF
+            
+            // JSON Report endpoint (API response)
+            Route::get('/report', [PurchaseOrderController::class, 'getReportDetail']); // Individual PO report JSON
+            
+            // CSV exports (data export - OK for API)
             Route::get('/csv', [PurchaseOrderController::class, 'exportCsv']); // Individual PO CSV with detailed breakdown
             Route::get('/barcodes/csv', [PurchaseOrderController::class, 'exportBarcodesCsv']); // Individual PO barcodes CSV
+            
+            // PDF endpoint (DEPRECATED - Returns PDF/HTML, not JSON)
+            // Use /report endpoint above for JSON data. Generate PDFs client-side if needed.
+            // Route::get('/pdf', [PurchaseOrderController::class, 'exportPdf']); // DEPRECATED
             
             // PO Actions
             Route::post('/approve', [PurchaseOrderController::class, 'approve']);
@@ -1601,6 +1615,12 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/csv/payment-breakdown', [\App\Http\Controllers\ReportingController::class, 'exportPaymentBreakdownCsv']);
         // Installment/Partial Payment Report
         Route::get('/csv/installments', [\App\Http\Controllers\ReportingController::class, 'exportInstallmentsCsv']);
+        // Order Details Report (Report 7.1)
+        Route::get('/csv/order-details', [\App\Http\Controllers\ReportingController::class, 'exportOrderDetailsCsv']);
+        // Customer Purchase History Report (Report 7.2)
+        Route::get('/csv/customer-history', [\App\Http\Controllers\ReportingController::class, 'exportCustomerHistoryCsv']);
+        // Customer Purchase Summary Report (Report 7.3)
+        Route::get('/csv/customer-summary', [\App\Http\Controllers\ReportingController::class, 'exportCustomerSummaryCsv']);
     });
 
     // ============================================

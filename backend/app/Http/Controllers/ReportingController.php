@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -1214,6 +1215,401 @@ class ReportingController extends Controller
                         ]);
                     }
                 }
+            }
+
+            fclose($file);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    /**
+     * Export Order Details CSV with Date Range
+     * Report 7.1: Order details with products and customer information
+     * Supports date range filtering and optional store filter
+     */
+    public function exportOrderDetailsCsv(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'store_id' => 'nullable|exists:stores,id',
+        ]);
+
+        $startDate = $request->start_date;
+        $endDate = $request->end_date;
+        $storeId = $request->store_id;
+
+        // Build orders query with relationships
+        $ordersQuery = Order::with([
+            'customer',
+            'store',
+            'items.product',
+            'items.productBatch',
+            'payments',
+            'createdBy',
+            'processedBy'
+        ])
+        ->whereBetween('order_date', [$startDate, $endDate])
+        ->whereIn('status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered']);
+
+        // Apply store filter if specified
+        if ($storeId) {
+            $ordersQuery->where('store_id', $storeId);
+        }
+
+        $orders = $ordersQuery->orderBy('order_date', 'desc')->get();
+
+        // Generate filename
+        $dateLabel = date('Ymd', strtotime($startDate)) . '_' . date('Ymd', strtotime($endDate));
+        $storeLabel = $storeId ? "_store{$storeId}" : '_all_stores';
+        $filename = "order_details_{$dateLabel}{$storeLabel}.csv";
+
+        return response()->stream(function () use ($orders) {
+            $file = fopen('php://output', 'w');
+
+            // CSV Header
+            fputcsv($file, [
+                'Order Number',
+                'Order Date',
+                'Store Name',
+                'Store Type',
+                'Customer Name',
+                'Customer Email',
+                'Customer Phone',
+                'Order Type',
+                'Status',
+                'Payment Status',
+                'Payment Method',
+                'Product Name',
+                'Product SKU',
+                'Batch Number',
+                'Quantity',
+                'Unit Price',
+                'Discount',
+                'Line Total',
+                'Order Subtotal',
+                'Order Tax',
+                'Order Discount',
+                'Order Shipping',
+                'Order Total',
+                'Paid Amount',
+                'Outstanding Amount',
+                'Is Installment',
+                'Created By',
+                'Processed By',
+                'Tracking Number',
+                'Notes',
+            ]);
+
+            // Data rows - one row per order item
+            foreach ($orders as $order) {
+                $storeName = $order->store->name ?? 'N/A';
+                $storeType = $order->store 
+                    ? ($order->store->is_online ? 'Online/Social' : 'Physical Store') 
+                    : 'N/A';
+                $customerName = $order->customer->name ?? 'Guest';
+                $customerEmail = $order->customer->email ?? 'N/A';
+                $customerPhone = $order->customer->phone ?? 'N/A';
+
+                if ($order->items->isEmpty()) {
+                    // Order with no items - output one row with order info
+                    fputcsv($file, [
+                        $order->order_number,
+                        $order->order_date ? $order->order_date->format('Y-m-d H:i:s') : '',
+                        $storeName,
+                        $storeType,
+                        $customerName,
+                        $customerEmail,
+                        $customerPhone,
+                        ucfirst($order->order_type ?? 'standard'),
+                        ucfirst($order->status),
+                        ucfirst($order->payment_status ?? 'unpaid'),
+                        $order->payment_method ?? 'N/A',
+                        'No Items',
+                        'N/A',
+                        'N/A',
+                        0,
+                        0,
+                        0,
+                        0,
+                        number_format($order->subtotal ?? 0, 2),
+                        number_format($order->tax_amount ?? 0, 2),
+                        number_format($order->discount_amount ?? 0, 2),
+                        number_format($order->shipping_amount ?? 0, 2),
+                        number_format($order->total_amount ?? 0, 2),
+                        number_format($order->paid_amount ?? 0, 2),
+                        number_format($order->outstanding_amount ?? 0, 2),
+                        $order->is_installment_payment ? 'Yes' : 'No',
+                        $order->createdBy->name ?? 'System',
+                        $order->processedBy->name ?? 'N/A',
+                        $order->tracking_number ?? '',
+                        $order->notes ?? '',
+                    ]);
+                } else {
+                    // Output one row per order item
+                    foreach ($order->items as $item) {
+                        $productName = $item->product->name ?? 'N/A';
+                        $productSku = $item->product->sku ?? 'N/A';
+                        $batchNumber = $item->productBatch->batch_number ?? 'N/A';
+
+                        fputcsv($file, [
+                            $order->order_number,
+                            $order->order_date ? $order->order_date->format('Y-m-d H:i:s') : '',
+                            $storeName,
+                            $storeType,
+                            $customerName,
+                            $customerEmail,
+                            $customerPhone,
+                            ucfirst($order->order_type ?? 'standard'),
+                            ucfirst($order->status),
+                            ucfirst($order->payment_status ?? 'unpaid'),
+                            $order->payment_method ?? 'N/A',
+                            $productName,
+                            $productSku,
+                            $batchNumber,
+                            $item->quantity,
+                            number_format($item->unit_price ?? 0, 2),
+                            number_format($item->discount_amount ?? 0, 2),
+                            number_format(($item->unit_price * $item->quantity) - ($item->discount_amount ?? 0), 2),
+                            number_format($order->subtotal ?? 0, 2),
+                            number_format($order->tax_amount ?? 0, 2),
+                            number_format($order->discount_amount ?? 0, 2),
+                            number_format($order->shipping_amount ?? 0, 2),
+                            number_format($order->total_amount ?? 0, 2),
+                            number_format($order->paid_amount ?? 0, 2),
+                            number_format($order->outstanding_amount ?? 0, 2),
+                            $order->is_installment_payment ? 'Yes' : 'No',
+                            $order->createdBy->name ?? 'System',
+                            $order->processedBy->name ?? 'N/A',
+                            $order->tracking_number ?? '',
+                            $order->notes ?? '',
+                        ]);
+                    }
+                }
+            }
+
+            fclose($file);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    /**
+     * Export Customer Purchase History CSV
+     * Report 7.2: List of customers with complete purchase history
+     * Shows all orders from any store/channel grouped by customer
+     */
+    public function exportCustomerHistoryCsv(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'customer_id' => 'nullable|exists:customers,id',
+        ]);
+
+        // Build customers query
+        $customersQuery = Customer::with([
+            'orders' => function ($query) use ($request) {
+                $query->with(['store', 'items.product', 'payments'])
+                    ->whereIn('status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])
+                    ->orderBy('order_date', 'desc');
+
+                // Apply date filter if specified
+                if ($request->start_date && $request->end_date) {
+                    $query->whereBetween('order_date', [$request->start_date, $request->end_date]);
+                }
+            }
+        ]);
+
+        // Filter by specific customer if requested
+        if ($request->customer_id) {
+            $customersQuery->where('id', $request->customer_id);
+        }
+
+        $customers = $customersQuery->has('orders')->get();
+
+        // Generate filename
+        $dateLabel = ($request->start_date && $request->end_date) 
+            ? date('Ymd', strtotime($request->start_date)) . '_' . date('Ymd', strtotime($request->end_date))
+            : 'all_time';
+        $customerLabel = $request->customer_id ? "_customer{$request->customer_id}" : '_all_customers';
+        $filename = "customer_purchase_history_{$dateLabel}{$customerLabel}.csv";
+
+        return response()->stream(function () use ($customers) {
+            $file = fopen('php://output', 'w');
+
+            // CSV Header
+            fputcsv($file, [
+                'Customer ID',
+                'Customer Name',
+                'Customer Email',
+                'Customer Phone',
+                'Order Number',
+                'Order Date',
+                'Store Name',
+                'Store Type',
+                'Order Type',
+                'Status',
+                'Payment Status',
+                'Payment Method',
+                'Product Count',
+                'Total Items Qty',
+                'Order Total',
+                'Paid Amount',
+                'Outstanding Amount',
+                'Is Installment',
+                'Tracking Number',
+            ]);
+
+            // Data rows - one row per order, grouped by customer
+            foreach ($customers as $customer) {
+                foreach ($customer->orders as $order) {
+                    $storeName = $order->store->name ?? 'N/A';
+                    $storeType = $order->store 
+                        ? ($order->store->is_online ? 'Online/Social' : 'Physical Store') 
+                        : 'N/A';
+                    
+                    $productCount = $order->items->count();
+                    $totalQty = $order->items->sum('quantity');
+
+                    fputcsv($file, [
+                        $customer->id,
+                        $customer->name,
+                        $customer->email ?? 'N/A',
+                        $customer->phone ?? 'N/A',
+                        $order->order_number,
+                        $order->order_date ? $order->order_date->format('Y-m-d H:i:s') : '',
+                        $storeName,
+                        $storeType,
+                        ucfirst($order->order_type ?? 'standard'),
+                        ucfirst($order->status),
+                        ucfirst($order->payment_status ?? 'unpaid'),
+                        $order->payment_method ?? 'N/A',
+                        $productCount,
+                        $totalQty,
+                        number_format($order->total_amount ?? 0, 2),
+                        number_format($order->paid_amount ?? 0, 2),
+                        number_format($order->outstanding_amount ?? 0, 2),
+                        $order->is_installment_payment ? 'Yes' : 'No',
+                        $order->tracking_number ?? '',
+                    ]);
+                }
+            }
+
+            fclose($file);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    /**
+     * Export Customer Purchase Summary CSV
+     * Report 7.3: Customer summary with purchase count and total spending
+     * Aggregated statistics per customer
+     */
+    public function exportCustomerSummaryCsv(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'min_orders' => 'nullable|integer|min:0',
+            'min_amount' => 'nullable|numeric|min:0',
+        ]);
+
+        // Build base query with order aggregations
+        $customersQuery = Customer::select([
+            'customers.id',
+            'customers.name',
+            'customers.email',
+            'customers.phone',
+            'customers.created_at',
+        ])
+        ->leftJoin('orders', function ($join) use ($request) {
+            $join->on('customers.id', '=', 'orders.customer_id')
+                ->whereIn('orders.status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered']);
+            
+            // Apply date filter if specified
+            if ($request->start_date && $request->end_date) {
+                $join->whereBetween('orders.order_date', [$request->start_date, $request->end_date]);
+            }
+        })
+        ->groupBy('customers.id', 'customers.name', 'customers.email', 'customers.phone', 'customers.created_at')
+        ->selectRaw('COUNT(DISTINCT orders.id) as total_orders')
+        ->selectRaw('COALESCE(SUM(orders.total_amount), 0) as total_spent')
+        ->selectRaw('COALESCE(SUM(orders.paid_amount), 0) as total_paid')
+        ->selectRaw('COALESCE(AVG(orders.total_amount), 0) as average_order_value')
+        ->selectRaw('MIN(orders.order_date) as first_order_date')
+        ->selectRaw('MAX(orders.order_date) as last_order_date');
+
+        // Apply filters
+        if ($request->min_orders) {
+            $customersQuery->having('total_orders', '>=', $request->min_orders);
+        }
+
+        if ($request->min_amount) {
+            $customersQuery->having('total_spent', '>=', $request->min_amount);
+        }
+
+        $customers = $customersQuery->orderBy('total_spent', 'desc')->get();
+
+        // Generate filename
+        $dateLabel = ($request->start_date && $request->end_date) 
+            ? date('Ymd', strtotime($request->start_date)) . '_' . date('Ymd', strtotime($request->end_date))
+            : 'all_time';
+        $filename = "customer_purchase_summary_{$dateLabel}.csv";
+
+        return response()->stream(function () use ($customers) {
+            $file = fopen('php://output', 'w');
+
+            // CSV Header
+            fputcsv($file, [
+                'Customer ID',
+                'Customer Name',
+                'Email',
+                'Phone',
+                'Customer Since',
+                'Total Orders',
+                'Total Spent',
+                'Total Paid',
+                'Outstanding Balance',
+                'Average Order Value',
+                'First Order Date',
+                'Last Order Date',
+                'Days Since First Order',
+                'Days Since Last Order',
+            ]);
+
+            // Data rows - one row per customer
+            $today = now();
+            foreach ($customers as $customer) {
+                $outstandingBalance = ($customer->total_spent ?? 0) - ($customer->total_paid ?? 0);
+                
+                $firstOrderDate = $customer->first_order_date ? \Carbon\Carbon::parse($customer->first_order_date) : null;
+                $lastOrderDate = $customer->last_order_date ? \Carbon\Carbon::parse($customer->last_order_date) : null;
+                
+                $daysSinceFirst = $firstOrderDate ? $today->diffInDays($firstOrderDate) : 'N/A';
+                $daysSinceLast = $lastOrderDate ? $today->diffInDays($lastOrderDate) : 'N/A';
+
+                fputcsv($file, [
+                    $customer->id,
+                    $customer->name,
+                    $customer->email ?? 'N/A',
+                    $customer->phone ?? 'N/A',
+                    $customer->created_at ? \Carbon\Carbon::parse($customer->created_at)->format('Y-m-d') : 'N/A',
+                    $customer->total_orders ?? 0,
+                    number_format($customer->total_spent ?? 0, 2),
+                    number_format($customer->total_paid ?? 0, 2),
+                    number_format($outstandingBalance, 2),
+                    number_format($customer->average_order_value ?? 0, 2),
+                    $firstOrderDate ? $firstOrderDate->format('Y-m-d') : 'N/A',
+                    $lastOrderDate ? $lastOrderDate->format('Y-m-d') : 'N/A',
+                    $daysSinceFirst,
+                    $daysSinceLast,
+                ]);
             }
 
             fclose($file);

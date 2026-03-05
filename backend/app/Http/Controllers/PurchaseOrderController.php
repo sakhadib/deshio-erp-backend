@@ -616,7 +616,252 @@ class PurchaseOrderController extends Controller
     }
 
     /**
+     * Get single purchase order detailed report (JSON)
+     * 
+     * GET /api/purchase-orders/{id}/report
+     * 
+     * Returns complete PO details formatted for reporting
+     * This is the JSON equivalent of the PDF export
+     */
+    public function getReportDetail($id)
+    {
+        $po = PurchaseOrder::with([
+            'vendor',
+            'store',
+            'createdBy',
+            'approvedBy',
+            'receivedBy',
+            'items.product',
+            'payments.vendorPayment'
+        ])->findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'po' => [
+                    'id' => $po->id,
+                    'po_number' => $po->po_number,
+                    'reference_number' => $po->reference_number,
+                    'status' => $po->status,
+                    'payment_status' => $po->payment_status,
+                    'order_date' => $po->order_date,
+                    'expected_delivery_date' => $po->expected_delivery_date,
+                    'actual_delivery_date' => $po->actual_delivery_date,
+                    'notes' => $po->notes,
+                    'terms_and_conditions' => $po->terms_and_conditions,
+                ],
+                'vendor' => $po->vendor ? [
+                    'id' => $po->vendor->id,
+                    'name' => $po->vendor->name,
+                    'contact_person' => $po->vendor->contact_person,
+                    'phone' => $po->vendor->phone,
+                    'email' => $po->vendor->email,
+                    'address' => $po->vendor->address,
+                ] : null,
+                'store' => $po->store ? [
+                    'id' => $po->store->id,
+                    'name' => $po->store->name,
+                    'address' => $po->store->address,
+                ] : null,
+                'items' => $po->items->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'product_id' => $item->product_id,
+                        'product_name' => $item->product_name,
+                        'product_sku' => $item->product_sku,
+                        'quantity_ordered' => $item->quantity_ordered,
+                        'quantity_received' => $item->quantity_received,
+                        'quantity_pending' => $item->quantity_pending,
+                        'unit_cost' => $item->unit_cost,
+                        'tax_amount' => $item->tax_amount,
+                        'total_cost' => $item->total_cost,
+                        'notes' => $item->notes,
+                    ];
+                }),
+                'payments' => $po->payments->map(function ($payment) {
+                    return [
+                        'id' => $payment->id,
+                        'amount' => $payment->amount,
+                        'payment_method' => $payment->payment_method,
+                        'payment_date' => $payment->payment_date,
+                        'reference_number' => $payment->reference_number,
+                        'notes' => $payment->notes,
+                    ];
+                }),
+                'financial_summary' => [
+                    'subtotal' => $po->subtotal,
+                    'tax_amount' => $po->tax_amount,
+                    'discount_amount' => $po->discount_amount,
+                    'shipping_cost' => $po->shipping_cost,
+                    'other_charges' => $po->other_charges,
+                    'total_amount' => $po->total_amount,
+                    'paid_amount' => $po->paid_amount,
+                    'outstanding_amount' => $po->outstanding_amount,
+                ],
+                'staff' => [
+                    'created_by' => $po->createdBy ? [
+                        'id' => $po->createdBy->id,
+                        'name' => $po->createdBy->name,
+                    ] : null,
+                    'approved_by' => $po->approvedBy ? [
+                        'id' => $po->approvedBy->id,
+                        'name' => $po->approvedBy->name,
+                    ] : null,
+                    'received_by' => $po->receivedBy ? [
+                        'id' => $po->receivedBy->id,
+                        'name' => $po->receivedBy->name,
+                    ] : null,
+                ],
+                'timestamps' => [
+                    'created_at' => $po->created_at,
+                    'updated_at' => $po->updated_at,
+                    'approved_at' => $po->approved_at,
+                    'received_at' => $po->received_at,
+                ],
+            ]
+        ]);
+    }
+
+    /**
+     * Get purchase orders summary report (JSON)
+     * 
+     * GET /api/purchase-orders/report/summary
+     * 
+     * Returns aggregated PO statistics with filters
+     * This is the JSON equivalent of the PDF summary export
+     * 
+     * Query parameters:
+     * - from_date: Filter by order date >= this date
+     * - to_date: Filter by order date <= this date
+     * - vendor_id: Filter by specific vendor
+     * - store_id: Filter by specific store
+     * - status: Filter by PO status
+     * - payment_status: Filter by payment status
+     */
+    public function getReportSummary(Request $request)
+    {
+        $request->validate([
+            'from_date' => 'nullable|date',
+            'to_date' => 'nullable|date|after_or_equal:from_date',
+            'vendor_id' => 'nullable|exists:vendors,id',
+            'store_id' => 'nullable|exists:stores,id',
+            'status' => 'nullable|in:draft,approved,partially_received,received,cancelled',
+            'payment_status' => 'nullable|in:unpaid,partial,paid',
+        ]);
+
+        $query = PurchaseOrder::with(['vendor', 'store'])
+            ->withCount('items');
+
+        // Apply filters
+        $appliedFilters = [];
+
+        if ($request->filled('from_date')) {
+            $query->whereDate('order_date', '>=', $request->from_date);
+            $appliedFilters['from_date'] = $request->from_date;
+        }
+
+        if ($request->filled('to_date')) {
+            $query->whereDate('order_date', '<=', $request->to_date);
+            $appliedFilters['to_date'] = $request->to_date;
+        }
+
+        if ($request->filled('vendor_id')) {
+            $query->where('vendor_id', $request->vendor_id);
+            $vendor = \App\Models\Vendor::find($request->vendor_id);
+            $appliedFilters['vendor_id'] = $request->vendor_id;
+            $appliedFilters['vendor_name'] = $vendor?->name;
+        }
+
+        if ($request->filled('store_id')) {
+            $query->where('store_id', $request->store_id);
+            $store = Store::find($request->store_id);
+            $appliedFilters['store_id'] = $request->store_id;
+            $appliedFilters['store_name'] = $store?->name;
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+            $appliedFilters['status'] = $request->status;
+        }
+
+        if ($request->filled('payment_status')) {
+            $query->where('payment_status', $request->payment_status);
+            $appliedFilters['payment_status'] = $request->payment_status;
+        }
+
+        $purchaseOrders = $query->orderBy('order_date', 'desc')->get();
+
+        // Calculate summary
+        $summary = [
+            'total_orders' => $purchaseOrders->count(),
+            'total_amount' => (float) $purchaseOrders->sum('total_amount'),
+            'total_paid' => (float) $purchaseOrders->sum('paid_amount'),
+            'total_outstanding' => (float) $purchaseOrders->sum('outstanding_amount'),
+            'total_items' => $purchaseOrders->sum('items_count'),
+        ];
+
+        // Status breakdown
+        $statusBreakdown = $purchaseOrders->groupBy('status')->map(function ($group, $status) {
+            return [
+                'status' => $status,
+                'count' => $group->count(),
+                'total_amount' => (float) $group->sum('total_amount'),
+            ];
+        })->values();
+
+        // Vendor breakdown (top vendors)
+        $vendorBreakdown = $purchaseOrders->groupBy('vendor_id')->map(function ($group) {
+            $vendor = $group->first()->vendor;
+            return [
+                'vendor_id' => $group->first()->vendor_id,
+                'vendor_name' => $vendor?->name ?? 'Unknown',
+                'order_count' => $group->count(),
+                'total_amount' => (float) $group->sum('total_amount'),
+                'paid_amount' => (float) $group->sum('paid_amount'),
+                'outstanding' => (float) $group->sum('outstanding_amount'),
+            ];
+        })->sortByDesc('total_amount')->values();
+
+        // Format purchase orders for response
+        $formattedOrders = $purchaseOrders->map(function ($po) {
+            return [
+                'id' => $po->id,
+                'po_number' => $po->po_number,
+                'order_date' => $po->order_date,
+                'vendor' => [
+                    'id' => $po->vendor?->id,
+                    'name' => $po->vendor?->name ?? 'N/A',
+                ],
+                'store' => [
+                    'id' => $po->store?->id,
+                    'name' => $po->store?->name ?? 'N/A',
+                ],
+                'status' => $po->status,
+                'payment_status' => $po->payment_status,
+                'items_count' => $po->items_count,
+                'total_amount' => (float) $po->total_amount,
+                'paid_amount' => (float) $po->paid_amount,
+                'outstanding_amount' => (float) $po->outstanding_amount,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'summary' => $summary,
+                'filters_applied' => $appliedFilters,
+                'status_breakdown' => $statusBreakdown,
+                'vendor_breakdown' => $vendorBreakdown,
+                'purchase_orders' => $formattedOrders,
+            ]
+        ]);
+    }
+
+    /**
      * Export single purchase order as PDF
+     * 
+     * @deprecated This endpoint returns PDF/HTML. Use /api/purchase-orders/{id}/report for JSON data.
+     * If PDF is needed, generate it client-side from the JSON data.
      */
     public function exportPdf($id)
     {
@@ -645,6 +890,9 @@ class PurchaseOrderController extends Controller
 
     /**
      * Export purchase orders summary report as PDF
+     * 
+     * @deprecated This endpoint returns PDF/HTML. Use /api/purchase-orders/report/summary for JSON data.
+     * If PDF is needed, generate it client-side from the JSON data.
      */
     public function exportSummaryPdf(Request $request)
     {

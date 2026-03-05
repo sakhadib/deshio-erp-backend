@@ -1651,6 +1651,624 @@ Consider adding a computed column or updating old references to 'completed' stat
 
 ---
 
+## Report #7: Customer and Order Analytics (THREE SUB-REPORTS)
+
+### Overview
+
+PM requested three related customer and order reports to provide comprehensive insights into customer purchasing behavior, order details, and spending patterns across all stores (physical, online, and social). These reports are designed to help management understand customer lifetime value, track purchasing history, and identify top customers.
+
+**Three Sub-Reports:**
+1. **Report 7.1:** Order Details CSV with Date Range
+2. **Report 7.2:** Customer Purchase History CSV
+3. **Report 7.3:** Customer Purchase Summary CSV
+
+All three reports support filtering by date range and include data from all sales channels (physical stores, online, and social media orders).
+
+---
+
+### Report 7.1: Order Details CSV with Date Range
+
+**Purpose:** Export detailed order information including products and customer data across all stores or a specific store.
+
+**Use Cases:**
+- Sales analysis for specific time periods
+- Order fulfillment tracking
+- Customer service inquiries
+- Store performance comparison
+- Product sales tracking
+- Revenue verification
+
+**Endpoint:** `GET /api/reporting/csv/order-details`
+
+**Request Parameters:**
+```json
+{
+  "start_date": "2026-03-01",      // Required: Start date (YYYY-MM-DD)
+  "end_date": "2026-03-31",        // Required: End date (YYYY-MM-DD)
+  "store_id": 2                    // Optional: Specific store ID (omit for all stores)
+}
+```
+
+**Query Logic:**
+```php
+Order::with(['customer', 'store', 'items.product', 'items.productBatch', 'payments', 'createdBy', 'processedBy'])
+    ->whereBetween('order_date', [$startDate, $endDate])
+    ->whereIn('status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])
+    ->when($storeId, function($query) use ($storeId) {
+        return $query->where('store_id', $storeId);
+    })
+    ->orderBy('order_date', 'desc')
+    ->get();
+```
+
+**CSV Structure:**
+One row per order item (multiple rows per order if order has multiple products).
+
+**CSV Columns (30 columns):**
+1. **Order Number** - Unique order identifier
+2. **Order Date** - When order was placed (YYYY-MM-DD HH:MM:SS)
+3. **Store Name** - Store/channel name
+4. **Store Type** - "Online/Social" or "Physical Store"
+5. **Customer Name** - Customer full name
+6. **Customer Email** - Customer email address
+7. **Customer Phone** - Customer phone number
+8. **Order Type** - Order classification (standard, wholesale, etc.)
+9. **Status** - Current order status
+10. **Payment Status** - Payment status (paid, partial, unpaid)
+11. **Payment Method** - How customer paid
+12. **Product Name** - Item product name
+13. **Product SKU** - Product SKU code
+14. **Batch Number** - Product batch identifier
+15. **Quantity** - Item quantity ordered
+16. **Unit Price** - Price per unit
+17. **Discount** - Discount applied to this item
+18. **Line Total** - Total for this item (price × qty - discount)
+19. **Order Subtotal** - Order subtotal (before tax/shipping)
+20. **Order Tax** - Tax amount for order
+21. **Order Discount** - Total discount for order
+22. **Order Shipping** - Shipping amount
+23. **Order Total** - Final order total
+24. **Paid Amount** - Amount paid so far
+25. **Outstanding Amount** - Remaining balance
+26. **Is Installment** - Yes/No if installment payment
+27. **Created By** - Employee who created order
+28. **Processed By** - Employee who processed order
+29. **Tracking Number** - Shipping tracking number
+30. **Notes** - Order notes
+
+**Sample CSV Output:**
+```csv
+Order Number,Order Date,Store Name,Store Type,Customer Name,Customer Email,Customer Phone,Order Type,Status,Payment Status,Payment Method,Product Name,Product SKU,Batch Number,Quantity,Unit Price,Discount,Line Total,Order Subtotal,Order Tax,Order Discount,Order Shipping,Order Total,Paid Amount,Outstanding Amount,Is Installment,Created By,Processed By,Tracking Number,Notes
+ORD-2026-001234,2026-03-15 14:30:00,Main Store,Physical Store,John Doe,john@example.com,+880123456789,standard,delivered,paid,cash,Laptop Dell XPS 15,LAP-DELL-XPS15,BATCH-2026-001,1,"85,000.00","5,000.00","80,000.00","95,000.00","14,250.00","5,000.00","500.00","104,750.00","104,750.00","0.00",No,Admin User,Jane Smith,TRK123456789,Express delivery
+ORD-2026-001234,2026-03-15 14:30:00,Main Store,Physical Store,John Doe,john@example.com,+880123456789,standard,delivered,paid,cash,Wireless Mouse,ACC-MOUSE-01,BATCH-2026-045,2,"1,500.00","0.00","3,000.00","95,000.00","14,250.00","5,000.00","500.00","104,750.00","104,750.00","0.00",No,Admin User,Jane Smith,TRK123456789,Express delivery
+ORD-2026-001235,2026-03-16 10:15:00,Online Store,Online/Social,Jane Smith,jane@example.com,+880987654321,standard,shipped,partial,bKash,iPhone 15 Pro,PHN-APPL-15PRO,BATCH-2026-078,1,"110,000.00","0.00","110,000.00","110,000.00","16,500.00","0.00","800.00","127,300.00","80,000.00","47,300.00",Yes,System,John Doe,TRK987654321,Installment plan: 3 months
+```
+
+**Features:**
+- ✅ Date range filtering (required)
+- ✅ Store filtering (optional - omit for all stores)
+- ✅ Includes all sales channels (physical, online, social)
+- ✅ One row per order item for detailed analysis
+- ✅ Complete customer information
+- ✅ Product and batch tracking
+- ✅ Payment and fulfillment status
+- ✅ Employee attribution (who created/processed)
+- ✅ Shipping tracking information
+
+**File Naming:**
+- Format: `order_details_YYYYMMDD_YYYYMMDD_[store_filter].csv`
+- Example (all stores): `order_details_20260301_20260331_all_stores.csv`
+- Example (specific store): `order_details_20260301_20260331_store2.csv`
+
+**Edge Cases Handled:**
+1. **Orders with no items:** Shows one row with "No Items" and 0 quantities
+2. **Guest customers:** Shows "Guest" as customer name
+3. **Missing data:** Shows "N/A" for optional fields
+4. **Multiple items per order:** Each item gets its own row (order info repeated)
+
+---
+
+### Report 7.2: Customer Purchase History CSV
+
+**Purpose:** Export complete purchase history for customers, showing all orders from any store/channel grouped by customer.
+
+**Use Cases:**
+- Customer service - view customer's complete order history
+- Customer relationship management
+- Loyalty program analysis
+- Customer segmentation
+- Cross-store purchase tracking
+- Repeat customer identification
+
+**Endpoint:** `GET /api/reporting/csv/customer-history`
+
+**Request Parameters:**
+```json
+{
+  "start_date": "2026-01-01",      // Optional: Filter orders from this date
+  "end_date": "2026-03-31",        // Optional: Filter orders to this date
+  "customer_id": 42                // Optional: Specific customer ID (omit for all customers)
+}
+```
+
+**Query Logic:**
+```php
+Customer::with([
+    'orders' => function ($query) use ($request) {
+        $query->with(['store', 'items.product', 'payments'])
+            ->whereIn('status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])
+            ->when($request->start_date && $request->end_date, function($q) use ($request) {
+                return $q->whereBetween('order_date', [$request->start_date, $request->end_date]);
+            })
+            ->orderBy('order_date', 'desc');
+    }
+])
+->when($request->customer_id, function($query) use ($request) {
+    return $query->where('id', $request->customer_id);
+})
+->has('orders')
+->get();
+```
+
+**CSV Structure:**
+One row per order, grouped by customer. All orders for a customer appear consecutively.
+
+**CSV Columns (19 columns):**
+1. **Customer ID** - Unique customer identifier
+2. **Customer Name** - Customer full name
+3. **Customer Email** - Customer email address
+4. **Customer Phone** - Customer phone number
+5. **Order Number** - Order identifier
+6. **Order Date** - When order was placed
+7. **Store Name** - Store/channel name
+8. **Store Type** - "Online/Social" or "Physical Store"
+9. **Order Type** - Order classification
+10. **Status** - Current order status
+11. **Payment Status** - Payment status
+12. **Payment Method** - Payment method used
+13. **Product Count** - Number of different products in order
+14. **Total Items Qty** - Total quantity of all items
+15. **Order Total** - Final order amount
+16. **Paid Amount** - Amount paid
+17. **Outstanding Amount** - Remaining balance
+18. **Is Installment** - Yes/No if installment
+19. **Tracking Number** - Shipping tracking
+
+**Sample CSV Output:**
+```csv
+Customer ID,Customer Name,Customer Email,Customer Phone,Order Number,Order Date,Store Name,Store Type,Order Type,Status,Payment Status,Payment Method,Product Count,Total Items Qty,Order Total,Paid Amount,Outstanding Amount,Is Installment,Tracking Number
+42,John Doe,john@example.com,+880123456789,ORD-2026-001234,2026-03-15 14:30:00,Main Store,Physical Store,standard,delivered,paid,cash,3,5,"104,750.00","104,750.00","0.00",No,TRK123456789
+42,John Doe,john@example.com,+880123456789,ORD-2026-000987,2026-02-10 09:20:00,Online Store,Online/Social,standard,delivered,paid,bKash,1,2,"45,000.00","45,000.00","0.00",No,TRK555444333
+42,John Doe,john@example.com,+880123456789,ORD-2026-000654,2026-01-05 16:45:00,Branch 2,Physical Store,wholesale,delivered,paid,bank transfer,5,20,"250,000.00","250,000.00","0.00",No,TRK111222333
+58,Jane Smith,jane@example.com,+880987654321,ORD-2026-001235,2026-03-16 10:15:00,Online Store,Online/Social,standard,shipped,partial,bKash,1,1,"127,300.00","80,000.00","47,300.00",Yes,TRK987654321
+58,Jane Smith,jane@example.com,+880987654321,ORD-2026-001100,2026-02-28 13:00:00,Main Store,Physical Store,standard,delivered,paid,cash,2,3,"32,500.00","32,500.00","0.00",No,TRK777888999
+```
+
+**Features:**
+- ✅ Grouped by customer (all orders per customer together)
+- ✅ Optional date range filter
+- ✅ Optional single customer filter
+- ✅ Shows all sales channels
+- ✅ Order summary (no line items, just order totals)
+- ✅ Product count and total quantity per order
+- ✅ Payment tracking (installments visible)
+- ✅ Only includes customers who have orders
+
+**File Naming:**
+- Format: `customer_purchase_history_[date_range]_[customer_filter].csv`
+- Example (all time, all customers): `customer_purchase_history_all_time_all_customers.csv`
+- Example (date range): `customer_purchase_history_20260101_20260331_all_customers.csv`
+- Example (specific customer): `customer_purchase_history_20260101_20260331_customer42.csv`
+
+**Edge Cases Handled:**
+1. **No date filter:** Shows all orders from all time
+2. **Customer with no orders:** Not included in export
+3. **Missing customer info:** Shows "N/A" for optional fields
+4. **Multiple stores:** Customer's cross-store purchases are all visible
+
+**Use Case Example:**
+Customer service representative receives call from "John Doe" - exports his purchase history to see:
+- What he bought across all stores
+- Payment history and outstanding balances
+- Frequency of purchases
+- Preferred stores/channels
+- Any pending installments
+
+---
+
+### Report 7.3: Customer Purchase Summary CSV
+
+**Purpose:** Export aggregated customer statistics showing total purchases and spending per customer.
+
+**Use Cases:**
+- Identify top customers by spending
+- Customer loyalty analysis
+- VIP customer identification
+- Marketing campaign targeting
+- Customer lifetime value (CLV) calculation
+- Customer retention analysis
+- Credit risk assessment (outstanding balances)
+
+**Endpoint:** `GET /api/reporting/csv/customer-summary`
+
+**Request Parameters:**
+```json
+{
+  "start_date": "2026-01-01",      // Optional: Calculate metrics from this date
+  "end_date": "2026-03-31",        // Optional: Calculate metrics to this date
+  "min_orders": 5,                 // Optional: Only include customers with at least N orders
+  "min_amount": 100000             // Optional: Only include customers who spent at least N amount
+}
+```
+
+**Query Logic:**
+```php
+Customer::select([
+    'customers.id',
+    'customers.name',
+    'customers.email',
+    'customers.phone',
+    'customers.created_at',
+])
+->leftJoin('orders', function ($join) use ($request) {
+    $join->on('customers.id', '=', 'orders.customer_id')
+        ->whereIn('orders.status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])
+        ->when($request->start_date && $request->end_date, function($q) use ($request) {
+            return $q->whereBetween('orders.order_date', [$request->start_date, $request->end_date]);
+        });
+})
+->groupBy('customers.id', 'customers.name', 'customers.email', 'customers.phone', 'customers.created_at')
+->selectRaw('COUNT(DISTINCT orders.id) as total_orders')
+->selectRaw('COALESCE(SUM(orders.total_amount), 0) as total_spent')
+->selectRaw('COALESCE(SUM(orders.paid_amount), 0) as total_paid')
+->selectRaw('COALESCE(AVG(orders.total_amount), 0) as average_order_value')
+->selectRaw('MIN(orders.order_date) as first_order_date')
+->selectRaw('MAX(orders.order_date) as last_order_date')
+->having('total_orders', '>=', $request->min_orders ?? 0)
+->having('total_spent', '>=', $request->min_amount ?? 0)
+->orderBy('total_spent', 'desc')
+->get();
+```
+
+**CSV Structure:**
+One row per customer with aggregated statistics.
+
+**CSV Columns (14 columns):**
+1. **Customer ID** - Unique customer identifier
+2. **Customer Name** - Customer full name
+3. **Email** - Customer email
+4. **Phone** - Customer phone
+5. **Customer Since** - When customer account was created
+6. **Total Orders** - Number of orders placed
+7. **Total Spent** - Sum of all order totals
+8. **Total Paid** - Sum of all payments made
+9. **Outstanding Balance** - Total Spent - Total Paid
+10. **Average Order Value** - Average order amount
+11. **First Order Date** - Date of first order
+12. **Last Order Date** - Date of most recent order
+13. **Days Since First Order** - Time since first purchase
+14. **Days Since Last Order** - Days since last purchase (recency)
+
+**Sample CSV Output:**
+```csv
+Customer ID,Customer Name,Email,Phone,Customer Since,Total Orders,Total Spent,Total Paid,Outstanding Balance,Average Order Value,First Order Date,Last Order Date,Days Since First Order,Days Since Last Order
+42,John Doe,john@example.com,+880123456789,2025-11-15,15,"1,250,000.00","1,250,000.00","0.00","83,333.33",2025-11-20,2026-03-15,105,5
+58,Jane Smith,jane@example.com,+880987654321,2026-01-10,8,"650,000.00","580,000.00","70,000.00","81,250.00",2026-01-15,2026-03-10,50,10
+73,Ahmed Hassan,ahmed@example.com,+880111222333,2025-08-20,22,"2,100,000.00","2,050,000.00","50,000.00","95,454.55",2025-08-25,2026-03-01,193,19
+91,Sara Khan,sara@example.com,+880444555666,2026-02-01,3,"180,000.00","180,000.00","0.00","60,000.00",2026-02-05,2026-03-05,33,15
+```
+
+**Features:**
+- ✅ Aggregated customer-level statistics
+- ✅ Sorted by total spending (top customers first)
+- ✅ Optional date range for calculating metrics
+- ✅ Optional filters (minimum orders, minimum spending)
+- ✅ Includes all customers (even with 0 orders if no min_orders filter)
+- ✅ Outstanding balance calculation (credit risk)
+- ✅ Customer lifetime value metrics
+- ✅ Recency metrics (RFM analysis ready)
+
+**File Naming:**
+- Format: `customer_purchase_summary_[date_range].csv`
+- Example (all time): `customer_purchase_summary_all_time.csv`
+- Example (date range): `customer_purchase_summary_20260101_20260331.csv`
+
+**Calculated Fields:**
+- **Outstanding Balance:** Total Spent - Total Paid (shows customers with unpaid balances)
+- **Average Order Value:** Total Spent / Total Orders
+- **Days Since First Order:** Today - First Order Date (customer age)
+- **Days Since Last Order:** Today - Last Order Date (recency for RFM analysis)
+
+**Edge Cases Handled:**
+1. **Customers with no orders:** Show 0 for all metrics (if no min_orders filter)
+2. **Date range applied:** Only counts orders within date range
+3. **Filters applied:** Only customers meeting criteria are included
+4. **Missing dates:** Shows "N/A" if customer has no orders
+
+**Business Insights:**
+
+**Top Customers Identification:**
+```csv
+Customer ID,Customer Name,Total Orders,Total Spent,Outstanding Balance
+73,Ahmed Hassan,22,"2,100,000.00","50,000.00"
+42,John Doe,15,"1,250,000.00","0.00"
+```
+→ Ahmed is top spender, but has 50k outstanding balance
+
+**New vs Established Customers:**
+```csv
+Customer ID,Customer Name,Customer Since,Days Since First Order,Total Orders
+91,Sara Khan,2026-02-01,33,3
+42,John Doe,2025-11-15,105,15
+```
+→ Sara is new (33 days), John is established (105 days)
+
+**Churn Risk (High Recency):**
+```csv
+Customer ID,Customer Name,Days Since Last Order,Total Spent
+105,Old Customer,180,"500,000.00"
+```
+→ Customer spent 500k but hasn't ordered in 180 days (potential churn)
+
+**Average Order Value Comparison:**
+```csv
+Customer ID,Customer Name,Total Orders,Average Order Value
+73,Ahmed Hassan,22,"95,454.55"
+91,Sara Khan,3,"60,000.00"
+```
+→ Ahmed averages 95k per order, Sara averages 60k
+
+---
+
+### Implementation Details (All Three Reports)
+
+**Controller:** `ReportingController.php`
+
+**Methods Added:**
+1. `exportOrderDetailsCsv()` - Lines 1234-1399 (Report 7.1)
+2. `exportCustomerHistoryCsv()` - Lines 1401-1518 (Report 7.2)
+3. `exportCustomerSummaryCsv()` - Lines 1520-1622 (Report 7.3)
+
+**Routes Added to `routes/api.php` (Lines 1606-1611):**
+```php
+// Report 7.1: Order Details CSV
+Route::get('/csv/order-details', [ReportingController::class, 'exportOrderDetailsCsv']);
+
+// Report 7.2: Customer Purchase History CSV
+Route::get('/csv/customer-history', [ReportingController::class, 'exportCustomerHistoryCsv']);
+
+// Report 7.3: Customer Purchase Summary CSV
+Route::get('/csv/customer-summary', [ReportingController::class, 'exportCustomerSummaryCsv']);
+```
+
+**Model Changes:**
+- Added `use App\Models\Customer;` import to ReportingController.php
+
+**Database Tables Used:**
+- `customers` - Customer information
+- `orders` - Order records
+- `order_items` - Order line items(Report 7.1 only)
+- `stores` - Store information
+- `products` - Product details (Report 7.1 only)
+- `product_batches` - Batch tracking (Report 7.1 only)
+- `employees` - Employee attribution (Report 7.1 only)
+
+**Relationships Leveraged:**
+- `Order->customer()` - Get customer info
+- `Order->store()` - Get store info
+- `Order->items()` - Get order items
+- `OrderItem->product()` - Get product details
+- `OrderItem->productBatch()` - Get batch info
+- `Order->payments()` - Get payment records
+- `Order->createdBy()` - Get creator employee
+- `Order->processedBy()` - Get processor employee
+- `Customer->orders()` - Get all customer orders
+
+**Order Status Filter (All Reports):**
+All three reports use the corrected order status filter:
+```php
+->whereIn('status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])
+```
+
+Excludes:
+- `pending` - Not yet confirmed orders
+- `cancelled` - Cancelled orders
+- `refunded` - Refunded orders
+
+---
+
+### Testing Checklist
+
+**Report 7.1: Order Details CSV**
+- [ ] Test with date range only (no store filter) - should show all stores
+- [ ] Test with specific store ID - should show only that store
+- [ ] Test with date range covering no orders - should return empty CSV with headers
+- [ ] Verify order with multiple items creates multiple rows
+- [ ] Verify order with no items shows one row with "No Items"
+- [ ] Check store type correctly identifies "Online/Social" vs "Physical Store"
+- [ ] Verify customer information is correct
+- [ ] Verify product batch information appears
+- [ ] Verify tracking numbers appear
+- [ ] Check calculations (line total, order totals) are correct
+- [ ] Test with long date ranges (performance test)
+
+**Report 7.2: Customer Purchase History CSV**
+- [ ] Test with no filters - should show all customers with orders
+- [ ] Test with date range - should only show orders in range
+- [ ] Test with specific customer ID - should show only that customer
+- [ ] Verify customers with no orders are excluded
+- [ ] Verify orders are sorted newest first within each customer
+- [ ] Check product count calculation is correct
+- [ ] Check total items quantity is correct
+- [ ] Verify cross-store purchases are all included
+- [ ] Test customer with orders in multiple stores
+- [ ] Verify installment orders show correctly
+
+**Report 7.3: Customer Purchase Summary CSV**
+- [ ] Test with no filters - should show all customers
+- [ ] Test with date range - should calculate metrics only for that range
+- [ ] Test with min_orders filter - should exclude customers below threshold
+- [ ] Test with min_amount filter - should exclude customers below threshold
+- [ ] Test with both min_orders and min_amount filters
+- [ ] Verify total orders count is correct
+- [ ] Verify total spent calculation is correct
+- [ ] Verify total paid is correct
+- [ ] Verify outstanding balance = total spent - total paid
+- [ ] Verify average order value calculation
+- [ ] Verify first order date is earliest order
+- [ ] Verify last order date is most recent order
+- [ ] Verify days since first order is calculated correctly
+- [ ] Verify days since last order is calculated correctly
+- [ ] Verify sorting by total_spent descending (top spenders first)
+- [ ] Verify customers with no orders show if no min filter applied
+
+**General Testing (All Reports):**
+- [ ] Test with invalid date ranges (end before start) - should return validation error
+- [ ] Test with invalid store_id - should return validation error
+- [ ] Test with invalid customer_id - should return validation error
+- [ ] Verify CSV headers are correct
+- [ ] Verify CSV filename format is correct
+- [ ] Verify number formatting (2 decimal places for amounts)
+- [ ] Verify date formatting (consistent across all reports)
+- [ ] Test with large datasets (performance)
+- [ ] Verify UTF-8 encoding for non-English characters
+- [ ] Test downloading CSV in different browsers
+- [ ] Verify Content-Type and Content-Disposition headers
+
+---
+
+### API Request Examples
+
+**Report 7.1: All stores in March 2026**
+```bash
+GET /api/reporting/csv/order-details?start_date=2026-03-01&end_date=2026-03-31
+```
+
+**Report 7.1: Specific store in date range**
+```bash
+GET /api/reporting/csv/order-details?start_date=2026-03-01&end_date=2026-03-31&store_id=2
+```
+
+**Report 7.2: All customers, all time**
+```bash
+GET /api/reporting/csv/customer-history
+```
+
+**Report 7.2: All customers in Q1 2026**
+```bash
+GET /api/reporting/csv/customer-history?start_date=2026-01-01&end_date=2026-03-31
+```
+
+**Report 7.2: Specific customer's history**
+```bash
+GET /api/reporting/csv/customer-history?customer_id=42
+```
+
+**Report 7.3: All customers, all time**
+```bash
+GET /api/reporting/csv/customer-summary
+```
+
+**Report 7.3: Customer summary for Q1 2026**
+```bash
+GET /api/reporting/csv/customer-summary?start_date=2026-01-01&end_date=2026-03-31
+```
+
+**Report 7.3: Top customers (at least 10 orders, spent at least 500k)**
+```bash
+GET /api/reporting/csv/customer-summary?min_orders=10&min_amount=500000
+```
+
+---
+
+### Business Use Case Scenarios
+
+**Scenario 1: End-of-Month Sales Report**
+Manager needs complete order details for March 2026 across all stores:
+```bash
+GET /api/reporting/csv/order-details?start_date=2026-03-01&end_date=2026-03-31
+```
+Result: CSV with all orders, products sold, customers, and revenue for the month.
+
+**Scenario 2: Customer Service - Full History Lookup**
+Customer "Ahmed Hassan" (ID: 73) calls with inquiry. Customer service exports his complete history:
+```bash
+GET /api/reporting/csv/customer-history?customer_id=73
+```
+Result: All of Ahmed's orders across all stores with payment status.
+
+**Scenario 3: Marketing Campaign - VIP Customers**
+Marketing wants to target customers who spent at least 1,000,000 BDT with at least 10 orders:
+```bash
+GET /api/reporting/csv/customer-summary?min_orders=10&min_amount=1000000
+```
+Result: List of top customers with contact info and spending statistics.
+
+**Scenario 4: Credit Risk Assessment**
+Finance needs to identify customers with outstanding balances:
+```bash
+GET /api/reporting/csv/customer-summary
+```
+Then filter CSV for customers with Outstanding Balance > 0.
+
+**Scenario 5: Store Performance Comparison**
+Compare Store 2 vs Store 5 for March 2026:
+```bash
+# Export Store 2
+GET /api/reporting/csv/order-details?start_date=2026-03-01&end_date=2026-03-31&store_id=2
+
+# Export Store 5
+GET /api/reporting/csv/order-details?start_date=2026-03-01&end_date=2026-03-31&store_id=5
+```
+Then compare order counts, revenue, and customer counts.
+
+**Scenario 6: Customer Retention Analysis**
+Identify customers who haven't ordered in 90+ days (churn risk):
+```bash
+GET /api/reporting/csv/customer-summary
+```
+Filter CSV for "Days Since Last Order" > 90, sorted by "Total Spent" to prioritize high-value at-risk customers.
+
+**Scenario 7: Online vs Physical Store Analysis**
+Export all orders for Q1 2026:
+```bash
+GET /api/reporting/csv/order-details?start_date=2026-01-01&end_date=2026-03-31
+```
+Pivot in Excel by "Store Type" to compare Online/Social vs Physical Store performance.
+
+---
+
+### Future Enhancements
+
+**Potential Additions:**
+1. **Report 7.1 Enhancements:**
+   - Add employee performance columns (sales per employee)
+   - Include refund information
+   - Add product category breakdown
+   - Include shipping carrier details
+
+2. **Report 7.2 Enhancements:**
+   - Add customer lifetime value (CLV) calculation
+   - Include customer satisfaction ratings (if available)
+   - Add product preferences (most-bought products per customer)
+   - Include referral information
+
+3. **Report 7.3 Enhancements:**
+   - Add RFM score calculation (Recency, Frequency, Monetary)
+   - Customer segmentation categories
+   - Churn risk scoring
+   - Predicted next purchase date
+   - Customer acquisition cost (if available)
+
+4. **All Reports:**
+   - Excel format export option (XLSX) instead of CSV
+   - Scheduled automatic exports (daily, weekly, monthly)
+   - Email delivery of reports
+   - Dashboard visualization before export
+   - Custom column selection
+
+---
+
 ## Status
 
 - ✅ **Category Sales Report:** FIXED (subtotal, discount, VAT calculations corrected)
@@ -1659,6 +2277,9 @@ Consider adding a computed column or updating old references to 'completed' stat
 - ✅ **Dispatch Barcode Breakdown CSV:** IMPLEMENTED (needs testing)
 - ✅ **Customer Installment/Partial Payment Report:** IMPLEMENTED (needs testing)
 - ✅ **High/Low Selling Products Report:** FIXED (quantity showing 0 - status filter corrected)
+- ✅ **Report 7.1 - Order Details CSV:** IMPLEMENTED (needs testing)
+- ✅ **Report 7.2 - Customer Purchase History CSV:** IMPLEMENTED (needs testing)
+- ✅ **Report 7.3 - Customer Purchase Summary CSV:** IMPLEMENTED (needs testing)
 - ⏳ **Additional Reports:** Awaiting PM requirements
 
 ---
