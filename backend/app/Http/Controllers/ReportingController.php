@@ -62,7 +62,8 @@ class ReportingController extends Controller
         }
 
         // Build query for order items joined with products and categories
-        $query = OrderItem::query()
+        // NOTE: Using DB::table instead of Eloquent to avoid model cast issues with aggregations
+        $query = DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->join('categories', 'products.category_id', '=', 'categories.id')
@@ -74,8 +75,8 @@ class ReportingController extends Controller
         if ($request->filled('status')) {
             $query->where('orders.status', $request->status);
         } else {
-            // Default: include confirmed orders (real statuses: confirmed, pending_assignment, pending)
-            $query->whereIn('orders.status', ['confirmed', 'pending_assignment']);
+            // Default: include confirmed and completed orders (real statuses from enum)
+            $query->whereIn('orders.status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered']);
         }
 
         // Date range filter
@@ -97,9 +98,9 @@ class ReportingController extends Controller
             'categories.id as category_id',
             'categories.title as category_name',
             DB::raw('SUM(order_items.quantity) as total_quantity'),
-            DB::raw('SUM(order_items.quantity * order_items.unit_price) as subtotal'),
-            DB::raw('SUM(order_items.discount_amount) as total_discount'),  // Fixed: Don't multiply by quantity
-            DB::raw('SUM(order_items.tax_amount) as total_tax')
+            DB::raw('SUM(CAST(order_items.quantity AS DECIMAL(10,2)) * CAST(order_items.unit_price AS DECIMAL(10,2))) as subtotal'),
+            DB::raw('SUM(CAST(order_items.discount_amount AS DECIMAL(10,2))) as total_discount'),
+            DB::raw('SUM(CAST(order_items.tax_amount AS DECIMAL(10,2))) as total_tax')
         )
         ->groupBy('categories.id', 'categories.title')
         ->get();
@@ -967,26 +968,33 @@ class ReportingController extends Controller
                     
                     $amount = floatval($payment->amount);
                     
-                    if ($payment->paymentMethod) {
-                        $methodType = $payment->paymentMethod->type;
-                        $methodName = strtolower($payment->paymentMethod->name);
-                        
-                        // Cash payment (ID 1 or type 'cash')
-                        if ($payment->payment_method_id == 1 || $methodType == 'cash') {
-                            $cashPaid += $amount;
-                        }
-                        // Mobile banking (bKash, Nagad, Rocket, etc.) - ID 6 or type 'mobile_banking'
-                        elseif ($payment->payment_method_id == 6 || $methodType == 'mobile_banking' || 
-                                str_contains($methodName, 'bkash') || str_contains($methodName, 'nagad') ||
-                                str_contains($methodName, 'rocket') || str_contains($methodName, 'upay')) {
-                            $mobileBankingPaid += $amount;
-                        }
-                        // Bank transfer - ID 4 or type 'bank_transfer' or 'online_banking'
-                        elseif ($payment->payment_method_id == 4 || 
-                                $methodType == 'bank_transfer' || 
-                                $methodType == 'online_banking') {
-                            $bankPaid += $amount;
-                        }
+                    // Handle null payment methods (treat as cash for legacy data)
+                    if (!$payment->paymentMethod || !$payment->payment_method_id) {
+                        $cashPaid += $amount;
+                        continue;
+                    }
+                    
+                    $methodType = $payment->paymentMethod->type ?? '';
+                    $methodName = strtolower($payment->paymentMethod->name ?? '');
+                    
+                    // Cash payment (ID 1 or type 'cash')
+                    if ($payment->payment_method_id == 1 || $methodType == 'cash') {
+                        $cashPaid += $amount;
+                    }
+                    // Mobile banking (bKash, Nagad, Rocket, etc.) - ID 6 or type 'mobile_banking'
+                    elseif ($payment->payment_method_id == 6 || $methodType == 'mobile_banking' || 
+                            str_contains($methodName, 'bkash') || str_contains($methodName, 'nagad') ||
+                            str_contains($methodName, 'rocket') || str_contains($methodName, 'upay')) {
+                        $mobileBankingPaid += $amount;
+                    }
+                    // Bank/Card payment - ID 2,3,4,5,7 or type 'card', 'bank_transfer', 'online_banking', 'digital_wallet'
+                    elseif (in_array($payment->payment_method_id, [2, 3, 4, 5, 7]) ||
+                            in_array($methodType, ['card', 'bank_transfer', 'online_banking', 'digital_wallet'])) {
+                        $bankPaid += $amount;
+                    }
+                    // Fallback: unknown payment methods default to cash
+                    else {
+                        $cashPaid += $amount;
                     }
                 }
                 
@@ -1203,8 +1211,8 @@ class ReportingController extends Controller
                             $paymentStatus,
                             $order->next_payment_due ? $order->next_payment_due->format('Y-m-d') : '',
                             $payment->payment_number ?? '',
-                            $payment->payment_received_date ? $payment->payment_received_date->format('Y-m-d') : '',
-                            number_format($payment->amount, 2),
+                            $payment->completed_at ? $payment->completed_at->format('Y-m-d H:i') : ($payment->processed_at ? $payment->processed_at->format('Y-m-d H:i') : ''),
+                            number_format($payment->amount ?? 0, 2),
                             $payment->paymentMethod->name ?? 'N/A',
                             ucfirst($payment->payment_type ?? 'N/A'),
                             $payment->installment_number ?? '',
@@ -1246,8 +1254,8 @@ class ReportingController extends Controller
             'customer',
             'store',
             'items.product',
-            'items.productBatch',
-            'payments',
+            'items.batch',  // Fixed: correct relationship name
+            'payments.paymentMethod',
             'createdBy',
             'processedBy'
         ])
@@ -1352,7 +1360,7 @@ class ReportingController extends Controller
                     foreach ($order->items as $item) {
                         $productName = $item->product->name ?? 'N/A';
                         $productSku = $item->product->sku ?? 'N/A';
-                        $batchNumber = $item->productBatch->batch_number ?? 'N/A';
+                        $batchNumber = $item->batch->batch_number ?? 'N/A';  // Fixed: correct relationship
 
                         fputcsv($file, [
                             $order->order_number,

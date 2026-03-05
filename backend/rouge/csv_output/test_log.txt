@@ -1,0 +1,223 @@
+CSV Export Test - 2026-03-05 13:54:00
+
+Testing with Employee ID: 2 (Mueed Sami)
+Database: deshio_again
+================================================================================
+
+
+1. Testing exportCategorySalesCsv...
+
+--- Analyzing: Category Sales ---
+File size: 2,749 bytes
+Columns (9): ﻿Category, Sold Qty, SUB Total, Discount Amount, Exchange Amount, Return Amount, Net Sales (without VAT), VAT Amount (7.5), Net Amount
+Total data rows: 36
+
+Sample rows (first 3):
+Row 1: ["Saree","11","22,000.00","1,560.00","0.00","0.00","20,440.00","92.00","20,532.00"]
+Row 2: ["SHOTORONJI","12","577,067.00","200.00","0.00","2,000.00","574,867.00","0.00","574,867.00"]
+Row 3: ["3PIECE","6","12,050.00","0.00","0.00","0.00","12,050.00","0.00","12,050.00"]
+
+Empty value analysis:
+
+
+2. Testing exportSalesCsv...
+
+--- Analyzing: Sales Report ---
+File size: 220,248 bytes
+Columns (21): ﻿"Creation Date", Invoice Number, Customer Name, Customer Phone, Customer Address, Product Name And QTY, Product Specification, Product Attribute, Sub Total Price, Discount, Price After Discount, Delivery Charge, Total Price, Paid Amount, Vat Amount, Total Without Vat, Due Amount, Delivery Partner, Delivery Area, Payment Method, Order Status
+Total data rows: 701
+
+Sample rows (first 3):
+Row 1: ["2026-03-05 23:21:31","ORD-20260305-72D885","Walk-in Customer","WALK-IN","","DESHIO MIDI DRESS - DE1-3 - 44 (x1)","N\/A","SKU: DE-DG-G1-1350","1,350.00","0.00","1,350.00","0.00","1,350.00","1,350.00","0.00","1,350.00","0.00","N\/A","","Card Payment","Confirmed"]
+Row 2: ["2026-03-05 23:17:40","ORD-20260305-68B9E4","Walk-in Customer","WALK-IN","","DESHIO KOTI DRESS - BROWN - 46 (x1)","N\/A","SKU: DKD-DE-1550-1","1,550.00","0.00","1,550.00","0.00","1,550.00","1,550.00","0.00","1,550.00","0.00","N\/A","","Card Payment","Confirmed"]
+Row 3: ["2026-03-05 22:56:05","ORD-20260305-0DB4B7","Mahmudul","01521319085","SHUKRABAD","Pearl Handpiece - RA1-15 (x1)","N\/A","SKU: JPH-HAND-1235","580.00","0.00","580.00","0.00","580.00","580.00","0.00","580.00","0.00","N\/A","","Mobile Banking","Confirmed"]
+
+Empty value analysis:
+  Customer Address: 76/701 empty (10.8%)
+  Product Name And QTY: 5/701 empty (0.7%)
+  Product Specification: 5/701 empty (0.7%)
+  Product Attribute: 5/701 empty (0.7%)
+  ⚠️  Delivery Area: 689/701 empty (98.3%)
+
+
+3. Testing exportStockCsv...
+
+--- Analyzing: Stock Report ---
+File size: 1,072,947 bytes
+Columns (11): ﻿Category, Product Code, Product Name, Product Brand, Product Description, Batch Number, Sold Quantity, Sub Total, Remaining Stock Quantity, Stock Volume, Store
+Total data rows: 7497
+
+Sample rows (first 3):
+Row 1: ["Saree","sar01","Khandani shari - Yellow","N\/A","Khandani jomidari shari","PO-20251125-000001-1","6","12,000.00","0","0.00","OFFICE"]
+Row 2: ["SHOTORONJI","d3","ddd","N\/A","dddddddddddd","BATCH-20260105-351AFB","2","4,200.00","0","0.00","SHOWROOM"]
+Row 3: ["SHOTORONJI","d3","ddd","N\/A","dddddddddddd","BATCH-20260125-0C688D","3","6,000.00","1","2,000.00","SHOWROOM"]
+
+Empty value analysis:
+
+
+4. Testing exportBookingCsv...
+
+--- Analyzing: Booking Report ---
+File size: 378,323 bytes
+Columns (16): ﻿"Order Number", Order Date, Customer Name, Customer Phone, Customer Code, Product Name, Product Code (SKU), Product Barcode, Batch Number, Quantity, Selling Price, Cost Price, Item Subtotal, Payable (Order Total), Paid Amount, Due Amount
+Total data rows: 1608
+
+Sample rows (first 3):
+Row 1: ["ORD-20260305-72D885","2026-03-05 23:21:31","Walk-in Customer","WALK-IN","CUST-2025-B6DFC5","DESHIO MIDI DRESS - DE1-3 - 44","DE-DG-G1-1350","818007577967","BATCH-20260211-7B13E7","1","1,350.00","840.00","1,350.00","1,350.00","1,350.00","0.00"]
+Row 2: ["ORD-20260305-68B9E4","2026-03-05 23:17:40","Walk-in Customer","WALK-IN","CUST-2025-B6DFC5","DESHIO KOTI DRESS - BROWN - 46","DKD-DE-1550-1","648922173111","BATCH-20260211-1D6E90","1","1,550.00","1,050.00","1,550.00","1,550.00","1,550.00","0.00"]
+Row 3: ["ORD-20260305-0DB4B7","2026-03-05 22:56:05","Mahmudul","01521319085","CUST-2026-F8CA9B","Pearl Handpiece - RA1-15","JPH-HAND-1235","087655638636","BATCH-20260216-818AFE","1","580.00","300.00","580.00","580.00","580.00","0.00"]
+
+Empty value analysis:
+
+
+5. Testing exportPaymentBreakdownCsv...
+
+--- Analyzing: Payment Breakdown ---
+File size: 141,642 bytes
+Columns (14): ﻿Date, Invoice Number, Store/Branch, Customer Name, Customer Phone, Customer Address, Product Name, Quantity, Cash Paid, Bkash/Mobile Banking Paid, Bank Paid, Due, System (Online/POS), Order Status
+Total data rows: 701
+
+Sample rows (first 3):
+Row 1: ["2026-03-05 23:21:31","ORD-20260305-72D885","SHOWROOM","Walk-in Customer","WALK-IN","","DESHIO MIDI DRESS - DE1-3 - 44 (x1)","1","0.00","0.00","1,350.00","0.00","POS","Confirmed"]
+Row 2: ["2026-03-05 23:17:40","ORD-20260305-68B9E4","SHOWROOM","Walk-in Customer","WALK-IN","","DESHIO KOTI DRESS - BROWN - 46 (x1)","1","0.00","0.00","1,550.00","0.00","POS","Confirmed"]
+Row 3: ["2026-03-05 22:56:05","ORD-20260305-0DB4B7","SHOWROOM","Mahmudul","01521319085","SHUKRABAD","Pearl Handpiece - RA1-15 (x1)","1","0.00","580.00","0.00","0.00","POS","Confirmed"]
+
+Empty value analysis:
+  Customer Address: 76/701 empty (10.8%)
+  Product Name: 5/701 empty (0.7%)
+
+
+6. Testing exportInstallmentsCsv...
+
+--- Analyzing: Customer Installments ---
+File size: 203,804 bytes
+Columns (24): ﻿"Order Number", Order Date, Store, Customer Name, Customer Phone, Customer Email, Customer Address, Products, Total Items, Order Total, Total Paid, Outstanding, Payment Status, Next Payment Due, Payment Number, Payment Date, Payment Amount, Payment Method, Payment Type, Installment Number, Balance Before, Balance After, Processed By, Payment Notes
+Total data rows: 703
+
+Sample rows (first 3):
+Row 1: ["ORD-20260305-72D885","2026-03-05 23:21","SHOWROOM","Walk-in Customer","WALK-IN","","","DESHIO MIDI DRESS - DE1-3 - 44 (x1)","1","1,350.00","1,350.00","0.00","Paid","","PAY-20260305-C0F7DB34","2026-03-05 23:21","1,350.00","Card Payment","Full","","1,350.00","0.00","Deshio Adabor",""]
+Row 2: ["ORD-20260305-68B9E4","2026-03-05 23:17","SHOWROOM","Walk-in Customer","WALK-IN","","","DESHIO KOTI DRESS - BROWN - 46 (x1)","1","1,550.00","1,550.00","0.00","Paid","","PAY-20260305-6AC299E6","2026-03-05 23:17","1,550.00","Card Payment","Full","","1,550.00","0.00","Deshio Adabor",""]
+Row 3: ["ORD-20260305-0DB4B7","2026-03-05 22:56","SHOWROOM","Mahmudul","01521319085","","SHUKRABAD","Pearl Handpiece - RA1-15 (x1)","1","580.00","580.00","0.00","Paid","","PAY-20260305-C3647111","2026-03-05 22:56","580.00","Mobile Banking","Full","","580.00","0.00","Deshio Adabor",""]
+
+Empty value analysis:
+  Store: 2/703 empty (0.3%)
+  ⚠️  Customer Email: 685/703 empty (97.4%)
+  Customer Address: 95/703 empty (13.5%)
+  Products: 5/703 empty (0.7%)
+  ⚠️  Next Payment Due: 695/703 empty (98.9%)
+  Payment Date: 46/703 empty (6.5%)
+  Payment Amount: 27/703 empty (3.8%)
+  Payment Method: 27/703 empty (3.8%)
+  Payment Type: 27/703 empty (3.8%)
+  ⚠️  Installment Number: 703/703 empty (100.0%)
+  Balance Before: 27/703 empty (3.8%)
+  Balance After: 27/703 empty (3.8%)
+  Processed By: 34/703 empty (4.8%)
+  ⚠️  Payment Notes: 694/703 empty (98.7%)
+
+
+7. Testing exportOrderDetailsCsv...
+
+--- Analyzing: Order Details ---
+File size: 60,909 bytes
+Columns (30): Order Number, Order Date, Store Name, Store Type, Customer Name, Customer Email, Customer Phone, Order Type, Status, Payment Status, Payment Method, Product Name, Product SKU, Batch Number, Quantity, Unit Price, Discount, Line Total, Order Subtotal, Order Tax, Order Discount, Order Shipping, Order Total, Paid Amount, Outstanding Amount, Is Installment, Created By, Processed By, Tracking Number, Notes
+Total data rows: 188
+
+Sample rows (first 3):
+Row 1: ["ORD-20260304-470BD0","2026-03-04 22:01:20","SHOWROOM","Physical Store","Walk-in Customer","N\/A","WALK-IN","Counter","Confirmed","Paid","N\/A","COTTON BATIK 3PIECE - NU1-56","3PS-CU-A1-1350","PO-20260304-000004-3454-DST-DSP-20260304-57F81C","1","1,350.00","0.00","1,350.00","1,350.00","0.00","0.00","0.00","1,350.00","1,350.00","0.00","No","Niloy","N\/A","",""]
+Row 2: ["ORD-20260304-75E323","2026-03-04 21:49:08","SHOWROOM","Physical Store","Walk-in Customer","N\/A","WALK-IN","Counter","Confirmed","Paid","N\/A","COTTON READY EMBROIDERY 3PIECE - MO-8","3PIS-RE-A21-2150","BATCH-20260211-8F1961","1","2,150.00","0.00","2,150.00","3,800.00","0.00","0.00","0.00","3,800.00","3,800.00","0.00","No","Niloy","N\/A","",""]
+Row 3: ["ORD-20260304-75E323","2026-03-04 21:49:08","SHOWROOM","Physical Store","Walk-in Customer","N\/A","WALK-IN","Counter","Confirmed","Paid","N\/A","COTTON JAMDANI 3PIECE - TA1-45","3PIS-CJ-A8-1650","PO-20260228-000010-2946-DST-DSP-20260228-2ABD73","1","1,650.00","0.00","1,650.00","3,800.00","0.00","0.00","0.00","3,800.00","3,800.00","0.00","No","Niloy","N\/A","",""]
+
+Empty value analysis:
+  ⚠️  Tracking Number: 188/188 empty (100.0%)
+  Notes: 17/188 empty (9.0%)
+
+
+8. Testing exportCustomerHistoryCsv...
+
+--- Analyzing: Customer Purchase History ---
+File size: 28,022 bytes
+Columns (19): Customer ID, Customer Name, Customer Email, Customer Phone, Order Number, Order Date, Store Name, Store Type, Order Type, Status, Payment Status, Payment Method, Product Count, Total Items Qty, Order Total, Paid Amount, Outstanding Amount, Is Installment, Tracking Number
+Total data rows: 176
+
+Sample rows (first 3):
+Row 1: ["1","Walk-in Customer","N\/A","WALK-IN","ORD-20260305-72D885","2026-03-05 23:21:31","SHOWROOM","Physical Store","Counter","Confirmed","Paid","N\/A","1","1","1,350.00","1,350.00","0.00","No",""]
+Row 2: ["1","Walk-in Customer","N\/A","WALK-IN","ORD-20260305-68B9E4","2026-03-05 23:17:40","SHOWROOM","Physical Store","Counter","Confirmed","Paid","N\/A","1","1","1,550.00","1,550.00","0.00","No",""]
+Row 3: ["1","Walk-in Customer","N\/A","WALK-IN","ORD-20260305-EA815E","2026-03-05 13:49:22","SHOWROOM","Physical Store","Counter","Confirmed","Paid","N\/A","1","1","1,450.00","1,450.00","0.00","No",""]
+
+Empty value analysis:
+  ⚠️  Tracking Number: 176/176 empty (100.0%)
+
+
+9. Testing exportCustomerSummaryCsv...
+
+--- Analyzing: Customer Summary ---
+File size: 44,619 bytes
+Columns (14): Customer ID, Customer Name, Email, Phone, Customer Since, Total Orders, Total Spent, Total Paid, Outstanding Balance, Average Order Value, First Order Date, Last Order Date, Days Since First Order, Days Since Last Order
+Total data rows: 539
+
+Sample rows (first 3):
+Row 1: ["2","Mueed","mueedibnesami@iut-dhaka.edu","01610608881","2025-12-05","6","566,057.00","4,300.00","561,757.00","0.00","2026-01-01","2026-02-04","63","29"]
+Row 2: ["1","Walk-in Customer","N\/A","WALK-IN","2025-11-25","29","58,298.00","57,298.00","1,000.00","0.00","2025-11-25","2026-03-05","100","0"]
+Row 3: ["56","Ruma","N\/A","01716607266","2026-02-10","1","6,850.00","6,850.00","0.00","0.00","2026-02-10","2026-02-10","22","22"]
+
+Empty value analysis:
+
+
+10. Testing Purchase Order exportCsv...
+
+--- Analyzing: Purchase Order Detail (ID: 1) ---
+File size: 1,150 bytes
+Columns (45): ﻿"PO Number", PO Date, PO Status, Payment Status, Vendor Name, Vendor Email, Vendor Phone, Vendor Address, Warehouse/Store, Store Location, Expected Delivery, Actual Delivery, Payment Due Date, Created By, Approved By, Received By, Approved Date, Received Date, Item #, Product Name, Product SKU, Category, Batch Number, Manufactured Date, Expiry Date, Qty Ordered, Qty Received, Qty Pending, Receive Status, Unit Cost, Unit Sell Price, Item Discount, Item Tax, Item Total Cost, PO Subtotal, PO Discount, PO Tax, PO Shipping, PO Other Charges, PO Total Amount, PO Paid Amount, PO Outstanding, Reference Number, Item Notes, PO Notes
+Total data rows: 1
+
+Sample rows (first 3):
+Row 1: ["PO-20251125-000001","2025-11-25","received","unpaid","madestic","madesticbd@gmail.com","01614578281","wertyuirtyuiowertyuio","OFFICE","123 Main Street, City, Country","2025-11-27","2025-11-28","","Mueed Sami","Mueed Sami","Mueed Sami","2025-11-28 13:23","2025-11-28 13:23","1","Khandani shari - Yellow","sar01","Saree","PO-20251125-000001-1","2025-11-26","2025-12-05","10","10","0","fully_received","1,400.00","2,000.00","5.00","10.00","14,005.00","14,005.00","100.00","100.00","400.00","0.00","14,405.00","0.00","14,405.00","","","xcvbn"]
+
+Empty value analysis:
+  ⚠️  Payment Due Date: 1/1 empty (100.0%)
+  ⚠️  Reference Number: 1/1 empty (100.0%)
+  ⚠️  Item Notes: 1/1 empty (100.0%)
+
+
+11. Testing Purchase Order exportBarcodesCsv...
+
+--- Analyzing: Purchase Order Barcodes (ID: 1) ---
+File size: 1,690 bytes
+Columns (14): ﻿"PO Number", Line No, Product Name, Product SKU, Category, Batch Number, Barcode, Barcode Type, Is Primary, Is Active, Is Defective, Current Status, Current Store, Generated At
+Total data rows: 10
+
+Sample rows (first 3):
+Row 1: ["PO-20251125-000001","1","Khandani shari - Yellow","sar01","Saree","PO-20251125-000001-1","127892163754","CODE128","No","Yes","No","in_warehouse","OFFICE","2025-11-28 13:23"]
+Row 2: ["PO-20251125-000001","1","Khandani shari - Yellow","sar01","Saree","PO-20251125-000001-1","197540132953","CODE128","No","Yes","No","in_warehouse","OFFICE","2025-11-28 13:23"]
+Row 3: ["PO-20251125-000001","1","Khandani shari - Yellow","sar01","Saree","PO-20251125-000001-1","203969190853","CODE128","No","Yes","No","in_warehouse","OFFICE","2025-11-28 13:23"]
+
+Empty value analysis:
+
+
+12. Testing Product Dispatch exportCSV...
+
+--- Analyzing: Product Dispatch ---
+File size: 515,015 bytes
+Columns (11): ﻿"Dispatch Number", Dispatch Date, Source Store, Destination Store, Status, Product Name, Category, Vendor, Barcode, Unit Price, Quantity
+Total data rows: 3757
+
+Sample rows (first 3):
+Row 1: ["DSP-20260305-6ADD0C","2026-03-05 20:37:11","OFFICE","SHOWROOM","Delivered","JAMDANI 3PIECE -  TA1-7","","TA1--TANGAIL SAREE HOUSE","N\/A","1,850.00","1"]
+Row 2: ["DSP-20260305-A84712","2026-03-05 20:34:06","OFFICE","SHOWROOM","Delivered","DESHIO BLOCK 3PIECE - DE1-22","","DE1--DESHIO FACTORY","N\/A","1,150.00","1"]
+Row 3: ["DSP-20260305-A84712","2026-03-05 20:34:06","OFFICE","SHOWROOM","Delivered","DESHIO BLOCK 3PIECE - DE1-30","","DE1--DESHIO FACTORY","N\/A","1,150.00","1"]
+
+Empty value analysis:
+  ⚠️  Category: 3757/3757 empty (100.0%)
+
+
+13. Testing Product Dispatch exportBarcodesDetailedCsv...
+
+--- Analyzing: Dispatch Barcode Breakdown (ID: 1) ---
+ERROR: File not found - 
+
+
+================================================================================
+TEST COMPLETE!
+CSV files saved to: D:\Intern\deshio-erp-backend\backend\rouge/csv_output
+Log file: D:\Intern\deshio-erp-backend\backend\rouge/csv_output/test_log.txt
