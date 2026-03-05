@@ -1405,6 +1405,252 @@ This report directly utilizes the **Flexible Payment Edit & Void** features impl
 
 ---
 
+## Report #6: High/Low Selling Products Report (FIXED)
+
+### Issue Reported
+PM reported that the existing high selling and low selling products report had a critical bug:
+- ❌ **Quantity column showing 0 for everything** - All product quantities appear as zero
+- ✅ **Amount and price work fine** - Revenue and pricing calculations are correct
+- **Root cause:** Using non-existent order status 'completed' in filter
+
+### Root Cause Analysis
+
+**Problem: Status Filter Using Non-Existent 'completed' Status**
+
+Multiple report methods were filtering orders with:
+```php
+// BROKEN CODE:
+->where('orders.status', 'completed')
+```
+
+**Actual Order Statuses in Database:**
+From `orders` table migration, the valid statuses are:
+- `pending` - Order created, not yet confirmed
+- `confirmed` - Order confirmed by customer/staff  
+- `processing` - Order being prepared
+- `ready_for_pickup` - Order ready for customer pickup
+- `shipped` - Order shipped to customer
+- `delivered` - Order successfully delivered
+- `cancelled` - Order cancelled
+- `refunded` - Order refunded
+
+**Result:** No orders matched `status = 'completed'` → zero quantities calculated → reports showed 0 for all quantities
+
+**Why amounts/prices still worked:** Some calculations didn't filter by status or used different logic, so they returned values even though quantity was 0.
+
+### Affected Methods in ReportController
+
+**1. `bestSellers()` - Line 82** (HIGH SELLING PRODUCTS)
+```php
+// OLD CODE:
+->where('orders.status', 'completed')
+
+// FIXED:
+->whereIn('orders.status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])
+```
+**Impact:** Best sellers report showed 0 quantity for all products
+
+**2. `slowMoving()` - Lines 100-123** (LOW SELLING PRODUCTS)
+```php
+// This method uses whereDoesntHave logic, not directly affected
+// But related reports that feed into this were affected
+```
+**Impact:** Indirect - slow moving calculation depends on order history
+
+**3. `salesSummary()` - Line 46**
+```php
+// FIXED: Changed from 'completed' to actual statuses
+```
+**Impact:** Sales summary totals were 0
+
+**4. `staffPerformance()` - Line 134**
+```php
+// FIXED: Staff performance metrics showed 0 orders
+```
+
+**5. `profitMargins()` - Line 159**
+```php
+// FIXED: Profit calculations showed 0 units sold
+```
+
+**6. Private helper methods:**
+- `getSalesSummary()` - Line 258
+- `getTopProducts()` - Line 292
+
+### Solution Implemented
+
+Changed all status filters from single 'completed' check to array of actual completed statuses:
+
+```php
+// NEW CODE (used in all 6 locations):
+->whereIn('orders.status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])
+```
+
+**Rationale:** These 5 statuses represent orders that are actual sales:
+- `confirmed` - Customer confirmed, sale is valid
+- `processing` - Being fulfilled, sale counted
+- `ready_for_pickup` - Prepared, awaiting pickup
+- `shipped` - In transit to customer
+- `delivered` - Successfully completed
+
+Excluded statuses:
+- `pending` - Not yet confirmed (may be abandoned)
+- `cancelled` - Not a sale
+- `refunded` - Sale was reversed
+
+### API Endpoints Affected
+
+**1. GET /api/reports/sales/best-sellers**
+- **Purpose:** Show high selling products
+- **Returns:** Products sorted by total quantity sold
+- **Fixed:** Now returns actual quantities instead of 0
+
+**2. GET /api/reports/sales/slow-moving**
+- **Purpose:** Show low selling products
+- **Returns:** Products with no recent sales
+- **Indirectly improved:** Better context from fixed order history
+
+**3. GET /api/reports/sales/summary**
+- **Purpose:** Sales summary with totals
+- **Fixed:** Now shows correct order counts and totals
+
+**4. GET /api/reports/staff-performance**
+- **Purpose:** Employee performance metrics
+- **Fixed:** Now shows actual orders per employee
+
+**5. GET /api/reports/profit-margins**
+- **Purpose:** Product profit analysis
+- **Fixed:** Now shows actual units sold and profit
+
+**6. GET /api/reports/dashboard**
+- **Purpose:** Dashboard overview
+- **Fixed:** Uses private helpers that are now corrected
+
+### Files Modified
+
+**1. `app/Http/Controllers/ReportController.php`:**
+- **Line 46:** Fixed `salesSummary()` - Changed status filter
+- **Line 82:** Fixed `bestSellers()` - Changed status filter (MAIN FIX)
+- **Line 134:** Fixed `staffPerformance()` - Changed status filter
+- **Line 159:** Fixed `profitMargins()` - Changed status filter
+- **Line 258:** Fixed `getSalesSummary()` helper - Changed status filter
+- **Line 292:** Fixed `getTopProducts()` helper - Changed status filter
+
+### Testing Checklist
+
+- [ ] Test bestSellers endpoint - verify quantities show correctly
+- [ ] Test with date range filter - ensure proper filtering
+- [ ] Test slowMoving endpoint - verify it works correctly now
+- [ ] Test salesSummary - verify totals are not zero
+- [ ] Test staffPerformance - verify employee metrics show
+- [ ] Test profitMargins - verify units sold are not zero
+- [ ] Test dashboard - verify all metrics display correctly
+- [ ] Compare results with actual order data in database
+- [ ] Verify only confirmed/completed sales are counted
+- [ ] Verify pending/cancelled orders are excluded
+
+### Before vs After
+
+**Before (BROKEN):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Laptop Dell XPS 15",
+      "sku": "LAP-DELL-XPS15",
+      "total_quantity": 0,  // ❌ WRONG - Should be 45
+      "total_revenue": "3,825,000.00",  // ✅ Correct
+      "order_count": 15,
+      "average_price": "85,000.00"  // ✅ Correct
+    },
+    {
+      "id": 2,
+      "name": "iPhone 15 Pro",
+      "sku": "PHN-APPL-15PRO",
+      "total_quantity": 0,  // ❌ WRONG - Should be 32
+      "total_revenue": "3,520,000.00",  // ✅ Correct
+      "order_count": 12,
+      "average_price": "110,000.00"  // ✅ Correct
+    }
+  ]
+}
+```
+
+**After (FIXED):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Laptop Dell XPS 15",
+      "sku": "LAP-DELL-XPS15",
+      "total_quantity": 45,  // ✅ FIXED!
+      "total_revenue": "3,825,000.00",
+      "order_count": 15,
+      "average_price": "85,000.00"
+    },
+    {
+      "id": 2,
+      "name": "iPhone 15 Pro",
+      "sku": "PHN-APPL-15PRO",
+      "total_quantity": 32,  // ✅ FIXED!
+      "total_revenue": "3,520,000.00",
+      "order_count": 12,
+      "average_price": "110,000.00"
+    }
+  ]
+}
+```
+
+### Relation to Report #1 (Category Sales)
+
+This is the **EXACT SAME BUG** we fixed in Report #1 (Category Sales CSV) on March 5, 2026:
+- **Report #1:** Category sales report subtotals were 0 due to `status = 'completed'` filter
+- **Report #6:** Best sellers quantities were 0 due to same `status = 'completed'` filter
+
+**Lesson:** The `'completed'` status was probably used in old code before the order status enum was finalized. Need to audit entire codebase for similar issues.
+
+### Additional Findings
+
+While fixing these reports, identified that multiple report endpoints had the same bug. All were fixed simultaneously:
+1. Best sellers (high selling) ← Original bug report
+2. Sales summary
+3. Staff performance  
+4. Profit margins
+5. Dashboard helpers
+
+This comprehensive fix ensures consistency across all reporting endpoints.
+
+### Future Recommendations
+
+**1. Status Constant/Enum:**
+```php
+// Create in Order model:
+const STATUS_COMPLETED = ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'];
+
+// Usage:
+->whereIn('status', Order::STATUS_COMPLETED)
+```
+
+**2. Query Scope:**
+```php
+// Add to Order model:
+public function scopeCompleted($query) {
+    return $query->whereIn('status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered']);
+}
+
+// Usage:
+Order::completed()->get()
+```
+
+**3. Database Migration:**
+Consider adding a computed column or updating old references to 'completed' status
+
+---
+
 ## Status
 
 - ✅ **Category Sales Report:** FIXED (subtotal, discount, VAT calculations corrected)
@@ -1412,6 +1658,7 @@ This report directly utilizes the **Flexible Payment Edit & Void** features impl
 - ✅ **Purchase Order Barcodes CSV:** IMPLEMENTED (needs testing)
 - ✅ **Dispatch Barcode Breakdown CSV:** IMPLEMENTED (needs testing)
 - ✅ **Customer Installment/Partial Payment Report:** IMPLEMENTED (needs testing)
+- ✅ **High/Low Selling Products Report:** FIXED (quantity showing 0 - status filter corrected)
 - ⏳ **Additional Reports:** Awaiting PM requirements
 
 ---

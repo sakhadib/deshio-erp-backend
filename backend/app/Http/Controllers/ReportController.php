@@ -43,7 +43,7 @@ class ReportController extends Controller
         $groupBy = $request->get('group_by', 'day'); // day, week, month
 
         $query = Order::whereBetween('created_at', [$dateFrom, $dateTo])
-            ->where('status', 'completed');
+            ->whereIn('status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered']);
 
         $dateFormatSql = $this->getDateFormatSql('created_at', $groupBy);
 
@@ -79,7 +79,7 @@ class ReportController extends Controller
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->whereBetween('orders.created_at', [$dateFrom, $dateTo])
-            ->where('orders.status', 'completed')
+            ->whereIn('orders.status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])
             ->select(
                 'products.id',
                 'products.name',
@@ -131,7 +131,7 @@ class ReportController extends Controller
         $performance = Employee::with('role')
             ->leftJoin('orders', 'employees.id', '=', 'orders.employee_id')
             ->whereBetween('orders.created_at', [$dateFrom, $dateTo])
-            ->where('orders.status', 'completed')
+            ->whereIn('orders.status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])
             ->select(
                 'employees.id',
                 'employees.name',
@@ -156,7 +156,7 @@ class ReportController extends Controller
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->whereBetween('orders.created_at', [$dateFrom, $dateTo])
-            ->where('orders.status', 'completed')
+            ->whereIn('orders.status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])
             ->select(
                 'products.id',
                 'products.name',
@@ -255,7 +255,7 @@ class ReportController extends Controller
     {
         return [
             'total_orders' => Order::whereBetween('created_at', $dateRange)->count(),
-            'completed_orders' => Order::whereBetween('created_at', $dateRange)->where('status', 'completed')->count(),
+            'completed_orders' => Order::whereBetween('created_at', $dateRange)->whereIn('status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])->count(),
             'total_revenue' => (float) Order::whereBetween('created_at', $dateRange)->sum('total_amount'),
             'total_paid' => (float) Order::whereBetween('created_at', $dateRange)->sum('paid_amount'),
         ];
@@ -289,7 +289,7 @@ class ReportController extends Controller
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->whereBetween('orders.created_at', $dateRange)
-            ->where('orders.status', 'completed')
+            ->whereIn('orders.status', ['confirmed', 'processing', 'ready_for_pickup', 'shipped', 'delivered'])
             ->select(
                 'products.name',
                 DB::raw('SUM(order_items.quantity) as quantity'),
