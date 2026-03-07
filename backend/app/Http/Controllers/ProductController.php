@@ -81,6 +81,11 @@ class ProductController extends Controller
 
     /**
      * Get single product with all details
+     * 
+     * Supports variant image inheritance:
+     * - Products with same SKU are treated as variants
+     * - Base product is the first one (lowest ID) in SKU group
+     * - Variants inherit base product's images + their own images
      */
     public function show($id)
     {
@@ -104,6 +109,71 @@ class ProductController extends Controller
             'highest_price' => $product->getHighestBatchPrice(),
             'average_price' => $product->getAverageBatchPrice(),
         ];
+
+        // VARIANT IMAGE INHERITANCE
+        // Check if this product is part of a SKU group (has variants)
+        $skuGroupCount = Product::where('sku', $product->sku)->count();
+        
+        if ($skuGroupCount > 1) {
+            // Find base product (lowest ID in SKU group)
+            $baseProduct = Product::where('sku', $product->sku)
+                ->orderBy('id', 'asc')
+                ->first();
+            
+            // If current product is NOT the base, inherit base product images
+            if ($baseProduct && $baseProduct->id !== $product->id) {
+                // Load base product images
+                $baseImages = $baseProduct->images()
+                    ->where('is_active', 1)
+                    ->orderBy('sort_order', 'asc')
+                    ->get();
+                
+                // Mark base images as inherited
+                $baseImages->each(function($image) {
+                    $image->is_inherited = true;
+                    $image->inherited_from_product_id = $image->product_id;
+                });
+                
+                // Mark current product's images as own images
+                $product->images->each(function($image) {
+                    $image->is_inherited = false;
+                });
+                
+                // Merge: base images first, then variant's own images
+                $product->all_images = $baseImages->concat($product->images);
+                
+                // Keep original images for backward compatibility
+                // Frontend can use 'all_images' for combined view or 'images' for own images only
+            } else {
+                // This IS the base product - just return its images
+                $product->images->each(function($image) {
+                    $image->is_inherited = false;
+                });
+                $product->all_images = $product->images;
+            }
+            
+            // Add SKU group info
+            $product->sku_group_info = [
+                'is_variant_group' => true,
+                'total_variants' => $skuGroupCount,
+                'is_base_product' => ($baseProduct->id === $product->id),
+                'base_product_id' => $baseProduct->id,
+                'base_product_name' => $baseProduct->name,
+            ];
+        } else {
+            // Standalone product (no variants)
+            $product->images->each(function($image) {
+                $image->is_inherited = false;
+            });
+            $product->all_images = $product->images;
+            $product->sku_group_info = [
+                'is_variant_group' => false,
+                'total_variants' => 1,
+                'is_base_product' => true,
+                'base_product_id' => $product->id,
+                'base_product_name' => $product->name,
+            ];
+        }
 
         return response()->json([
             'success' => true,
