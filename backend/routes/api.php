@@ -1368,6 +1368,7 @@ Route::middleware('auth:api')->group(function () {
             Route::post('/quality-check', [ProductReturnController::class, 'qualityCheck']);
             Route::post('/process', [ProductReturnController::class, 'process']);
             Route::post('/complete', [ProductReturnController::class, 'complete']);
+            Route::post('/exchange', [ProductReturnController::class, 'exchange']);
         });
     });
 
